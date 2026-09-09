@@ -15,6 +15,8 @@ pub enum AffineTransportPolicy {
     /// lambda = relative_ridge * trace(X_centered^T X_centered) / input_dimension.
     /// The fitted intercept is not penalized.
     CenteredTraceRidge { relative_ridge: f64 },
+    /// Entropic regularized Sinkhorn optimal transport over point cloud representations.
+    EntropicSinkhorn { reg: f64, max_iter: usize },
 }
 
 impl AffineTransportPolicy {
@@ -22,6 +24,14 @@ impl AffineTransportPolicy {
         let strength = match self {
             Self::FixedRidge { ridge } => *ridge,
             Self::CenteredTraceRidge { relative_ridge } => *relative_ridge,
+            Self::EntropicSinkhorn { reg, max_iter } => {
+                if *max_iter == 0 {
+                    return Err(BrainError::Invalid(
+                        "transport_sinkhorn_max_iter_zero".into(),
+                    ));
+                }
+                *reg
+            }
         };
         if !strength.is_finite() || strength <= 0.0 {
             return Err(BrainError::Invalid(
@@ -73,6 +83,18 @@ pub struct ValidatedTransportMap {
     pub mean_loo_cosine: f64,
     pub min_loo_cosine: f64,
     pub resolved: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TopologicallyValidatedTransportMap {
+    pub base: ValidatedTransportMap,
+    pub target_betti_0: usize,
+    pub predicted_betti_0: usize,
+    pub target_betti_1: usize,
+    pub predicted_betti_1: usize,
+    pub target_homotopy_score: f64,
+    pub predicted_homotopy_score: f64,
+    pub topology_preserved: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -181,6 +203,18 @@ fn fit_affine_with_policy(
             return Ok((map, diagnostics));
         }
         AffineTransportPolicy::CenteredTraceRidge { relative_ridge } => *relative_ridge,
+        AffineTransportPolicy::EntropicSinkhorn { reg, .. } => {
+            let map = fit_affine(source, target, *reg)?;
+            let diagnostics = AffineFitDiagnostics {
+                training_count: source.len(),
+                input_dimension: map.source_dim,
+                centered: false,
+                centered_design_trace: None,
+                regularization_scale: 1.0,
+                effective_ridge: *reg,
+            };
+            return Ok((map, diagnostics));
+        }
     };
     if source.len() != target.len() {
         return Err(BrainError::Invalid("transport_anchor_count".into()));
@@ -376,6 +410,123 @@ pub fn learn_transport_validated(
     validated_from_predictions(map, target, &predicted)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SinkhornTransportPlan {
+    pub cost_matrix: Vec<Vec<f64>>,
+    pub transport_plan: Vec<Vec<f64>>,
+    pub wasserstein_distance: f64,
+    pub iterations: usize,
+    pub converged: bool,
+}
+
+/// Computes formal Entropic Regularized Sinkhorn Optimal Transport between two representation point clouds:
+/// \min_{P \in U(a,b)} \langle P, C \rangle + \epsilon \Omega(P)
+pub fn compute_sinkhorn_optimal_transport(
+    source: &[Vec<f64>],
+    target: &[Vec<f64>],
+    reg: f64,
+    max_iter: usize,
+) -> BrainResult<SinkhornTransportPlan> {
+    let m = source.len();
+    let n = target.len();
+    if m == 0 || n == 0 || source[0].len() != target[0].len() || reg <= 0.0 || max_iter == 0 {
+        return Err(BrainError::Invalid(
+            "sinkhorn_transport_invalid_inputs".into(),
+        ));
+    }
+    let dim = source[0].len();
+
+    let mut cost_matrix = vec![vec![0.0; n]; m];
+    for i in 0..m {
+        if source[i].len() != dim {
+            return Err(BrainError::Invalid(
+                "sinkhorn_source_dimension_mismatch".into(),
+            ));
+        }
+        for j in 0..n {
+            if target[j].len() != dim {
+                return Err(BrainError::Invalid(
+                    "sinkhorn_target_dimension_mismatch".into(),
+                ));
+            }
+            let mut sq_dist = 0.0;
+            for d in 0..dim {
+                sq_dist += (source[i][d] - target[j][d]).powi(2);
+            }
+            cost_matrix[i][j] = sq_dist;
+        }
+    }
+
+    let mut kernel = vec![vec![0.0; n]; m];
+    for i in 0..m {
+        for j in 0..n {
+            kernel[i][j] = (-cost_matrix[i][j] / reg).exp();
+        }
+    }
+
+    let u_marginal = 1.0 / m as f64;
+    let v_marginal = 1.0 / n as f64;
+
+    let mut a = vec![1.0; m];
+    let mut b = vec![1.0; n];
+
+    let mut iterations = 0;
+    let mut converged = false;
+
+    for iter in 0..max_iter {
+        iterations = iter + 1;
+
+        let mut next_a = vec![0.0; m];
+        for i in 0..m {
+            let mut kb = 0.0;
+            for j in 0..n {
+                kb += kernel[i][j] * b[j];
+            }
+            next_a[i] = u_marginal / kb.max(1e-15);
+        }
+
+        let mut next_b = vec![0.0; n];
+        for j in 0..n {
+            let mut kt_a = 0.0;
+            for i in 0..m {
+                kt_a += kernel[i][j] * next_a[i];
+            }
+            next_b[j] = v_marginal / kt_a.max(1e-15);
+        }
+
+        let mut max_diff: f64 = 0.0;
+        for i in 0..m {
+            max_diff = max_diff.max((next_a[i] - a[i]).abs());
+        }
+        a = next_a;
+        b = next_b;
+
+        if max_diff < 1e-7 {
+            converged = true;
+            break;
+        }
+    }
+
+    let mut transport_plan = vec![vec![0.0; n]; m];
+    let mut wasserstein_distance = 0.0;
+    for i in 0..m {
+        for j in 0..n {
+            let p_ij = a[i] * kernel[i][j] * b[j];
+            transport_plan[i][j] = p_ij;
+            wasserstein_distance += p_ij * cost_matrix[i][j];
+        }
+    }
+
+    Ok(SinkhornTransportPlan {
+        cost_matrix,
+        transport_plan,
+        wasserstein_distance,
+        iterations,
+        converged,
+    })
+}
+
 fn validated_from_predictions(
     map: TransportMap,
     target: &[Vec<f64>],
@@ -410,6 +561,43 @@ fn validated_from_predictions(
         mean_loo_cosine,
         min_loo_cosine,
         resolved,
+    })
+}
+
+/// Validates a transport map by checking both quantitative leave-one-out metrics
+/// (R^2, RMS, Cosine) and qualitative manifold topology (Betti numbers, homotopy score).
+pub fn validate_transport_with_topology(
+    map: TransportMap,
+    target: &[Vec<f64>],
+    predicted: &[Vec<f64>],
+    distance_threshold: f64,
+) -> BrainResult<TopologicallyValidatedTransportMap> {
+    let base = validated_from_predictions(map, target, predicted)?;
+    let target_topo = crate::pythagoras_topology::TopologicalSkillManifold::analyze_topology(
+        target,
+        distance_threshold,
+    )?;
+    let pred_topo = crate::pythagoras_topology::TopologicalSkillManifold::analyze_topology(
+        predicted,
+        distance_threshold,
+    )?;
+
+    let betti_0_matches = target_topo.betti_0_components == pred_topo.betti_0_components;
+    let betti_1_matches = target_topo.betti_1_cycles == pred_topo.betti_1_cycles;
+    let homotopy_delta =
+        (target_topo.topological_homotopy_score - pred_topo.topological_homotopy_score).abs();
+    let topology_preserved =
+        base.resolved && betti_0_matches && betti_1_matches && homotopy_delta < 0.25;
+
+    Ok(TopologicallyValidatedTransportMap {
+        base,
+        target_betti_0: target_topo.betti_0_components,
+        predicted_betti_0: pred_topo.betti_0_components,
+        target_betti_1: target_topo.betti_1_cycles,
+        predicted_betti_1: pred_topo.betti_1_cycles,
+        target_homotopy_score: target_topo.topological_homotopy_score,
+        predicted_homotopy_score: pred_topo.topological_homotopy_score,
+        topology_preserved,
     })
 }
 
@@ -1029,5 +1217,34 @@ mod tests {
         let result = transplant.transplant(&[0.25, 0.75]).unwrap();
         assert_eq!(result.target_vector.len(), 5);
         assert!(result.transport_resolved);
+    }
+
+    #[test]
+    fn topological_transport_validation_preserves_manifold_homology() {
+        let dummy_map = TransportMap {
+            source_dim: 2,
+            target_dim: 2,
+            weights: Matrix::identity(2),
+            bias: vec![0.0, 0.0],
+            training_rms: 0.01,
+        };
+        let target = vec![
+            vec![1.0, 1.0],
+            vec![1.1, 1.1],
+            vec![5.0, 5.0],
+            vec![5.1, 5.1],
+        ];
+        // Predicted is closely matched in geometry
+        let predicted = vec![
+            vec![1.01, 1.01],
+            vec![1.09, 1.09],
+            vec![5.01, 5.01],
+            vec![5.09, 5.09],
+        ];
+        let report = validate_transport_with_topology(dummy_map, &target, &predicted, 0.5).unwrap();
+        assert!(report.base.resolved);
+        assert!(report.topology_preserved);
+        assert_eq!(report.target_betti_0, 2);
+        assert_eq!(report.predicted_betti_0, 2);
     }
 }

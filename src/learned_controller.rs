@@ -610,7 +610,7 @@ fn active_bank_under_root(
 }
 
 fn report_field_ids(report: &Value) -> BrainResult<Vec<SkillId>> {
-    if report.get("schema").and_then(Value::as_str) != Some("cerebro.tidex.reconstruction/v7")
+    if report.get("schema").and_then(Value::as_str) != Some("cerebro.tidex.reconstruction/v8")
         || report
             .get("promotion")
             .and_then(|promotion| promotion.get("allowed"))

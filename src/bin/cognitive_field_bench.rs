@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|field| field.skill_id.clone())
         .collect::<Vec<_>>();
-    if report.schema != "cerebro.tidex.reconstruction/v7"
+    if report.schema != "cerebro.tidex.reconstruction/v8"
         || !report.promotion.allowed
         || report.fields.is_empty()
         || trust.schema != "cerebro.tidex.trust_region_benchmark/v3"

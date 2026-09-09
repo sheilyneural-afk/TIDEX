@@ -505,6 +505,9 @@ impl BrainEngine {
             analysis_identity(&self.config)?;
         let observation_set_digest = observation_set_digest(obs)?;
         let sbas = reconstruct_trajectory(obs, self.config.ridge)?;
+        let weight_tomography =
+            analyze_weight_dynamics(obs, sbas.cycle_rms, sbas.max_edge_residual)?;
+        let weight_tomography_gate = tomography_gate(&weight_tomography);
         let conf = remove_confounders(obs, self.config.ridge)?;
         let aperture_independence =
             estimate_aperture_independence(obs, self.config.min_independent_apertures)?;
@@ -752,6 +755,9 @@ impl BrainEngine {
         if sbas.cycle_rms > self.config.max_cycle_rms {
             reasons.push(PromotionBlocker::CycleConsistencyFailed);
         }
+        if weight_tomography_gate.evaluable && !weight_tomography_gate.allow {
+            reasons.push(PromotionBlocker::WeightDynamicsInstability);
+        }
         if functional_cv_r2 < self.config.min_functional_cv_r2 {
             reasons.push(PromotionBlocker::FunctionalCrossValidationFailed);
         }
@@ -827,6 +833,50 @@ impl BrainEngine {
 
         let mut metrics = BTreeMap::new();
         metrics.insert("cycle_rms".into(), sbas.cycle_rms);
+        metrics.insert(
+            "weight_tomography_evaluable".into(),
+            if weight_tomography_gate.evaluable {
+                1.0
+            } else {
+                0.0
+            },
+        );
+        metrics.insert(
+            "weight_tomography_allowed".into(),
+            if weight_tomography_gate.allow {
+                1.0
+            } else {
+                0.0
+            },
+        );
+        metrics.insert(
+            "weight_tomography_temporal_depth".into(),
+            weight_tomography.temporal_depth,
+        );
+        metrics.insert(
+            "weight_tomography_instability".into(),
+            weight_tomography.instability,
+        );
+        metrics.insert(
+            "weight_tomography_confidence".into(),
+            weight_tomography.confidence,
+        );
+        metrics.insert(
+            "weight_tomography_high_frequency_ratio".into(),
+            weight_tomography.high_frequency_ratio,
+        );
+        metrics.insert(
+            "weight_tomography_spectral_entropy".into(),
+            weight_tomography.spectral_entropy,
+        );
+        metrics.insert(
+            "weight_tomography_directional_consistency".into(),
+            weight_tomography.directional_consistency,
+        );
+        metrics.insert(
+            "weight_tomography_trajectory_quality".into(),
+            weight_tomography.trajectory_quality,
+        );
         metrics.insert("functional_cv_r2".into(), functional_cv_r2);
         metrics.insert(
             "spectral_functional_cv_r2".into(),
@@ -987,7 +1037,7 @@ impl BrainEngine {
         promotion.validate()?;
 
         Ok(ReconstructionReport {
-            schema: "cerebro.tidex.reconstruction/v7".into(),
+            schema: "cerebro.tidex.reconstruction/v8".into(),
             source_tree_digest,
             config_digest,
             analysis_version_digest,
@@ -1001,6 +1051,7 @@ impl BrainEngine {
             confounder_explained_fraction: conf.explained_fraction,
             cycle_rms: sbas.cycle_rms,
             max_edge_residual: sbas.max_edge_residual,
+            weight_tomography: Some(weight_tomography),
             selected_rank,
             effective_rank,
             condition_estimate,

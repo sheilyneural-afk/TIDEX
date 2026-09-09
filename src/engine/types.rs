@@ -17,6 +17,7 @@ use crate::protected::ProtectionResult;
 use crate::sleep_diagnostics::SleepConsolidationDiagnostics;
 use crate::sleep_evidence::SleepEvidenceVerification;
 use crate::trust_region::TrustRegionResult;
+use crate::weight_tomography::WeightTomographyObservation;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -38,6 +39,10 @@ pub struct ReconstructionReport {
     pub confounder_explained_fraction: f64,
     pub cycle_rms: f64,
     pub max_edge_residual: f64,
+    /// Bounded temporal analysis of real generation-ordered parameter deltas.
+    /// Historical reconstruction reports deserialize with `None`.
+    #[serde(default)]
+    pub weight_tomography: Option<WeightTomographyObservation>,
     pub selected_rank: usize,
     pub effective_rank: f64,
     pub condition_estimate: f64,

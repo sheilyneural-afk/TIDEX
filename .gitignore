@@ -19,3 +19,6 @@
 **/.mypy_cache/
 **/.ruff_cache/
 **/*.py[cod]
+# Local editor/MCP residue.
+/.vscode/
+/.mcp-trash/

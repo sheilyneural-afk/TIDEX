@@ -481,10 +481,10 @@ pub(super) fn analysis_identity(
     }
     let config_digest = Sha256Digest::parse(digest_json(config)?)?;
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:ANALYSIS:v6\0");
+    hasher.update(b"CEREBRO:TIDEX:ANALYSIS:v7\0");
     hasher.update(source_tree_digest.as_bytes());
     hasher.update(config_digest.as_bytes());
-    hasher.update(b"reconstruction/v7");
+    hasher.update(b"reconstruction/v8");
     let analysis_version_digest = Sha256Digest::parse(format!("{:x}", hasher.finalize()))?;
     Ok((
         SourceTreeDigest::from(source_tree_digest),

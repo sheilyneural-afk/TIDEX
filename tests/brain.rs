@@ -43,6 +43,20 @@ fn phantom_recovers_latent_skill_subspace_and_function() {
         report.functional_cv_r2
     );
     assert!(report.cycle_rms < 0.05, "cycle={}", report.cycle_rms);
+    let tomography = report
+        .weight_tomography
+        .as_ref()
+        .expect("analysis must bind weight tomography into the reconstruction report");
+    assert_eq!(tomography.parameter_dimension, report.parameter_dimension);
+    assert!(tomography.evaluable);
+    assert_eq!(
+        report.promotion.metrics.get("weight_tomography_allowed"),
+        Some(&1.0)
+    );
+    assert!(report
+        .promotion
+        .metrics
+        .contains_key("weight_tomography_instability"));
     assert!(report.selected_rank >= 3);
     assert!(report.promotion.allowed, "{:?}", report.promotion.reasons);
 }
@@ -1175,6 +1189,10 @@ fn sleep_cycle_promotes_after_verified_evidence_and_certifies_runtime() {
     let certified_state: serde_json::Value =
         serde_json::from_slice(&std::fs::read(root.join("state/sleep_state.json")).unwrap())
             .unwrap();
+    assert_eq!(
+        certified_state["weight_tomography"],
+        serde_json::to_value(&certified.reconstruction.weight_tomography).unwrap()
+    );
     let certified_operation = certified_state["operation_key"].as_str().unwrap();
     let sleep_receipt_path = root
         .join("state/sleep_receipts")

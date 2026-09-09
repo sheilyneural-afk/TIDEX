@@ -43,6 +43,7 @@ pub mod tomography;
 pub mod transport;
 pub mod validation;
 pub mod weight_actuator;
+pub mod weight_tomography;
 pub mod workspace;
 
 pub use authority::PrivateFileReference;
@@ -84,3 +85,6 @@ pub mod universal_promotion_gate;
 pub mod universality_evidence;
 
 pub mod materialization_pipeline;
+
+pub mod pythagoras_topology;
+pub mod temporal_tracking;

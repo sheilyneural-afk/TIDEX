@@ -635,6 +635,7 @@ mod tests {
                     positive_fraction: 1.0,
                     resolved: true,
                     beneficial: true,
+                    shapley_value: None,
                 })
                 .collect(),
             pair_interactions: vec![

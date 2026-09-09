@@ -27,7 +27,8 @@ use crate::tomography::reconstruct_skill_fields;
 use crate::transport::{
     learn_functional_transplant, learn_functional_transplant_with_policy,
     learn_relational_transport, learn_transport_validated, learn_transport_validated_with_policy,
-    AffineTransportDiagnostics, AffineTransportPolicy, TransportMap,
+    validate_transport_with_topology, AffineTransportDiagnostics, AffineTransportPolicy,
+    TopologicallyValidatedTransportMap, TransportMap,
 };
 use crate::trust_region::{apply_quadratic_trust_region, TrustRegionResult};
 use serde::{Deserialize, Serialize};
@@ -462,6 +463,11 @@ pub struct ReceiverSignatureCompilation {
     pub protection_removed_energy: f64,
     pub protection_max_weighted_residual: f64,
     pub trust_region: TrustRegionResult,
+    /// Topological validation of the encoder transport map against calibration
+    /// targets.  Populated by the full compilation pipeline; skipped in
+    /// serialisation so historical wire schemas are not perturbed.
+    #[serde(skip)]
+    pub encoder_topology: Option<TopologicallyValidatedTransportMap>,
     pub allowed: bool,
 }
 
@@ -1056,6 +1062,9 @@ fn compile_signature_with_method_and_validation(
 
     // Protection precedes trust-region scaling. Uniform scaling cannot
     // reintroduce a component removed by the protected-subspace projection.
+    // The geodesic policy remains available as an explicit experimental API,
+    // but receiver compilation retains the established quadratic authority
+    // until geodesic cost semantics are proven equivalent for materialization.
     let protection = project_to_safe_subspace(&proposed, protected_cortex)?;
     let trust = apply_quadratic_trust_region(
         risk_metric,
@@ -1064,6 +1073,25 @@ fn compile_signature_with_method_and_validation(
     )?;
     let target_delta = trust.accepted_coefficients.clone();
     let predicted = encoder.map.apply(&target_delta)?;
+
+    // Validate that the encoder transport map preserves manifold topology over
+    // the calibration functional signatures.  The distance threshold is derived
+    // from the encoder training RMS so it scales with the actual data geometry.
+    // If the encoder is unresolved we still compute the report but we do NOT
+    // add an extra topology gate on top of the already-failing numerical gates.
+    let encoder_training_predictions = calibration
+        .receiver_solutions
+        .iter()
+        .map(|source| encoder.map.apply(source))
+        .collect::<BrainResult<Vec<_>>>()?;
+    let topology_distance_threshold = (encoder.map.training_rms * 3.0).max(1e-6);
+    let encoder_topology = validate_transport_with_topology(
+        encoder.map.clone(),
+        &calibration.functional_signatures,
+        &encoder_training_predictions,
+        topology_distance_threshold,
+    )
+    .ok();
 
     let residual = predicted
         .iter()
@@ -1112,12 +1140,20 @@ fn compile_signature_with_method_and_validation(
             encoder.resolved && encoder.loo_cv_r2 >= policy.minimum_encoder_loo_r2
         }
     };
+    // Topology gate: only blocks when the encoder is resolved (i.e. already
+    // passes all numerical gates) AND the topology check ran AND failed.  An
+    // unresolved encoder is already blocked by verification_model_allowed.
+    let topology_gate = encoder_topology
+        .as_ref()
+        .map(|topo| !encoder.resolved || topo.topology_preserved)
+        .unwrap_or(true);
     let allowed = proposal_model_allowed
         && verification_model_allowed
         && functional_relative_error <= policy.maximum_functional_relative_error
         && identity_margin >= policy.minimum_identity_margin
         && protection.allowed
-        && trust.accepted_quadratic_cost <= policy.maximum_quadratic_cost;
+        && trust.accepted_quadratic_cost <= policy.maximum_quadratic_cost
+        && topology_gate;
 
     Ok(ReceiverSignatureCompilation {
         schema: "cerebro.tidex.receiver_signature_compilation/v1".into(),
@@ -1148,6 +1184,7 @@ fn compile_signature_with_method_and_validation(
         protection_removed_energy: protection.removed_energy,
         protection_max_weighted_residual: protection.max_weighted_residual,
         trust_region: trust,
+        encoder_topology,
         allowed,
     })
 }

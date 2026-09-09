@@ -288,6 +288,7 @@ pub enum PromotionBlocker {
     ApertureIndependenceUnresolved,
     SkillIdentifiabilityUnresolved,
     TomographyIllConditioned,
+    WeightDynamicsInstability,
     ReconstructionErrorHigh,
     PersistentObservationCoverageIncomplete,
     PersistentClusterAssignmentInconsistentAcrossSpaces,
@@ -311,6 +312,7 @@ impl PromotionBlocker {
             Self::ApertureIndependenceUnresolved => "aperture_independence_unresolved",
             Self::SkillIdentifiabilityUnresolved => "skill_identifiability_unresolved",
             Self::TomographyIllConditioned => "tomography_ill_conditioned",
+            Self::WeightDynamicsInstability => "weight_dynamics_instability",
             Self::ReconstructionErrorHigh => "reconstruction_error_high",
             Self::PersistentObservationCoverageIncomplete => {
                 "persistent_observation_coverage_incomplete"

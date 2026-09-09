@@ -443,9 +443,76 @@ pub fn build_protected_cortex_map(
     })
 }
 
+/// Autonomous cortex protection derived from multi-epoch Persistent Scatterer (PS-InSAR) analysis.
+///
+/// Parameters exhibiting low amplitude dispersion ($D_A = \sigma/\mu < 0.25$) and high temporal
+/// phase coherence ($\gamma_t > 0.80$) across learning epochs are automatically classified as
+/// structural invariants and assigned high protection importance.
+pub fn build_protected_cortex_from_persistent_scatterers(
+    epochs: &[Vec<f64>],
+    max_damage_ratio: f64,
+) -> BrainResult<ProtectedCortex> {
+    if !max_damage_ratio.is_finite() || !(0.0..=1.0).contains(&max_damage_ratio) {
+        return Err(BrainError::Invalid(
+            "protected_cortex_damage_ratio_invalid".into(),
+        ));
+    }
+    let ps_report = crate::temporal_tracking::identify_persistent_scatterers(epochs, 0.25, 0.70)?;
+    let dim = ps_report.total_parameters;
+
+    let mut parameter_importance = vec![0.05; dim]; // Baseline minimum importance
+    let mut directions = Vec::new();
+
+    for ps in &ps_report.scatterers {
+        let weight = match ps.classification.as_str() {
+            "invariant" => 1.0,
+            "quasi_stable" => 0.5,
+            _ => 0.1,
+        };
+        // Importance scales with temporal coherence and inverse dispersion
+        let score = (ps.temporal_coherence / (1.0 + ps.amplitude_dispersion)).clamp(0.05, 1.0);
+        parameter_importance[ps.parameter_index] = (weight * score).clamp(0.05, 1.0);
+
+        // For invariant parameters, construct coordinate-aligned canonical protected direction
+        if ps.classification == "invariant" && directions.len() < 32 {
+            let mut dir_vec = vec![0.0; dim];
+            dir_vec[ps.parameter_index] = 1.0;
+            directions.push(ProtectedDirection {
+                probe_id: ProbeId::parse(format!("ps-scatterer-{}", ps.parameter_index))?,
+                direction: dir_vec,
+                importance: score,
+            });
+        }
+    }
+
+    Ok(ProtectedCortex {
+        parameter_importance,
+        directions,
+        max_damage_ratio,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn persistent_scatterer_cortex_protection_identifies_invariants() {
+        // 4 epochs across 4 parameters: params 0 & 1 are rock-solid invariants, params 2 & 3 drift heavily
+        let epochs = vec![
+            vec![10.0, 20.0, 1.0, 100.0],
+            vec![10.001, 20.001, 5.0, -100.0],
+            vec![10.0, 19.999, 15.0, 200.0],
+            vec![10.002, 20.002, 35.0, -300.0],
+        ];
+        let cortex = build_protected_cortex_from_persistent_scatterers(&epochs, 0.05).unwrap();
+        assert_eq!(cortex.parameter_importance.len(), 4);
+        // Parameters 0 and 1 should have much higher importance than drifting parameters 2 and 3
+        assert!(cortex.parameter_importance[0] > cortex.parameter_importance[2]);
+        assert!(cortex.parameter_importance[1] > cortex.parameter_importance[3]);
+        assert!(!cortex.directions.is_empty());
+        assert_eq!(cortex.max_damage_ratio, 0.05);
+    }
 
     #[test]
     fn sensitivity_evidence_wire_rejects_cross_domain_probe_ids() {

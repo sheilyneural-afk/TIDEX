@@ -407,6 +407,7 @@ mod tests {
     #[test]
     fn fields_from_report_and_validation() {
         let mut report = test_report(parity_fields(), 2);
+        assert!(report.weight_tomography.is_none());
 
         let fields = fields_from_report(&report).unwrap();
         assert_eq!(fields.len(), 2);

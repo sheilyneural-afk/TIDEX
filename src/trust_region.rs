@@ -15,6 +15,8 @@ pub enum TrustRegionAllocationPolicy {
     UniformQuadraticScalingV1,
     #[serde(rename = "causal_priority_contraction/v1")]
     CausalPriorityContractionV1,
+    #[serde(rename = "geodesic_pythagoras_scaling/v1")]
+    GeodesicPythagorasScalingV1,
 }
 
 impl TrustRegionAllocationPolicy {
@@ -23,6 +25,7 @@ impl TrustRegionAllocationPolicy {
             Self::Unspecified => "",
             Self::UniformQuadraticScalingV1 => "uniform_quadratic_scaling/v1",
             Self::CausalPriorityContractionV1 => "causal_priority_contraction/v1",
+            Self::GeodesicPythagorasScalingV1 => "geodesic_pythagoras_scaling/v1",
         }
     }
 }
@@ -102,6 +105,79 @@ pub fn apply_quadratic_trust_region(
         constrained: scale < 1.0,
         allocation_policy: TrustRegionAllocationPolicy::UniformQuadraticScalingV1,
         component_retention: vec![scale; coefficients.len()],
+        causal_priority_weights: None,
+    })
+}
+
+/// Applies a trust region constraint that eliminates the Pythagoras Staircase
+/// metric inflation in discrete high-dimensional parameter updates.
+pub fn apply_pythagoras_geodesic_trust_region(
+    covariance: &Matrix,
+    coefficients: &[f64],
+    max_quadratic_cost: f64,
+) -> BrainResult<TrustRegionResult> {
+    if !max_quadratic_cost.is_finite() || max_quadratic_cost < 0.0 {
+        return Err(BrainError::Invalid("trust_region_budget_invalid".into()));
+    }
+
+    // First apply Pythagoras correction to get true geodesic step
+    let pythagoras_report =
+        crate::pythagoras_topology::PythagorasStaircaseMetric::evaluate_and_correct(coefficients)?;
+
+    // Corrected coefficients represent the true geodesic step
+    let corrected_coefficients: Vec<f64> = coefficients
+        .iter()
+        .map(|&c| c * pythagoras_report.metric_correction_factor)
+        .collect();
+
+    // NOW compute quadratic cost of the geodesic-corrected step
+    let proposed = quadratic_cost(covariance, &corrected_coefficients)?;
+
+    let scale = if proposed <= max_quadratic_cost {
+        1.0
+    } else if max_quadratic_cost <= 0.0 {
+        0.0
+    } else {
+        (max_quadratic_cost / proposed).sqrt().clamp(0.0, 1.0)
+    };
+
+    // Apply scaling to the corrected coefficients
+    let accepted_coefficients: Vec<f64> = corrected_coefficients
+        .iter()
+        .map(|value| scale * value)
+        .collect();
+
+    // Verify the actual cost of accepted coefficients
+    let accepted_cost = quadratic_cost(covariance, &accepted_coefficients)?;
+
+    // Validate that accepted cost respects budget (with small numerical tolerance)
+    if accepted_cost > max_quadratic_cost * (1.0 + 1e-9) {
+        return Err(BrainError::Numerical(
+            format!(
+                "trust_region_budget_violated: accepted={} budget={}",
+                accepted_cost, max_quadratic_cost
+            )
+            .into(),
+        ));
+    }
+
+    Ok(TrustRegionResult {
+        proposed_coefficients: coefficients.to_vec(),
+        accepted_coefficients,
+        proposed_quadratic_cost: proposed,
+        accepted_quadratic_cost: accepted_cost,
+        max_quadratic_cost,
+        scale,
+        constrained: scale < 1.0 || (pythagoras_report.metric_correction_factor - 1.0).abs() > 1e-9,
+        allocation_policy: if (pythagoras_report.metric_correction_factor - 1.0).abs() < 1e-9 {
+            TrustRegionAllocationPolicy::UniformQuadraticScalingV1
+        } else {
+            TrustRegionAllocationPolicy::GeodesicPythagorasScalingV1
+        },
+        component_retention: vec![
+            scale * pythagoras_report.metric_correction_factor;
+            coefficients.len()
+        ],
         causal_priority_weights: None,
     })
 }
@@ -354,5 +430,24 @@ mod tests {
         assert!(
             apply_causal_priority_trust_region(&covariance, &[1.0, 1.0], 1.0, &[1.0, 0.0]).is_err()
         );
+    }
+
+    #[test]
+    fn pythagoras_geodesic_trust_region_corrects_step_inflation() {
+        // In 4D identity metric: coefficients = [1, 1, 1, 1]
+        // L1 = 4.0, L2 = 2.0. Proposed cost = 4.0
+        // Geodesic metric correction factor = 2.0 / 4.0 = 0.5
+        // Geodesic cost = 4.0 * 0.5^2 = 1.0.
+        // With max_quadratic_cost = 1.0, geodesic scale is 1.0 (not contracted),
+        // accepted coefficients = [0.5, 0.5, 0.5, 0.5], accepted cost = 1.0.
+        let covariance = Matrix::identity(4);
+        let coeffs = vec![1.0; 4];
+        let result = apply_pythagoras_geodesic_trust_region(&covariance, &coeffs, 1.0).unwrap();
+        assert_eq!(
+            result.allocation_policy,
+            TrustRegionAllocationPolicy::GeodesicPythagorasScalingV1
+        );
+        assert!((result.accepted_quadratic_cost - 1.0).abs() < 1e-10);
+        assert!(result.constrained);
     }
 }

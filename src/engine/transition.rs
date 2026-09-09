@@ -1456,6 +1456,7 @@ impl BrainEngine {
                 "evidence_bundle_sha256":evidence_bundle_sha256,
                 "evidence_verification":evidence_verification,
                 "diagnostics":diagnostics,
+                "weight_tomography":reconstruction.weight_tomography,
             })
         };
         let state_bytes = serialize_pretty_line(&state)?;

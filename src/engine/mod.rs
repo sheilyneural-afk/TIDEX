@@ -100,6 +100,7 @@ pub(super) use crate::trust_region::{
     apply_causal_priority_trust_region, TrustRegionAllocationPolicy, TrustRegionResult,
 };
 pub(super) use crate::validation::source_support_indices;
+pub(super) use crate::weight_tomography::{analyze_weight_dynamics, tomography_gate};
 pub(super) use serde::de::DeserializeOwned;
 pub(super) use serde::{Deserialize, Serialize};
 pub(super) use serde_json::{json, Value};
@@ -1579,6 +1580,7 @@ mod tests {
                 positive_fraction: 1.0,
                 resolved: true,
                 beneficial: true,
+                shapley_value: None,
             }],
             pair_interactions: vec![],
             unresolved_fields: vec![],

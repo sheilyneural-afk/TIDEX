@@ -29,6 +29,8 @@ pub struct FieldCausalCredit {
     /// independent groups. It does NOT itself claim positive benefit.
     pub resolved: bool,
     pub beneficial: bool,
+    #[serde(default)]
+    pub shapley_value: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -252,6 +254,7 @@ pub fn estimate_causal_credit(
     }
 
     let field_ids = fields.iter().cloned().collect::<Vec<_>>();
+    let shapley_map = compute_shapley_values(evaluations).unwrap_or_default();
     let mut field_reports = Vec::with_capacity(field_ids.len());
     let mut unresolved = Vec::new();
     for field in &field_ids {
@@ -299,6 +302,7 @@ pub fn estimate_causal_credit(
         if !resolved {
             unresolved.push(field.clone());
         }
+        let sv = shapley_map.get(field).copied();
         field_reports.push(FieldCausalCredit {
             skill_id: field.clone(),
             matched_pairs: raw_pair_count,
@@ -309,6 +313,7 @@ pub fn estimate_causal_credit(
             positive_fraction,
             resolved,
             beneficial,
+            shapley_value: sv,
         });
     }
 
@@ -374,6 +379,88 @@ pub fn estimate_causal_credit(
         pair_interactions,
         unresolved_fields: unresolved,
     })
+}
+
+fn factorial(n: usize) -> f64 {
+    (1..=n).map(|x| x as f64).product()
+}
+
+/// Computes formal N-player Shapley Values for each skill field across contexts:
+/// \phi_i = \sum_{S \subseteq N \setminus \{i\}} \frac{|S|!(|N|-|S|-1)!}{|N|!} ( v(S \cup \{i\}) - v(S) )
+pub fn compute_shapley_values(
+    evaluations: &[CounterfactualEvaluation],
+) -> BrainResult<BTreeMap<SkillId, f64>> {
+    let mut all_skills = BTreeSet::new();
+    let mut table = BTreeMap::<(String, BTreeSet<SkillId>), f64>::new();
+    let mut contexts = BTreeSet::new();
+
+    for eval in evaluations {
+        let set = canonical_set(&eval.active_fields);
+        all_skills.extend(set.iter().cloned());
+        contexts.insert(eval.context_id.clone());
+        table.insert((eval.context_id.clone(), set), eval.utility);
+    }
+
+    let skills: Vec<SkillId> = all_skills.into_iter().collect();
+    let n = skills.len();
+    if n == 0 {
+        return Ok(BTreeMap::new());
+    }
+
+    let mut shapley_map = BTreeMap::new();
+
+    for (i_idx, field) in skills.iter().enumerate() {
+        let other_skills: Vec<SkillId> = skills
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i_idx)
+            .map(|(_, s)| s.clone())
+            .collect();
+        let m = other_skills.len();
+        let total_subsets = if m < 20 { 1usize << m } else { 1024 }; // Bound subset evaluation for high dimensions
+
+        let mut total_shapley = 0.0;
+        let mut total_weight = 0.0;
+
+        for mask in 0..total_subsets {
+            let mut subset = BTreeSet::new();
+            for (bit, s) in other_skills.iter().enumerate().take(20) {
+                if (mask & (1 << bit)) != 0 {
+                    subset.insert(s.clone());
+                }
+            }
+
+            let subset_len = subset.len();
+            let mut subset_with_field = subset.clone();
+            subset_with_field.insert(field.clone());
+
+            let mut diffs = Vec::new();
+            for ctx in &contexts {
+                if let (Some(u_with), Some(u_without)) = (
+                    table.get(&(ctx.clone(), subset_with_field.clone())),
+                    table.get(&(ctx.clone(), subset.clone())),
+                ) {
+                    diffs.push(u_with - u_without);
+                }
+            }
+
+            if !diffs.is_empty() {
+                let avg_diff = diffs.iter().sum::<f64>() / diffs.len() as f64;
+                let weight = (factorial(subset_len) * factorial(n - 1 - subset_len)) / factorial(n);
+                total_shapley += weight * avg_diff;
+                total_weight += weight;
+            }
+        }
+
+        let final_val = if total_weight > 0.0 {
+            total_shapley / total_weight
+        } else {
+            0.0
+        };
+        shapley_map.insert(field.clone(), final_val);
+    }
+
+    Ok(shapley_map)
 }
 
 #[cfg(test)]
@@ -446,5 +533,40 @@ mod tests {
         assert_eq!(report.independent_group_count, 3);
         assert_eq!(report.fields[0].independent_contexts, 3);
         assert!(report.fields[0].beneficial);
+    }
+
+    #[test]
+    fn shapley_values_computed_correctly() {
+        let evaluations = vec![
+            CounterfactualEvaluation {
+                context_id: "c1".into(),
+                independence_group: "c1".into(),
+                active_fields: vec![],
+                utility: 0.0,
+            },
+            CounterfactualEvaluation {
+                context_id: "c1".into(),
+                independence_group: "c1".into(),
+                active_fields: vec![SkillId::parse("a").unwrap()],
+                utility: 2.0,
+            },
+            CounterfactualEvaluation {
+                context_id: "c1".into(),
+                independence_group: "c1".into(),
+                active_fields: vec![SkillId::parse("b").unwrap()],
+                utility: 1.0,
+            },
+            CounterfactualEvaluation {
+                context_id: "c1".into(),
+                independence_group: "c1".into(),
+                active_fields: vec![SkillId::parse("a").unwrap(), SkillId::parse("b").unwrap()],
+                utility: 3.5,
+            },
+        ];
+        let shapley = compute_shapley_values(&evaluations).unwrap();
+        // \phi_a = 0.5 * (2.0 - 0.0) + 0.5 * (3.5 - 1.0) = 1.0 + 1.25 = 2.25
+        // \phi_b = 0.5 * (1.0 - 0.0) + 0.5 * (3.5 - 2.0) = 0.5 + 0.75 = 1.25
+        assert!((shapley.get("a").unwrap() - 2.25).abs() < 1e-10);
+        assert!((shapley.get("b").unwrap() - 1.25).abs() < 1e-10);
     }
 }
