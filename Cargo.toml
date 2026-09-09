@@ -89,3 +89,7 @@ path = "tests/production_surface.rs"
 [[test]]
 name = "quality_properties"
 path = "tests/quality_properties.rs"
+
+[[test]]
+name = "convergence_pipeline"
+path = "tests/convergence_pipeline.rs"

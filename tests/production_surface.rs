@@ -337,7 +337,7 @@ fn tidex_capabilities_identify_receiver_profile_and_adapter_bank_engines() {
     );
     assert_eq!(
         by_id("adapter_bank.lifecycle")["engine"],
-        "adapter_bank::AdapterBank::{activate,revoke,rollback}"
+        "adapter_bank::AdapterBank::{authorize_governed_promotion_request,activate,revoke,rollback}"
     );
 
     std::fs::remove_dir_all(base).unwrap();

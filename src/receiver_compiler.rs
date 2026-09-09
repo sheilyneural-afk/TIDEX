@@ -75,6 +75,9 @@ impl ReceiverCompilerPolicy {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ReceiverCalibrationSet {
+    /// Optional physical/planning snapshot commitment; legacy numerical callers remain unbound.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receiver_snapshot_binding_sha256: Option<crate::digest::Sha256Digest>,
     pub functional_signatures: Vec<Vec<f64>>,
     pub receiver_solutions: Vec<Vec<f64>>,
     pub wrong_functional_signatures: Vec<Vec<f64>>,
@@ -1568,6 +1571,7 @@ mod tests {
             vec![-0.3, -0.4],
         ];
         let calibration = ReceiverCalibrationSet {
+            receiver_snapshot_binding_sha256: None,
             receiver_solutions: rows
                 .iter()
                 .map(|r| vec![4.0 + 3.0 * r[0] - r[1], -2.0 + r[0] + 2.0 * r[1]])
@@ -1883,6 +1887,7 @@ mod tests {
             .map(|x| vec![x[0], 3.0 * x[0] + x[1]])
             .collect();
         ReceiverCalibrationSet {
+            receiver_snapshot_binding_sha256: None,
             functional_signatures: functions,
             receiver_solutions: receiver,
             wrong_functional_signatures: vec![vec![-0.2, -0.4]],
@@ -2043,6 +2048,7 @@ mod tests {
             maximum_quadratic_cost: 1e6,
         };
         let calibration = ReceiverCalibrationSet {
+            receiver_snapshot_binding_sha256: None,
             functional_signatures: functional.clone(),
             receiver_solutions: receiver.clone(),
             wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
@@ -2154,6 +2160,7 @@ mod tests {
             maximum_quadratic_cost: 1e6,
         };
         let calibration = ReceiverCalibrationSet {
+            receiver_snapshot_binding_sha256: None,
             functional_signatures: functional.clone(),
             receiver_solutions: receiver.clone(),
             wrong_functional_signatures: vec![functional[0].clone()],

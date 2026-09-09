@@ -2,6 +2,10 @@ use cerebro_tidex::acquisition_contract::{
     AcquisitionBudget, AcquisitionRequest, AcquisitionScope, DeclaredRelativePath, NoisePolicy,
     RequestedResidency,
 };
+use cerebro_tidex::activation_steering_materializer::{
+    materialize_replayed_activation_steering_shadow, ActivationSteeringLayout,
+    ActivationSteeringPolicy,
+};
 use cerebro_tidex::adapter_bank::{
     AdapterActivationRequest, AdapterBank, AdapterBankLookup, AdapterBankQuery,
     AdapterCandidateMaterializationRequest, AdapterCompositionRequest, AdapterExecutionResolution,
@@ -9,8 +13,16 @@ use cerebro_tidex::adapter_bank::{
     AdapterRevocationRequest, AdapterRollbackRequest,
 };
 use cerebro_tidex::authority::PrivateFileReference;
+use cerebro_tidex::capability_discovery::CapabilityDiscoveryRequest;
+use cerebro_tidex::checkpoint_adapter::{inspect_safetensors_receiver, SafeTensorsReceiverRequest};
 use cerebro_tidex::content_vault::capture_to_vault;
+use cerebro_tidex::dense_shadow_materializer::materialize_replayed_dense_delta_shadow;
 use cerebro_tidex::identity::AcquisitionId;
+use cerebro_tidex::isolated_execution::AuthenticatedBytes;
+use cerebro_tidex::low_rank_shadow_materializer::{
+    materialize_replayed_low_rank_shadow, LowRankShadowPolicy,
+};
+use cerebro_tidex::materialization_selector::BackendSelectionInput;
 use cerebro_tidex::model_adaptation::{
     authenticate_live_receiver_model_profile, authenticate_receiver_model_profile,
     profile_receiver_model, ReceiverModelProfileInput,
@@ -18,12 +30,27 @@ use cerebro_tidex::model_adaptation::{
 use cerebro_tidex::receiver_compiler::{
     benchmark_receiver_portability_leave_one_out, ReceiverPortabilityBenchmarkInput,
 };
+use cerebro_tidex::receiver_layout::ReceiverMaterializationLayout;
 use cerebro_tidex::receiver_weight_binding::{
     assemble_distributed_lora_basis, authenticate_receiver_weight_candidate,
     materialize_receiver_weight_candidate, prepare_receiver_weight_candidate,
     DistributedLoraBasisInput,
 };
 use cerebro_tidex::security::configured_private_root;
+use cerebro_tidex::shadow_evaluation::{run_shadow_evaluation, ShadowEvaluationInput};
+use cerebro_tidex::sparse_shadow_materializer::{
+    materialize_replayed_sparse_shadow, SparseShadowPolicy,
+};
+use cerebro_tidex::universal_capability_compiler::{
+    execute_experimental_universal_capability_request, execute_universal_capability_shadow_plan,
+    replay_experimental_universal_capability_request, replay_universal_capability_shadow_plan,
+    UniversalCapabilityCompilationReceipt, UniversalCapabilityCompilationRequest,
+    UniversalCapabilityPlanningRequest, UniversalCapabilityShadowPlanReceipt,
+};
+use cerebro_tidex::universal_promotion_gate::{
+    evaluate_universal_promotion_gate, UniversalPromotionGateRequest,
+};
+use cerebro_tidex::universality_evidence::UniversalityEvidenceInput;
 use cerebro_tidex::workspace::{
     add_model, configured_tidex_home, create_workspace, current_workspace, load_model, use_model,
     use_workspace, ModelProfile, ModelProvider,
@@ -328,6 +355,210 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             let bank = AdapterBank::open(&root)?;
             println!("{}", serde_json::to_string_pretty(&bank.verify_history()?)?);
         }
+        [area, command, path] if area == "compile" && command == "universal" => {
+            let request: UniversalCapabilityCompilationRequest =
+                read_json_bounded(Path::new(path))?;
+            let report = execute_experimental_universal_capability_request(&request)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
+        [area, command, request_path, receipt_path]
+            if area == "compile" && command == "universal-replay" =>
+        {
+            let request: UniversalCapabilityCompilationRequest =
+                read_json_bounded(Path::new(request_path))?;
+            let receipt: UniversalCapabilityCompilationReceipt =
+                read_json_bounded(Path::new(receipt_path))?;
+            replay_experimental_universal_capability_request(&request, &receipt)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schema":"cerebro.tidex.universal_capability_compilation_replay/v1",
+                    "request_sha256":receipt.request_sha256,
+                    "replayed":true
+                }))?
+            );
+        }
+        [area, command, path] if area == "compile" && command == "universal-plan" => {
+            let request: UniversalCapabilityPlanningRequest = read_json_bounded(Path::new(path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_universal_capability_shadow_plan(&request)?)?
+            );
+        }
+        [area, command, request_path, receipt_path]
+            if area == "compile" && command == "universal-plan-replay" =>
+        {
+            let request: UniversalCapabilityPlanningRequest =
+                read_json_bounded(Path::new(request_path))?;
+            let receipt: UniversalCapabilityShadowPlanReceipt =
+                read_json_bounded(Path::new(receipt_path))?;
+            replay_universal_capability_shadow_plan(&request, &receipt)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &json!({"schema":"cerebro.tidex.universal_shadow_plan_replay/v1","planning_request_sha256":receipt.planning_request_sha256,"replayed":true})
+                )?
+            );
+        }
+        [area, backend, request_path, receipt_path, layout_path]
+            if area == "materialize" && backend == "dense" =>
+        {
+            let request: UniversalCapabilityPlanningRequest =
+                read_json_bounded(Path::new(request_path))?;
+            let receipt: UniversalCapabilityShadowPlanReceipt =
+                read_json_bounded(Path::new(receipt_path))?;
+            let layout: ReceiverMaterializationLayout = read_json_bounded(Path::new(layout_path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&materialize_replayed_dense_delta_shadow(
+                    &request, &receipt, &layout
+                )?)?
+            );
+        }
+        [area, backend, request_path, receipt_path, layout_path, policy_path]
+            if area == "materialize" && backend == "low-rank" =>
+        {
+            let request: UniversalCapabilityPlanningRequest =
+                read_json_bounded(Path::new(request_path))?;
+            let receipt: UniversalCapabilityShadowPlanReceipt =
+                read_json_bounded(Path::new(receipt_path))?;
+            let layout: ReceiverMaterializationLayout = read_json_bounded(Path::new(layout_path))?;
+            let policy: LowRankShadowPolicy = read_json_bounded(Path::new(policy_path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&materialize_replayed_low_rank_shadow(
+                    &request, &receipt, &layout, &policy
+                )?)?
+            );
+        }
+        [area, backend, request_path, receipt_path, layout_path, policy_path]
+            if area == "materialize" && backend == "sparse" =>
+        {
+            let request: UniversalCapabilityPlanningRequest =
+                read_json_bounded(Path::new(request_path))?;
+            let receipt: UniversalCapabilityShadowPlanReceipt =
+                read_json_bounded(Path::new(receipt_path))?;
+            let layout: ReceiverMaterializationLayout = read_json_bounded(Path::new(layout_path))?;
+            let policy: SparseShadowPolicy = read_json_bounded(Path::new(policy_path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&materialize_replayed_sparse_shadow(
+                    &request, &receipt, &layout, &policy
+                )?)?
+            );
+        }
+        [area, backend, request_path, receipt_path, receiver_layout_path, steering_layout_path, policy_path]
+            if area == "materialize" && backend == "steering" =>
+        {
+            let request: UniversalCapabilityPlanningRequest =
+                read_json_bounded(Path::new(request_path))?;
+            let receipt: UniversalCapabilityShadowPlanReceipt =
+                read_json_bounded(Path::new(receipt_path))?;
+            let receiver_layout: ReceiverMaterializationLayout =
+                read_json_bounded(Path::new(receiver_layout_path))?;
+            let steering_layout: ActivationSteeringLayout =
+                read_json_bounded(Path::new(steering_layout_path))?;
+            let policy: ActivationSteeringPolicy = read_json_bounded(Path::new(policy_path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&materialize_replayed_activation_steering_shadow(
+                    &request,
+                    &receipt,
+                    &receiver_layout,
+                    &steering_layout,
+                    &policy
+                )?)?
+            );
+        }
+        [area, command, root, request_path]
+            if area == "receiver" && command == "inspect-safetensors" =>
+        {
+            let request: SafeTensorsReceiverRequest = read_json_bounded(Path::new(request_path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&inspect_safetensors_receiver(
+                    Path::new(root),
+                    &request
+                )?)?
+            );
+        }
+        [area, command, input_path] if area == "select" && command == "backend" => {
+            let input: BackendSelectionInput = read_json_bounded(Path::new(input_path))?;
+            println!("{}", serde_json::to_string_pretty(&input.execute()?)?);
+        }
+        [area, command, input_path] if area == "measure" && command == "universality" => {
+            let input: UniversalityEvidenceInput = read_json_bounded(Path::new(input_path))?;
+            println!("{}", serde_json::to_string_pretty(&input.execute()?)?);
+        }
+        [area, command, input_path] if area == "discover" && command == "capabilities" => {
+            let input: CapabilityDiscoveryRequest = read_json_bounded(Path::new(input_path))?;
+            println!("{}", serde_json::to_string_pretty(&input.execute()?)?);
+        }
+        [area, command, input_path] if area == "gate" && command == "promotion" => {
+            let input: UniversalPromotionGateRequest = read_json_bounded(Path::new(input_path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&evaluate_universal_promotion_gate(&input)?)?
+            );
+        }
+        [area, command, runner_path, input_path] if area == "shadow" && command == "run" => {
+            let input: ShadowEvaluationInput = read_json_bounded(Path::new(input_path))?;
+            if input.schema != "cerebro.tidex.shadow_evaluation_input/v1" {
+                return Err("shadow_evaluation_input_schema_invalid".into());
+            }
+            let runner = AuthenticatedBytes::from_trusted_bytes(read_bytes_bounded(
+                Path::new(runner_path),
+                64 * 1024 * 1024,
+            )?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&run_shadow_evaluation(
+                    runner,
+                    &input.bundle,
+                    input.arguments,
+                    input.limits,
+                    input.requirements
+                )?)?
+            );
+        }
+        [area, command, path] if area == "receiver" && command == "planning-profile" => {
+            let root = configured_private_root()?;
+            let request: cerebro_tidex::checkpoint_adapter::PhysicalPlanningProfileRequest =
+                read_json_bounded(Path::new(path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &cerebro_tidex::checkpoint_adapter::planning_profile_from_physical(
+                        &root, &request
+                    )?
+                )?
+            );
+        }
+        [area, command, path] if area == "materialize" && command == "compiled" => {
+            let root = configured_private_root()?;
+            let request: cerebro_tidex::materialization_pipeline::PhysicalMaterializationRequest =
+                read_json_bounded(Path::new(path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &cerebro_tidex::materialization_pipeline::materialize_compiled_checkpoint(
+                        &root, &request
+                    )?
+                )?
+            );
+        }
+        [area, command, path] if area == "materialize" && command == "verify-compiled" => {
+            let root = configured_private_root()?;
+            let reference: PrivateFileReference = read_json_bounded(Path::new(path))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &cerebro_tidex::materialization_pipeline::authenticate_compiled_checkpoint(
+                        &root, &reference
+                    )?
+                )?
+            );
+        }
         [command] if command == "capabilities" => {
             let home = configured_tidex_home()?;
             let workspace = current_workspace(&home)?;
@@ -358,6 +589,13 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
                         {"id":"adapter_bank.index.dynamic","status":"implemented","engine":"adapter_bank::AdapterBank::query","reason":"capability/model projections are regenerated and authenticated from the primary manifest table"},
                         {"id":"adapter.compose.exact_dense","status":"implemented","engine":"adapter_bank::AdapterBank::compose_exact","reason":"canonical ordered f32 axes multiplied and accumulated in f64 with one final f32 rounding; no SVD, pruning or rank truncation"},
                         {"id":"adapter_bank.lifecycle","status":"implemented_governed","engine":"adapter_bank::AdapterBank::{authorize_governed_promotion_request,activate,revoke,rollback}","reason":"authorization reopens and semantically reauthenticates sealed gate/PETFC/canary witnesses before minting a current-index-bound permit; activation consumes that permit; revocation is sticky and transitive; rollback publishes a new forward revision"},
+                        {"id":"receiver.profile.planning_projection","status":"implemented","engine":"checkpoint_adapter::planning_profile_from_physical","reason":"derives alternate compiler geometry from the live operational profile; preserves exact model/config/tokenizer identity and remaps physical tensor order by names; modality/state annotations are not behavioral evidence"},
+                        {"id":"compile.universal.plan","status":"implemented_bounded_numerical","engine":"universal_capability_compiler::execute_universal_capability_shadow_plan","reason":"replays operational-contract compilation against a bound receiver profile; at most 256 receiver coordinates; not evidence of universal LLM transfer"},
+                        {"id":"materialize.compiled.physical","status":"implemented_candidate_only","engine":"materialization_pipeline::materialize_compiled_checkpoint","reason":"both measured-receiver and universal-plan sources use the existing physical actuator; dense/low-rank/sparse must reconstruct the identical f32 delta; checkpoint arithmetic is replayed; no automatic promotion"},
+                        {"id":"materialize.shadow.alternatives","status":"implemented_shadow_only","engine":"low_rank_shadow_materializer + sparse_shadow_materializer + activation_steering_materializer","reason":"bounded numerical representations with replay; lossy experiments do not inherit compiled-candidate validation; steering produces interventions but installs no runtime hook"},
+                        {"id":"materialize.selection","status":"implemented_advisory_only","engine":"materialization_selector::select_materialization_backend","reason":"deterministic comparative ranking of supplied metrics; no attestation of measurement origin and no activation authority"},
+                        {"id":"evidence.universality","status":"implemented_declared_evidence_reducer","engine":"universality_evidence::measure_universality_n","reason":"requires consistent receiver identities, successful held-out coverage and unseen-receiver success; caller-supplied trials are not independently attested experiments"},
+                        {"id":"promotion.universal.readiness","status":"advisory_only","engine":"universal_promotion_gate::evaluate_universal_promotion_gate","reason":"requires exact agreement of selected and reported execution metrics; never emits an operational activation permit"},
                         {"id":"runtime.sleep","status":"implemented","engine":"BrainEngine::sleep_cycle"},
                         {"id":"capability_ir.v63.contract","status":"implemented_foundation","engine":"capability_ir::OperationalCapabilityContract","reason":"StateIR anchors, repeated OperatorIR transitions, canonical transition signatures, closure and contraction verification are implemented; evidence is bounded to tested domains and does not establish a universal capability representation across arbitrary models or tasks"},
                         {"id":"model.assistance","status":"configured_not_authoritative","reason":"model profiles are selectable; no model call is permitted to create evidence or promotion authority"}
@@ -394,6 +632,17 @@ fn read_json_bounded_with_error<T: serde::de::DeserializeOwned>(
         return Err(too_large_error.into());
     }
     Ok(serde_json::from_slice(&bytes)?)
+}
+
+fn read_bytes_bounded(path: &Path, maximum: u64) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let file = fs::File::open(path)?;
+    let mut bytes = Vec::new();
+    file.take(maximum.saturating_add(1))
+        .read_to_end(&mut bytes)?;
+    if u64::try_from(bytes.len())? > maximum {
+        return Err("tidex_input_too_large".into());
+    }
+    Ok(bytes)
 }
 
 fn acquire_workspace(
@@ -475,6 +724,9 @@ fn usage() -> &'static str {
         "  tidex adapter-bank revoke <input.json>\n",
         "  tidex adapter-bank rollback <input.json>\n",
         "  tidex adapter-bank status\n",
+        "  tidex receiver planning-profile <input.json>\n",
+        "  tidex materialize compiled <input.json>\n",
+        "  tidex materialize verify-compiled <receipt-reference.json>\n",
         "  tidex capabilities"
     )
 }

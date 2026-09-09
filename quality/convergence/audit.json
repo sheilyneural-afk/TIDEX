@@ -1,0 +1,76 @@
+{
+  "schema": "cerebro.tidex.convergence_audit/v1",
+  "base_head": "c36e042b487900b4352db22b85a90a2850283561",
+  "alternate_head": "3be129281a6fb03bcc08a26dac5dacf1f29768a0",
+  "alternate_working_changes_preserved": true,
+  "snapshot_manifest_sha256": "b703b9c815e0499eb49e2069d7b5ce415b148b1c79feefcc4b6b8a91238a967e",
+  "snapshot_archive": "/home/yo/tidex-convergence-20260909-evidence/snapshots",
+  "entries": [
+    {
+      "capability": "physical checkpoint/profile/adapter lifecycle",
+      "decision": "KEEP_A",
+      "authority": "model_adaptation + weight_actuator + adapter_bank"
+    },
+    {
+      "capability": "alternative compilation/planning",
+      "decision": "PORT_B_ADAPT",
+      "authority": "universal_capability_compiler -> receiver_compiler",
+      "bounds": "256 receiver coordinates, 128 calibration rows"
+    },
+    {
+      "capability": "checkpoint inspection",
+      "decision": "REUSE_A_READER",
+      "authority": "checkpoint_adapter -> weight_actuator::inspect_model_safetensors"
+    },
+    {
+      "capability": "physical materialization of either compiler source",
+      "decision": "BRIDGE",
+      "authority": "materialization_pipeline -> weight_actuator",
+      "activation_authority": false
+    },
+    {
+      "capability": "low-rank/sparse compression",
+      "decision": "PORT_B_REUSE_KERNELS",
+      "physical_constraint": "bit-exact reconstruction of source f32 delta",
+      "compression_limit_elements": 16777216
+    },
+    {
+      "capability": "activation steering",
+      "decision": "PORT_B_SHADOW_ONLY",
+      "limitation": "no runtime hook installation or behavioral proof"
+    },
+    {
+      "capability": "comparative backend selection",
+      "decision": "PORT_B_HARDEN",
+      "limitation": "advisory reducer of supplied measurements, not origin attestation"
+    },
+    {
+      "capability": "universal promotion readiness",
+      "decision": "PORT_B_HARDEN",
+      "constraint": "selected metrics must equal shadow evaluation metrics",
+      "activation_authority": false
+    },
+    {
+      "capability": "universality evidence",
+      "decision": "PORT_B_HARDEN",
+      "constraint": "consistent receiver family/calibration labels; successful held-out and unseen coverage",
+      "limitation": "inputs are declared trial measurements"
+    },
+    {
+      "capability": "dependency closure dirty patch",
+      "decision": "HOLD_NOT_PORTED",
+      "source": "variant-b/src/knowledge_engine.rs",
+      "reason": "observation_for_predicate returns desired predicate values instead of independently measured closure facts"
+    },
+    {
+      "capability": "loose shell E2E orchestration",
+      "decision": "REPLACED_BY_PRODUCTION_TEST",
+      "source": "variant-b/examples/universal-lab/run-lab-e2e.sh",
+      "reason": "incorrect positional parameters >=10 and no binding of stage outputs to later supplied inputs",
+      "replacement": "tests/convergence_pipeline.rs"
+    }
+  ],
+  "scientific_scope": "interoperability, arithmetic and fail-closed regression tests; no new LLM transfer benchmark or state-of-the-art claim",
+  "originals_updated": false,
+  "remote_published": false
+}

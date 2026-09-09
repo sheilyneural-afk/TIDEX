@@ -64,3 +64,23 @@ pub mod sleep_diagnostics;
 pub mod sleep_evidence;
 pub mod solver_portfolio;
 pub mod trust_region;
+
+pub mod activation_steering_materializer;
+pub mod architecture_families;
+pub mod capability_discovery;
+pub mod checkpoint_adapter;
+pub mod dense_shadow_materializer;
+pub mod lab_isolation;
+pub mod low_rank_shadow_materializer;
+pub mod materialization_selector;
+pub mod receiver_layout;
+pub mod receiver_profile;
+pub mod receiver_profiler;
+pub mod shadow_evaluation;
+pub mod shadow_materializer;
+pub mod sparse_shadow_materializer;
+pub mod universal_capability_compiler;
+pub mod universal_promotion_gate;
+pub mod universality_evidence;
+
+pub mod materialization_pipeline;

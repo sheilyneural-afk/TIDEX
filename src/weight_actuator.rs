@@ -1803,7 +1803,7 @@ fn encoded_header(
 fn copy_tensor_bytes(
     archive: &mut SafeTensorArchive,
     tensor: &ParsedTensor,
-    writer: &mut BufWriter<&mut File>,
+    writer: &mut impl Write,
 ) -> BrainResult<()> {
     archive.file.seek(SeekFrom::Start(
         archive
@@ -1829,7 +1829,7 @@ fn write_modified_tensor(
     archive: &mut SafeTensorArchive,
     tensor: &ParsedTensor,
     delta: &mut VerifiedDvecReader,
-    writer: &mut BufWriter<&mut File>,
+    writer: &mut impl Write,
 ) -> BrainResult<()> {
     archive.file.seek(SeekFrom::Start(
         archive
@@ -1868,6 +1868,25 @@ fn write_modified_tensor(
         completed += count;
     }
     archive.verify_consumed_tensor(tensor, hasher)
+}
+
+/// Stream the actuator's exact arithmetic into a digest without another writer
+/// implementation, a second checkpoint or an allocation proportional to model size.
+#[derive(Default)]
+struct TensorDigestWriter(Sha256);
+impl Write for TensorDigestWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.update(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+impl TensorDigestWriter {
+    fn finish(self) -> BrainResult<Sha256Digest> {
+        Sha256Digest::parse(format!("{:x}", self.0.finalize()))
+    }
 }
 
 fn create_output_staging(output: &Path) -> BrainResult<(PathBuf, File)> {
@@ -1985,7 +2004,11 @@ pub fn materialize_dense_delta_checkpoint(
     if layout.total_parameter_count != delta_reference.parameter_count {
         return Err(invalid("model_weight_delta_layout_count_mismatch"));
     }
+    let root = verify_internal_private_root(private_root)?;
+    crate::authority::root_relative_path(&root, output_path)?;
+    crate::authority::ensure_private_parent(&root, output_path)?;
     let output = canonical_output_path(output_path)?;
+    crate::authority::root_relative_path(&root, &output)?;
     let base_model_path = resolve_base_model_path(private_root, base_model_path)?;
     let mut archive = SafeTensorArchive::open(&base_model_path)?;
     if &archive.inventory.model_sha256 != expected_base_sha256 {
@@ -2095,20 +2118,16 @@ pub fn authenticate_weight_materialization_receipt(
         return Err(invalid("model_weight_receipt_delta_layout_count_mismatch"));
     }
 
-    // Hash the exact bytes delivered by the retained descriptor, including the
-    // header, so a same-inode mutation cannot be hidden between a pre-hash and
-    // this authentication boundary.
-    let mut delta = VerifiedDvecReader::open(private_root, delta_reference)?;
-    while delta.next_parameter() < delta.parameter_count() {
-        let remaining = delta.parameter_count() - delta.next_parameter();
-        let len = usize::try_from(remaining.min(STREAM_ELEMENTS as u64))
-            .map_err(|_| invalid("model_weight_receipt_delta_chunk_overflow"))?;
-        delta.read_f32(len)?;
-    }
-    delta.finish()?;
+    let root = verify_internal_private_root(private_root)?;
+    crate::authority::root_relative_path(&root, output_path)?;
+    drop(crate::authority::open_existing_private_file(
+        &root,
+        output_path,
+    )?);
+    let mut delta = VerifiedDvecReader::open(&root, delta_reference)?;
 
     let base_model_path = resolve_base_model_path(private_root, base_model_path)?;
-    let base = SafeTensorArchive::open(&base_model_path)?;
+    let mut base = SafeTensorArchive::open(&base_model_path)?;
     let plans = output_plans(&base, layout)?;
     let modified = plans
         .iter()
@@ -2121,6 +2140,34 @@ pub fn authenticate_weight_materialization_receipt(
         ));
     }
     let output = verify_output_semantics(output_path, &base.inventory, &modified)?;
+    let output_archive = SafeTensorArchive::open(output_path)?;
+    if output_archive.inventory != output {
+        return Err(integrity("model_weight_output_changed_during_replay"));
+    }
+    for plan in &plans {
+        let tensor = base
+            .tensors
+            .get(plan.source_index)
+            .cloned()
+            .ok_or_else(|| integrity("model_weight_replay_source_missing"))?;
+        let mut replay = TensorDigestWriter::default();
+        if plan.modified {
+            write_modified_tensor(&mut base, &tensor, &mut delta, &mut replay)?;
+        } else {
+            copy_tensor_bytes(&mut base, &tensor, &mut replay)?;
+        }
+        let actual = output_archive
+            .tensor_sha256
+            .get(&plan.tensor_id)
+            .ok_or_else(|| integrity("model_weight_replay_output_missing"))?;
+        if &replay.finish()? != actual {
+            return Err(integrity(format!(
+                "model_weight_output_arithmetic_mismatch:{}",
+                plan.tensor_id
+            )));
+        }
+    }
+    delta.finish()?;
     let expected = WeightMaterializationReceipt {
         schema: WEIGHT_MATERIALIZATION_RECEIPT_SCHEMA.to_string(),
         lifecycle: WeightMaterializationLifecycle::CandidateOnlyNotPromoted,
@@ -3132,5 +3179,54 @@ mod tests {
             "{error}"
         );
         fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn convergence_receipt_rejects_forged_output_hash_even_with_valid_geometry() {
+        for alter_modified in [true, false] {
+            let root = root("arithmetic-replay");
+            let base = root.join("base.safetensors");
+            let output = root.join("output.safetensors");
+            write_fixture(&base);
+            let inventory = inspect_model_safetensors(&base).unwrap();
+            let q = TensorId::parse("model.layers.0.self_attn.q_proj.weight").unwrap();
+            let v = TensorId::parse("model.layers.0.self_attn.v_proj.weight").unwrap();
+            let layout =
+                parameter_layout_for_tensors(&inventory, std::slice::from_ref(&q)).unwrap();
+            let delta = create_content_addressed_dvec(&root, &[0.5, -0.5, 1.0, -1.0]).unwrap();
+            let mut receipt = materialize_dense_delta_checkpoint(
+                &root,
+                &base,
+                &inventory.model_sha256,
+                &layout,
+                &delta,
+                &output,
+            )
+            .unwrap();
+            let archive = SafeTensorArchive::open(&output).unwrap();
+            let tensor = archive
+                .tensor(if alter_modified { &q } else { &v })
+                .unwrap();
+            let offset = archive.data_start + tensor.data_start;
+            let mut file = OpenOptions::new().write(true).open(&output).unwrap();
+            file.seek(SeekFrom::Start(offset)).unwrap();
+            if alter_modified {
+                file.write_all(&99.0_f32.to_le_bytes()).unwrap();
+            } else {
+                file.write_all(&bf16_bytes(&[99.0])).unwrap();
+            }
+            file.sync_all().unwrap();
+            receipt.output_model_sha256 = sha256_file(&output).unwrap();
+            let error = authenticate_weight_materialization_receipt(
+                &root, &base, &layout, &delta, &output, &receipt,
+            )
+            .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("model_weight_output_arithmetic_mismatch"),
+                "{error}"
+            );
+            fs::remove_dir_all(root).unwrap();
+        }
     }
 }

@@ -2033,6 +2033,7 @@ fn derive_candidate(
         wrong_functional_signatures.push(wrong.values);
     }
     let calibration = ReceiverCalibrationSet {
+        receiver_snapshot_binding_sha256: None,
         functional_signatures,
         receiver_solutions,
         wrong_functional_signatures,
@@ -3706,5 +3707,113 @@ mod tests {
             materialize_receiver_weight_candidate(&f.root, &reference, &f.base, &output).is_err()
         );
         assert!(!output.exists());
+    }
+    #[test]
+    fn convergence_measured_candidate_uses_common_dense_and_sparse_checkpoint_pipeline() {
+        use crate::identity::{ArchitectureId, ModelId};
+        use crate::materialization_pipeline::{
+            authenticate_compiled_checkpoint, materialize_compiled_checkpoint,
+            CompiledMaterializationSource, PhysicalMaterializationBackend,
+            PhysicalMaterializationRequest,
+        };
+        use crate::model_adaptation::{profile_receiver_model, ReceiverModelProfileInput};
+        use crate::sparse_shadow_materializer::SparseShadowPolicy;
+        let mut f = fixture();
+        let config = f.root.join("config.json");
+        let tokenizer = f.root.join("tokenizer.json");
+        fs::write(&config, b"{}").unwrap();
+        fs::write(&tokenizer, b"{}").unwrap();
+        let mut protocol: ReceiverResponseProtocol =
+            read_record(&f.root, &f.request.protocol).unwrap();
+        protocol.model_config_sha256 = digest("{}");
+        protocol.tokenizer_sha256 = digest("{}");
+        let protocol_reference = put(&f.root, &protocol);
+        for reference in &mut f.request.observations {
+            let mut observation: ReceiverResponseObservation =
+                read_record(&f.root, reference).unwrap();
+            observation.protocol_sha256 = protocol_reference.sha256.clone();
+            *reference = put(&f.root, &observation);
+        }
+        for reference in
+            std::iter::once(&mut f.request.target).chain(f.request.wrong_targets.iter_mut())
+        {
+            let mut target: FunctionalResponseTarget = read_record(&f.root, reference).unwrap();
+            target.protocol_sha256 = protocol_reference.sha256.clone();
+            *reference = put(&f.root, &target);
+        }
+        f.request.protocol = protocol_reference;
+        let profile_input = ReceiverModelProfileInput {
+            schema: "cerebro.tidex.receiver_model_profile_input/v1".into(),
+            model_id: ModelId::parse("measured.receiver").unwrap(),
+            architecture_id: ArchitectureId::parse("measured.readout").unwrap(),
+            source_revision: None,
+            checkpoint_path: f.base.clone(),
+            config_path: config,
+            tokenizer_path: tokenizer,
+        };
+        let profile = profile_receiver_model(&f.root, &profile_input).unwrap();
+        let candidate = prepare(&f).unwrap();
+        let before = fs::read(&f.base).unwrap();
+        let mut outputs = Vec::new();
+        for (name, backend) in [
+            ("dense", PhysicalMaterializationBackend::Dense),
+            (
+                "sparse",
+                PhysicalMaterializationBackend::Sparse {
+                    policy: SparseShadowPolicy {
+                        schema: "cerebro.tidex.sparse_shadow_policy/v1".into(),
+                        maximum_nonzero_count: 2,
+                        maximum_density: 0.5,
+                        absolute_zero_threshold: 0.0,
+                        relative_reconstruction_tolerance: 1e-8,
+                        absolute_reconstruction_tolerance: 1e-8,
+                        minimum_storage_reduction_ratio: 0.0,
+                    },
+                },
+            ),
+        ] {
+            let request = PhysicalMaterializationRequest {
+                schema: "cerebro.tidex.physical_materialization_request/v1".into(),
+                physical_profile: profile.profile_reference.clone(),
+                source: CompiledMaterializationSource::MeasuredReceiver {
+                    candidate: candidate.clone(),
+                },
+                backend,
+                output_path: f.root.join(format!("pipeline-{name}.safetensors")),
+            };
+            let out = materialize_compiled_checkpoint(&f.root, &request).unwrap();
+            assert_eq!(
+                authenticate_compiled_checkpoint(&f.root, &out.receipt_reference).unwrap(),
+                out.receipt
+            );
+            assert!(!out.receipt.authorizes_promotion);
+            assert_eq!(
+                read_model_tensor_f32(
+                    &request.output_path,
+                    &TensorId::parse("model.other.weight").unwrap()
+                )
+                .unwrap(),
+                vec![7.0]
+            );
+            outputs.push(fs::read(&request.output_path).unwrap());
+        }
+        assert_eq!(outputs[0], outputs[1]);
+        assert_eq!(fs::read(&f.base).unwrap(), before);
+        let mut changed = profile_input;
+        changed.tokenizer_path = f.root.join("other-tokenizer.json");
+        fs::write(&changed.tokenizer_path, b"{\"different\":true}").unwrap();
+        let wrong_profile = profile_receiver_model(&f.root, &changed).unwrap();
+        let invalid = PhysicalMaterializationRequest {
+            schema: "cerebro.tidex.physical_materialization_request/v1".into(),
+            physical_profile: wrong_profile.profile_reference,
+            source: CompiledMaterializationSource::MeasuredReceiver { candidate },
+            backend: PhysicalMaterializationBackend::Dense,
+            output_path: f.root.join("wrong-profile.safetensors"),
+        };
+        assert!(materialize_compiled_checkpoint(&f.root, &invalid)
+            .unwrap_err()
+            .to_string()
+            .contains("tokenizer_or_config_mismatch"));
+        assert!(!invalid.output_path.exists());
     }
 }
