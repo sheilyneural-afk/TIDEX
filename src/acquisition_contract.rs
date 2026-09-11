@@ -17,7 +17,7 @@
 //!
 //! Capture currently requires Linux `openat2(2)` confinement and `/proc` file
 //! descriptors.  If either mechanism is unavailable the operation fails
-//! closed.  A pathname-based fallback would reintroduce race and symlink
+//! closed.  A pathname-based recovery path would reintroduce race and symlink
 //! escapes, so portability requires an independently verified descriptor-based
 //! backend rather than silently weakening this authority.  The selected tree
 //! may itself be a mounted root, but nested mount crossings are rejected: a

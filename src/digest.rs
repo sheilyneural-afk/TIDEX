@@ -487,7 +487,6 @@ mod tests {
 
     #[test]
     fn sha256_digest_traits_file_hash_and_conversions_are_canonical() {
-        use std::borrow::Borrow as _;
         use std::str::FromStr as _;
 
         let raw = Sha256Digest::digest_bytes(b"trait-surface");
@@ -495,7 +494,10 @@ mod tests {
         assert_eq!(raw.to_string(), text);
         assert_eq!(raw.as_ref(), text);
         assert_eq!(&*raw, text);
-        assert_eq!(raw.borrow(), text);
+        assert_eq!(
+            <Sha256Digest as std::borrow::Borrow<str>>::borrow(&raw),
+            text
+        );
         assert!(raw == text.as_str());
         assert!(raw.eq(&text.as_str()));
         assert!(raw == text);

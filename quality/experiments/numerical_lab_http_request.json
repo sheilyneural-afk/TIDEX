@@ -1,0 +1,1 @@
+{"schema":"cerebro.tidex.lab_run_request/v1","recipe_id":"numerical.evolve","assets":["/home/yo/Future/cerebro3/quality/experiments/numerical_lab_e2e_request.json"],"selected_model_ids":[],"dataset_sha256":null,"maximum_runtime_seconds":60}

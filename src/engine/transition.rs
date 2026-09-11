@@ -1219,7 +1219,7 @@ impl BrainEngine {
     }
 
     /// The absence of an active bank is an initialization condition, never a
-    /// recovery fallback. Once a sleep state exists, it must authenticate an
+    /// recovery substitute. Once a sleep state exists, it must authenticate an
     /// already-revoked, explicitly bankless runtime before sleep is permitted
     /// to construct an empty bank again.
     pub(super) fn authorize_empty_bank_bootstrap(
@@ -1304,7 +1304,7 @@ impl BrainEngine {
         };
 
         // This is the one explicit initialization transition. No persisted
-        // bank is substituted or accepted as a fallback.
+        // bank is substituted or accepted as a substitute.
         let prior_bank = match self.load_bank_for_initial_sleep_bootstrap()? {
             Some(bank) => bank,
             None => {

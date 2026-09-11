@@ -168,10 +168,44 @@ pub fn fingerprint_architecture(
         .get("is_encoder_decoder")
         .and_then(|value| value.as_bool())
         .unwrap_or(false);
-    let encoder_only = declared_architectures
-        .iter()
-        .any(|value| value.to_ascii_lowercase().contains("maskedlm"))
-        && !encoder_decoder;
+    let known_encoder_model_type = model_type.as_deref().is_some_and(|value| {
+        matches!(
+            value,
+            "bert"
+                | "roberta"
+                | "distilbert"
+                | "xlm-roberta"
+                | "mpnet"
+                | "electra"
+                | "deberta"
+                | "deberta-v2"
+                | "albert"
+        )
+    });
+    let declared_encoder_architecture = declared_architectures.iter().any(|value| {
+        matches!(
+            value.as_str(),
+            "BertModel"
+                | "RobertaModel"
+                | "DistilBertModel"
+                | "XLMRobertaModel"
+                | "MPNetModel"
+                | "ElectraModel"
+                | "DebertaModel"
+                | "DebertaV2Model"
+                | "AlbertModel"
+        ) || value.to_ascii_lowercase().contains("maskedlm")
+    });
+    let encoder_tensor_evidence = tensor_names.iter().any(|name| {
+        let lower = name.to_ascii_lowercase();
+        lower.contains("encoder.layer.")
+            || lower.contains("encoder.layers.")
+            || lower.contains("transformer.layer.")
+    });
+    let encoder_only = !encoder_decoder
+        && (known_encoder_model_type
+            || declared_encoder_architecture
+            || (encoder_tensor_evidence && !has_ssm));
     let model_family = if multimodal {
         ModelFamily::Multimodal
     } else if has_moe {
@@ -254,6 +288,24 @@ mod tests {
         assert_eq!(
             report.receiver_architecture,
             ReceiverArchitecture::MixtureOfExperts
+        );
+    }
+
+    #[test]
+    fn bert_model_with_encoder_tensors_is_encoder_transformer() {
+        let report = fingerprint_architecture(
+            br#"{"model_type":"bert","architectures":["BertModel"]}"#,
+            &[
+                "embeddings.word_embeddings.weight".into(),
+                "encoder.layer.0.attention.self.query.weight".into(),
+                "encoder.layer.0.intermediate.dense.weight".into(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(report.model_family, ModelFamily::EncoderTransformer);
+        assert_eq!(
+            report.receiver_architecture,
+            ReceiverArchitecture::Transformer
         );
     }
 }

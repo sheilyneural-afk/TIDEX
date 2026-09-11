@@ -1,0 +1,43 @@
+schema = "cerebro.cross_model.control_plane/v1"
+
+[bcm]
+initial_theta = 0.5
+window_size = 100
+learning_rate = 0.01
+theta_decay = 0.001
+
+[eligibility]
+initial_trace = 0.0
+decay_factor = 0.95
+trace_update_rate = 0.1
+max_trace_value = 1.0
+
+[modulation]
+reward_weight = 0.4
+attention_weight = 0.3
+novelty_weight = 0.2
+stability_weight = 0.1
+decay_factor = 0.99
+
+[routing]
+uncertainty_weight = 0.05
+minimum_measured_score = 0.0
+
+[content_drift]
+similarity_threshold = 0.8
+adaptation_rate = 0.1
+maximum_pressure = 1.0
+
+[pi]
+proportional_gain = 0.5
+integral_gain = 0.1
+output_min = 0.0
+output_max = 1.0
+integral_windup_limit = 1.0
+
+[elo]
+initial_rating = 1500.0
+k_factor = 32.0
+rating_floor = 100.0
+rating_ceiling = 3000.0
+logistic_scale = 400.0

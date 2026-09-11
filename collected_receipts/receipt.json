@@ -1,0 +1,536 @@
+{
+  "schema": "cerebro.tidex.v67_weight_actuator_smoke/v1",
+  "purpose": "engineering proof that the Rust data plane can merge an authenticated receiver delta into standalone model weights; not functional-compiler evidence",
+  "source_delta_kind": "v66_lora_reconstructed_as_dense_delta",
+  "source_v66_manifest_sha256": "4efedbc22d6bbd4f265eedba31dd244b35e34472f4d9be59c1bd040c4e852e6b",
+  "source_v66_capability": "python.function_synthesis.mbpp.medium_high",
+  "source_v66_parameter_digest_sha256": "fe1153bf2ef5cc3466d7fd40f34fa1dfecfb124d4b2171bb386f02f4695e1e88",
+  "base_model_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
+  "adapter_model_sha256": "16fa7b892b1ed4f44d827ef72665d573a8a89568e8e8f4e9b6bd4add16638a3a",
+  "adapter_config_sha256": "ad40f93108a338317e30787c087b60b89746ac0b87dfbba38bf28163cad8798e",
+  "lora_rank": 8,
+  "lora_alpha": 16.0,
+  "lora_scale": 2.0,
+  "target_tensors": [
+    "model.layers.0.self_attn.q_proj.weight",
+    "model.layers.0.self_attn.v_proj.weight",
+    "model.layers.1.self_attn.q_proj.weight",
+    "model.layers.1.self_attn.v_proj.weight",
+    "model.layers.10.self_attn.q_proj.weight",
+    "model.layers.10.self_attn.v_proj.weight",
+    "model.layers.11.self_attn.q_proj.weight",
+    "model.layers.11.self_attn.v_proj.weight",
+    "model.layers.12.self_attn.q_proj.weight",
+    "model.layers.12.self_attn.v_proj.weight",
+    "model.layers.13.self_attn.q_proj.weight",
+    "model.layers.13.self_attn.v_proj.weight",
+    "model.layers.14.self_attn.q_proj.weight",
+    "model.layers.14.self_attn.v_proj.weight",
+    "model.layers.15.self_attn.q_proj.weight",
+    "model.layers.15.self_attn.v_proj.weight",
+    "model.layers.16.self_attn.q_proj.weight",
+    "model.layers.16.self_attn.v_proj.weight",
+    "model.layers.17.self_attn.q_proj.weight",
+    "model.layers.17.self_attn.v_proj.weight",
+    "model.layers.18.self_attn.q_proj.weight",
+    "model.layers.18.self_attn.v_proj.weight",
+    "model.layers.19.self_attn.q_proj.weight",
+    "model.layers.19.self_attn.v_proj.weight",
+    "model.layers.2.self_attn.q_proj.weight",
+    "model.layers.2.self_attn.v_proj.weight",
+    "model.layers.20.self_attn.q_proj.weight",
+    "model.layers.20.self_attn.v_proj.weight",
+    "model.layers.21.self_attn.q_proj.weight",
+    "model.layers.21.self_attn.v_proj.weight",
+    "model.layers.22.self_attn.q_proj.weight",
+    "model.layers.22.self_attn.v_proj.weight",
+    "model.layers.23.self_attn.q_proj.weight",
+    "model.layers.23.self_attn.v_proj.weight",
+    "model.layers.3.self_attn.q_proj.weight",
+    "model.layers.3.self_attn.v_proj.weight",
+    "model.layers.4.self_attn.q_proj.weight",
+    "model.layers.4.self_attn.v_proj.weight",
+    "model.layers.5.self_attn.q_proj.weight",
+    "model.layers.5.self_attn.v_proj.weight",
+    "model.layers.6.self_attn.q_proj.weight",
+    "model.layers.6.self_attn.v_proj.weight",
+    "model.layers.7.self_attn.q_proj.weight",
+    "model.layers.7.self_attn.v_proj.weight",
+    "model.layers.8.self_attn.q_proj.weight",
+    "model.layers.8.self_attn.v_proj.weight",
+    "model.layers.9.self_attn.q_proj.weight",
+    "model.layers.9.self_attn.v_proj.weight"
+  ],
+  "target_tensor_count": 48,
+  "dense_delta": {
+    "path": "/tmp/cerebro3-v67-real-xdrz00v4/artifacts/deltas/by-sha/5b809baba88e5d1bff02e5d9afa4bd7813e9174d2055e6773b2fe6181d9117dc.dvec",
+    "sha256": "5b809baba88e5d1bff02e5d9afa4bd7813e9174d2055e6773b2fe6181d9117dc",
+    "parameter_count": 201326592
+  },
+  "parameter_layout": {
+    "schema": "cerebro.tidex.parameter_block_layout/v1",
+    "blocks": [
+      {
+        "name": "model.layers.0.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 0,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.0.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 4194304,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.1.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 8388608,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.1.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 12582912,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.10.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 16777216,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.10.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 20971520,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.11.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 25165824,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.11.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 29360128,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.12.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 33554432,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.12.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 37748736,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.13.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 41943040,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.13.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 46137344,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.14.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 50331648,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.14.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 54525952,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.15.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 58720256,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.15.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 62914560,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.16.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 67108864,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.16.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 71303168,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.17.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 75497472,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.17.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 79691776,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.18.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 83886080,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.18.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 88080384,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.19.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 92274688,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.19.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 96468992,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.2.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 100663296,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.2.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 104857600,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.20.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 109051904,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.20.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 113246208,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.21.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 117440512,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.21.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 121634816,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.22.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 125829120,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.22.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 130023424,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.23.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 134217728,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.23.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 138412032,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.3.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 142606336,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.3.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 146800640,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.4.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 150994944,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.4.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 155189248,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.5.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 159383552,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.5.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 163577856,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.6.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 167772160,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.6.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 171966464,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.7.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 176160768,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.7.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 180355072,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.8.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 184549376,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.8.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 188743680,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.9.self_attn.q_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 192937984,
+        "count": 4194304
+      },
+      {
+        "name": "model.layers.9.self_attn.v_proj.weight",
+        "shape": [
+          2048,
+          2048
+        ],
+        "offset": 197132288,
+        "count": 4194304
+      }
+    ],
+    "total_parameter_count": 201326592
+  },
+  "materialization": {
+    "schema": "cerebro.tidex.weight_materialization_receipt/v1",
+    "lifecycle": "candidate_only_not_promoted",
+    "base_model_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
+    "base_model_byte_len": 3422777952,
+    "source_tensor_count": 218,
+    "source_parameter_count": 1711376384,
+    "parameter_layout_sha256": "1fe70c00b9c3ec6ae5c9fd1c2f99e3e29e322c6629316ea1895dd19e193b9b8d",
+    "delta_sha256": "5b809baba88e5d1bff02e5d9afa4bd7813e9174d2055e6773b2fe6181d9117dc",
+    "delta_parameter_count": 201326592,
+    "modified_tensor_count": 48,
+    "modified_parameter_count": 201326592,
+    "output_model_sha256": "5b339453e3169fdcf0a641801b073df0e455d83f712cf02c428efb75081fd7a1",
+    "output_model_byte_len": 3825431088,
+    "dtype_policy": "modified_tensors_f32_untouched_source_bytes/v1",
+    "trains_target_capability": false,
+    "requires_adapter_at_runtime": false,
+    "authorizes_promotion": false
+  },
+  "claim_boundary": {
+    "rust_direct_weight_actuation_established": true,
+    "output_requires_peft": false,
+    "output_requires_lora_adapter": false,
+    "v66_behavioral_delta_source_used": true,
+    "functional_receiver_compiler_generated_target_delta": false,
+    "target_capability_training_avoided_in_this_smoke": false,
+    "universal_portability_established": false
+  }
+}

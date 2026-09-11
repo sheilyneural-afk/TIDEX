@@ -70,6 +70,9 @@ impl ShadowEvaluationBundle {
             || self.receiver_snapshot_sha256 == Sha256Digest::zero()
             || self.candidate_sha256 == Sha256Digest::zero()
             || size > MAX_BUNDLE_BYTES
+            || self.receiver_payload.is_empty()
+            || self.candidate_payload.is_empty()
+            || self.evaluation_payload.is_empty()
             || self.optimizer_steps != 0
             || self.receiver_payload_sha256 != Sha256Digest::digest_bytes(&self.receiver_payload)
             || self.candidate_payload_sha256 != Sha256Digest::digest_bytes(&self.candidate_payload)
@@ -79,6 +82,47 @@ impl ShadowEvaluationBundle {
             return Err(BrainError::Integrity(
                 "shadow_evaluation_bundle_invalid".into(),
             ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ShadowRuntimeMetrics {
+    pub schema: String,
+    pub functional_score: f64,
+    pub functional_ci_lower: f64,
+    pub preservation_score: f64,
+    pub identity_margin: f64,
+    pub numerical_stability: f64,
+    pub normalized_risk: f64,
+    pub latency_micros: u64,
+    pub resident_bytes: u64,
+    pub completed_controls: BTreeSet<ComparativeControl>,
+}
+
+impl ShadowRuntimeMetrics {
+    fn validate(&self) -> BrainResult<()> {
+        let unit = [
+            self.functional_score,
+            self.functional_ci_lower,
+            self.preservation_score,
+            self.identity_margin,
+            self.numerical_stability,
+            self.normalized_risk,
+        ];
+        if self.schema != "cerebro.tidex.shadow_runtime_metrics/v1"
+            || unit
+                .iter()
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+            || self.functional_ci_lower > self.functional_score
+            || self.latency_micros == 0
+            || self.resident_bytes == 0
+            || self.completed_controls.is_empty()
+            || self.completed_controls.len() > 64
+        {
+            return Err(BrainError::Invalid("shadow_runtime_metrics_invalid".into()));
         }
         Ok(())
     }
@@ -147,6 +191,42 @@ pub struct ShadowEvaluationInput {
     pub arguments: Vec<String>,
     pub limits: IsolationLimits,
     pub requirements: IsolationRequirements,
+}
+
+/// Convert one authenticated bundle into the exact runtime result expected by
+/// the shadow evaluator. Metrics come from one strict, typed evaluation payload;
+/// receiver and candidate payloads remain opaque evidence and can never add or
+/// override metrics or controls.
+pub fn evaluate_shadow_bundle_payloads(
+    bundle: &ShadowEvaluationBundle,
+) -> BrainResult<ShadowRuntimeOutput> {
+    bundle.validate()?;
+    let metrics: ShadowRuntimeMetrics = serde_json::from_slice(&bundle.evaluation_payload)
+        .map_err(|_| BrainError::Invalid("shadow_runtime_metrics_encoding_invalid".into()))?;
+    if serde_json::to_vec(&metrics)? != bundle.evaluation_payload {
+        return Err(BrainError::Invalid(
+            "shadow_runtime_metrics_not_canonical".into(),
+        ));
+    }
+    metrics.validate()?;
+    Ok(ShadowRuntimeOutput {
+        schema: "cerebro.tidex.shadow_runtime_output/v1".into(),
+        receiver_snapshot_sha256: bundle.receiver_snapshot_sha256.clone(),
+        candidate_sha256: bundle.candidate_sha256.clone(),
+        receiver_payload_sha256: bundle.receiver_payload_sha256.clone(),
+        candidate_payload_sha256: bundle.candidate_payload_sha256.clone(),
+        evaluation_payload_sha256: bundle.evaluation_payload_sha256.clone(),
+        functional_score: metrics.functional_score,
+        functional_ci_lower: metrics.functional_ci_lower,
+        preservation_score: metrics.preservation_score,
+        identity_margin: metrics.identity_margin,
+        numerical_stability: metrics.numerical_stability,
+        normalized_risk: metrics.normalized_risk,
+        latency_micros: metrics.latency_micros,
+        resident_bytes: metrics.resident_bytes,
+        completed_controls: metrics.completed_controls,
+        optimizer_steps: bundle.optimizer_steps,
+    })
 }
 
 pub fn run_shadow_evaluation(
@@ -248,5 +328,96 @@ mod tests {
         b.candidate_payload_sha256 = Sha256Digest::digest_bytes(&b.candidate_payload);
         b.optimizer_steps = 1;
         assert!(b.validate().is_err());
+    }
+
+    fn strict_metrics() -> ShadowRuntimeMetrics {
+        ShadowRuntimeMetrics {
+            schema: "cerebro.tidex.shadow_runtime_metrics/v1".into(),
+            functional_score: 0.93,
+            functional_ci_lower: 0.90,
+            preservation_score: 0.99,
+            identity_margin: 0.84,
+            numerical_stability: 0.998,
+            normalized_risk: 0.01,
+            latency_micros: 1200,
+            resident_bytes: 2048,
+            completed_controls: BTreeSet::from([
+                ComparativeControl::UnmodifiedReceiver,
+                ComparativeControl::DenseDelta,
+                ComparativeControl::WrongCapabilityIr,
+                ComparativeControl::RandomDelta,
+                ComparativeControl::MeanCapability,
+                ComparativeControl::NearestCapability,
+                ComparativeControl::AlternativeBackend,
+                ComparativeControl::NonTargetPreservation,
+            ]),
+        }
+    }
+
+    fn strict_bundle() -> ShadowEvaluationBundle {
+        ShadowEvaluationBundle::create(
+            Sha256Digest::digest_bytes(b"receiver"),
+            Sha256Digest::digest_bytes(b"candidate"),
+            MaterializationStrategy::DenseDelta,
+            b"receiver-payload".to_vec(),
+            b"candidate-payload".to_vec(),
+            serde_json::to_vec(&strict_metrics()).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn strict_runtime_metrics_are_the_only_metric_authority() {
+        let bundle = strict_bundle();
+        let output = evaluate_shadow_bundle_payloads(&bundle).unwrap();
+        assert_eq!(output.functional_score, 0.93);
+        assert_eq!(output.functional_ci_lower, 0.90);
+        assert_eq!(output.latency_micros, 1200);
+        assert_eq!(output.resident_bytes, 2048);
+        assert_eq!(
+            output.completed_controls,
+            strict_metrics().completed_controls
+        );
+    }
+
+    #[test]
+    fn candidate_and_receiver_payloads_cannot_invent_controls() {
+        let mut bundle = strict_bundle();
+        bundle.receiver_payload = br#"{"completed_controls":["activation_steering"]}"#.to_vec();
+        bundle.receiver_payload_sha256 = Sha256Digest::digest_bytes(&bundle.receiver_payload);
+        bundle.candidate_payload = br#"{"controls":["sparse_delta"]}"#.to_vec();
+        bundle.candidate_payload_sha256 = Sha256Digest::digest_bytes(&bundle.candidate_payload);
+        let output = evaluate_shadow_bundle_payloads(&bundle).unwrap();
+        assert!(!output
+            .completed_controls
+            .contains(&ComparativeControl::ActivationSteering));
+        assert!(!output
+            .completed_controls
+            .contains(&ComparativeControl::SparseDelta));
+    }
+
+    #[test]
+    fn aliases_unknown_fields_and_impossible_resources_fail_closed() {
+        let mut metrics = serde_json::to_value(strict_metrics()).unwrap();
+        metrics
+            .as_object_mut()
+            .unwrap()
+            .insert("latency_us".into(), serde_json::json!(1200));
+        let mut bundle = strict_bundle();
+        bundle.evaluation_payload = serde_json::to_vec(&metrics).unwrap();
+        bundle.evaluation_payload_sha256 = Sha256Digest::digest_bytes(&bundle.evaluation_payload);
+        assert!(evaluate_shadow_bundle_payloads(&bundle).is_err());
+
+        let mut metrics = strict_metrics();
+        metrics.latency_micros = 0;
+        bundle.evaluation_payload = serde_json::to_vec(&metrics).unwrap();
+        bundle.evaluation_payload_sha256 = Sha256Digest::digest_bytes(&bundle.evaluation_payload);
+        assert!(evaluate_shadow_bundle_payloads(&bundle).is_err());
+
+        metrics.latency_micros = 1;
+        metrics.resident_bytes = 0;
+        bundle.evaluation_payload = serde_json::to_vec(&metrics).unwrap();
+        bundle.evaluation_payload_sha256 = Sha256Digest::digest_bytes(&bundle.evaluation_payload);
+        assert!(evaluate_shadow_bundle_payloads(&bundle).is_err());
     }
 }

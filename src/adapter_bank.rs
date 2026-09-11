@@ -562,14 +562,7 @@ pub(crate) struct VerifiedAdapterPromotion {
 }
 
 fn validate_reason(reason: &str) -> BrainResult<()> {
-    if reason.is_empty()
-        || reason.len() > MAX_REASON_BYTES
-        || reason != reason.trim()
-        || reason.chars().any(char::is_control)
-    {
-        return Err(invalid("adapter_lifecycle_reason_invalid"));
-    }
-    Ok(())
+    crate::validation::validate_reason(reason, MAX_REASON_BYTES)
 }
 
 fn coefficient_bits_hex(value: f64) -> String {
@@ -577,10 +570,7 @@ fn coefficient_bits_hex(value: f64) -> String {
 }
 
 fn validate_coefficient(value: f64) -> BrainResult<()> {
-    if !value.is_finite() || value == 0.0 {
-        return Err(invalid("adapter_composition_coefficient_invalid"));
-    }
-    Ok(())
+    crate::validation::validate_coefficient(value)
 }
 
 impl AdapterBank {

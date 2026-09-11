@@ -177,17 +177,24 @@ impl TopologicalSkillManifold {
 
         // Pairwise Euclidean distance matrix
         let mut dist_matrix = vec![vec![0.0_f64; n]; n];
-        for i in 0..n {
-            for j in (i + 1)..n {
-                let mut sum_sq = 0.0;
-                for d in 0..dim {
-                    let diff = points[i][d] - points[j][d];
-                    sum_sq += diff * diff;
-                }
+        let mut i = 0;
+        while i < n {
+            let mut j = i + 1;
+            while j < n {
+                let sum_sq = points[i]
+                    .iter()
+                    .zip(&points[j])
+                    .map(|(left, right)| {
+                        let diff = left - right;
+                        diff * diff
+                    })
+                    .sum::<f64>();
                 let dist = sum_sq.sqrt();
                 dist_matrix[i][j] = dist;
                 dist_matrix[j][i] = dist;
+                j += 1;
             }
+            i += 1;
         }
 
         // Betti-0 and Betti-1 at threshold (Backward Compatibility)
@@ -205,8 +212,10 @@ impl TopologicalSkillManifold {
         let mut edge_count = 0;
         let mut lifetimes = Vec::new();
 
-        for i in 0..n {
-            for j in (i + 1)..n {
+        let mut i = 0;
+        while i < n {
+            let mut j = i + 1;
+            while j < n {
                 let d = dist_matrix[i][j];
                 if d <= distance_threshold {
                     let root_i = find(&mut parent_thresh, i);
@@ -217,7 +226,9 @@ impl TopologicalSkillManifold {
                     }
                     edge_count += 1;
                 }
+                j += 1;
             }
+            i += 1;
         }
 
         let mut roots = std::collections::HashSet::new();
@@ -242,21 +253,31 @@ impl TopologicalSkillManifold {
 
         // --- NEW PERSISTENCE ALGORITHM ---
         let mut events = Vec::new();
-        for i in 0..n {
-            for j in (i + 1)..n {
+        let mut i = 0;
+        while i < n {
+            let mut j = i + 1;
+            while j < n {
                 events.push((dist_matrix[i][j], 0, i, j));
+                j += 1;
             }
+            i += 1;
         }
-        for i in 0..n {
-            for j in (i + 1)..n {
-                for k in (j + 1)..n {
+        let mut i = 0;
+        while i < n {
+            let mut j = i + 1;
+            while j < n {
+                let mut k = j + 1;
+                while k < n {
                     let d1 = dist_matrix[i][j];
                     let d2 = dist_matrix[j][k];
                     let d3 = dist_matrix[i][k];
                     let max_d = d1.max(d2).max(d3);
                     events.push((max_d, 1, 0, 0));
+                    k += 1;
                 }
+                j += 1;
             }
+            i += 1;
         }
 
         // Sort by distance, then event type (edges before triangles)
@@ -363,7 +384,7 @@ impl SarWeightProcessor {
         }
 
         let mut sub_energies = vec![0.0_f64; num_subapertures];
-        let chunk_size = (cols + num_subapertures - 1) / num_subapertures;
+        let chunk_size = cols.div_ceil(num_subapertures);
 
         // Partition rows into Doppler subapertures to compute energy distribution
         for r in 0..rows {
@@ -396,26 +417,31 @@ impl SarWeightProcessor {
                 let row_a = weight_matrix.row(r);
                 let row_b = weight_matrix.row(r + 1);
 
-                // Use temporal_tracking phase_correlation for spatial registration!
-                if let Ok(corr) = crate::temporal_tracking::phase_correlation(row_a, row_b) {
-                    // Average shift across all elements (mean of estimated shifts)
-                    let shift = corr.estimated_shift.iter().sum::<f64>() / (cols as f64);
-                    cumulative_shift += shift;
-                    migration_drift[r + 1] = cumulative_shift;
+                // Every inter-row registration is mandatory evidence. A failed
+                // phase-correlation measurement invalidates the SAR report rather
+                // than silently reusing the preceding displacement.
+                let corr =
+                    crate::temporal_tracking::phase_correlation(row_a, row_b).map_err(|error| {
+                        BrainError::Integrity(format!("sar_phase_correlation_failed:{r}:{error}"))
+                    })?;
+                let shift = corr.estimated_shift.iter().sum::<f64>() / (cols as f64);
+                cumulative_shift += shift;
+                migration_drift[r + 1] = cumulative_shift;
 
-                    coherence_sum += corr.peak_magnitude;
-                    coherence_count += 1;
-                } else {
-                    migration_drift[r + 1] = cumulative_shift; // Fallback to previous
-                }
+                coherence_sum += corr.peak_magnitude;
+                coherence_count += 1;
             }
         }
 
         // Focused coherence score from true phase correlation peaks
-        let focused_coherence = if coherence_count > 0 {
+        let focused_coherence = if rows == 1 {
+            1.0
+        } else if coherence_count == rows - 1 {
             coherence_sum / (coherence_count as f64)
         } else {
-            1.0 // Single row matrix or failed correlations
+            return Err(BrainError::Integrity(
+                "sar_phase_correlation_incomplete".into(),
+            ));
         };
 
         Ok(SarSubapertureReport {
@@ -513,8 +539,7 @@ impl SarWeightProcessor {
                 let mut val = 0.0;
                 // For each retained eigenvector v_j: contribution = (w_row · v_j) * v_j[c]
                 // Use robust dot product from linalg
-                for j in 0..rank {
-                    let v_j = &eigen_positive[j].1;
+                for (_, v_j) in eigen_positive.iter().take(rank) {
                     let projection = dot(w_row, v_j)?;
                     val += projection * v_j[c];
                 }

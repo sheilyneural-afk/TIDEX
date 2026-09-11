@@ -1,0 +1,21 @@
+schema = "cerebro.cross_model.system/v1"
+
+[runtime]
+fail_closed = true
+maximum_models = 64
+maximum_stored_capabilities = 100000
+
+[features]
+behavioral_discovery = true
+internal_activation_extraction = true
+activation_intervention = true
+automatic_activation_steering = false
+automatic_production_promotion = false
+core_adapter_bank = true
+core_shadow_evaluation = true
+core_weight_materialization = true
+
+[evidence]
+require_sha256 = true
+require_deterministic_verifier = true
+require_independent_replay_for_promotion = true

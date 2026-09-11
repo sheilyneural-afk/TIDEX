@@ -8,14 +8,9 @@
 
 use crate::acquisition_contract::SystemEnvelope;
 use crate::capability_ir::{CapabilityIr, OperationalCapabilityContract};
-use crate::contracts::ProtectedCortex;
 use crate::digest::{CapabilityIrDigest, Sha256Digest, SystemEnvelopeDigest};
 use crate::error::{BrainError, BrainResult};
-use crate::linalg::Matrix;
-use crate::receiver_compiler::{
-    compile_receiver_capability, ReceiverCalibrationSet, ReceiverCompilation,
-    ReceiverCompilerPolicy,
-};
+use crate::receiver_compiler::{FrozenReceiverCompiler, ReceiverCompilation};
 use crate::receiver_profile::{
     assess_compatibility, create_shadow_plan, CapabilityRequirements, CompatibilityAssessment,
     MaterializationPlan, MaterializationStrategy, ReceiverProfile,
@@ -23,10 +18,10 @@ use crate::receiver_profile::{
 use crate::receiver_profiler::ReceiverSnapshotBinding;
 use serde::{Deserialize, Serialize};
 
-/// Portable input envelope for one experimental receiver compilation.
-///
-/// `risk_metric_rows` is used instead of serialising the internal matrix type.
-/// It must describe a finite square matrix with one row per receiver parameter.
+/// Portable target-time request. Calibration, protection, risk and proposal
+/// geometry are committed once in `FrozenReceiverCompiler`; the target request
+/// carries only the held-out semantic capability and target-specific negative
+/// controls. This prevents target-time refitting or rebinding of receiver state.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UniversalCapabilityCompilationRequest {
@@ -34,10 +29,8 @@ pub struct UniversalCapabilityCompilationRequest {
     pub system_envelope: SystemEnvelope,
     pub capability_ir: CapabilityIr,
     pub operational_contract: OperationalCapabilityContract,
-    pub calibration: ReceiverCalibrationSet,
-    pub protected_cortex: ProtectedCortex,
-    pub risk_metric_rows: Vec<Vec<f64>>,
-    pub policy: ReceiverCompilerPolicy,
+    pub frozen_compiler: FrozenReceiverCompiler,
+    pub wrong_functional_signatures: Vec<Vec<f64>>,
 }
 
 /// The only dispositions this experimental boundary can produce.
@@ -58,6 +51,7 @@ pub struct UniversalCapabilityCompilation {
     pub schema: String,
     pub source_envelope_sha256: SystemEnvelopeDigest,
     pub capability_ir_sha256: CapabilityIrDigest,
+    pub frozen_compiler_sha256: Sha256Digest,
     pub receiver: ReceiverCompilation,
     pub disposition: UniversalCapabilityDisposition,
 }
@@ -109,101 +103,61 @@ impl UniversalCapabilityCompilation {
     }
 }
 
-/// Compile a sealed capability into receiver-native parameters for a declared
-/// experimental calibration domain.
-///
-/// The function accepts semantic representations and receiver calibration
-/// data, never donor parameters. It verifies the source envelope and IR chain
-/// before delegating all numerical, protected-subspace, trust-region, and
-/// operational checks to [`compile_receiver_capability`].
+/// Compile a sealed held-out capability using a previously frozen receiver
+/// compiler. `verify()` replays calibration without target observations and the
+/// returned verified handle performs the target compilation without refitting.
 pub fn compile_experimental_universal_capability(
     envelope: &SystemEnvelope,
     ir: &CapabilityIr,
     operational: &OperationalCapabilityContract,
-    calibration: &ReceiverCalibrationSet,
-    protected_cortex: &ProtectedCortex,
-    risk_metric: &Matrix,
-    policy: &ReceiverCompilerPolicy,
+    frozen_compiler: &FrozenReceiverCompiler,
+    wrong_functional_signatures: &[Vec<f64>],
 ) -> BrainResult<UniversalCapabilityCompilation> {
     envelope.verify_manifest()?;
     ir.validate_against(envelope)?;
     operational.validate_against(ir)?;
-
-    let receiver = compile_receiver_capability(
-        ir,
-        operational,
-        calibration,
-        protected_cortex,
-        risk_metric,
-        policy,
-    )?;
+    let verified = frozen_compiler.verify()?;
+    let receiver = verified.compile_capability(ir, operational, wrong_functional_signatures)?;
     let disposition = if receiver.allowed && receiver.operational_verification.allowed {
         UniversalCapabilityDisposition::ExperimentalOnly
     } else {
         UniversalCapabilityDisposition::Rejected
     };
-
     Ok(UniversalCapabilityCompilation {
-        schema: "cerebro.tidex.universal_capability_compilation/v1".into(),
+        schema: "cerebro.tidex.universal_capability_compilation/v2".into(),
         source_envelope_sha256: envelope.manifest_sha256().clone(),
         capability_ir_sha256: ir.manifest_digest().clone(),
+        frozen_compiler_sha256: frozen_compiler.manifest_sha256().clone(),
         receiver,
         disposition,
     })
 }
 
-/// Compile an independently serialised request.
-///
-/// This is the CLI and artifact boundary. It keeps the matrix wire format
-/// explicit and rejects malformed rows before the numerical compiler sees it.
+/// CLI/artifact boundary for target-time compilation. The frozen compiler wire
+/// is replay-authenticated before use and target controls must be explicit.
 pub fn compile_experimental_universal_capability_request(
     request: &UniversalCapabilityCompilationRequest,
 ) -> BrainResult<UniversalCapabilityCompilation> {
-    if request.schema != "cerebro.tidex.universal_capability_compilation_request/v1" {
-        return Err(crate::error::BrainError::Invalid(
-            "universal_capability_compilation_request_schema".into(),
-        ));
-    }
-    let n = request.risk_metric_rows.len();
-    if n == 0
-        || n > 256
-        || request.risk_metric_rows.iter().any(|row| row.len() != n)
-        || request.calibration.functional_signatures.len() > 128
-        || request
-            .calibration
-            .functional_signatures
-            .iter()
-            .any(|row| row.len() > 128)
-        || request
-            .calibration
-            .receiver_solutions
-            .iter()
-            .any(|row| row.len() != n)
+    if request.schema != "cerebro.tidex.universal_capability_compilation_request/v2"
+        || request.wrong_functional_signatures.is_empty()
+        || request.wrong_functional_signatures.len() > 256
     {
-        return Err(crate::error::BrainError::Invalid(
-            "universal_compiler_numerical_work_limit".into(),
-        ));
-    }
-    let risk_metric = Matrix::from_rows(&request.risk_metric_rows)?;
-    if risk_metric.row_count() == 0 || risk_metric.row_count() != risk_metric.column_count() {
-        return Err(crate::error::BrainError::Invalid(
-            "universal_capability_compilation_risk_metric_shape".into(),
+        return Err(BrainError::Invalid(
+            "universal_capability_compilation_request_invalid".into(),
         ));
     }
     compile_experimental_universal_capability(
         &request.system_envelope,
         &request.capability_ir,
         &request.operational_contract,
-        &request.calibration,
-        &request.protected_cortex,
-        &risk_metric,
-        &request.policy,
+        &request.frozen_compiler,
+        &request.wrong_functional_signatures,
     )
 }
 
 fn request_digest(request: &UniversalCapabilityCompilationRequest) -> BrainResult<Sha256Digest> {
     let payload = serde_json::to_vec(request)?;
-    let mut framed = b"CEREBRO:TIDEX:UNIVERSAL-CAPABILITY-COMPILATION-REQUEST:v1\0".to_vec();
+    let mut framed = b"CEREBRO:TIDEX:UNIVERSAL-CAPABILITY-COMPILATION-REQUEST:v2\0".to_vec();
     framed.extend_from_slice(&payload);
     Ok(Sha256Digest::digest_bytes(&framed))
 }
@@ -213,7 +167,7 @@ pub fn execute_experimental_universal_capability_request(
     request: &UniversalCapabilityCompilationRequest,
 ) -> BrainResult<UniversalCapabilityCompilationReceipt> {
     Ok(UniversalCapabilityCompilationReceipt {
-        schema: "cerebro.tidex.universal_capability_compilation_receipt/v1".into(),
+        schema: "cerebro.tidex.universal_capability_compilation_receipt/v2".into(),
         request_sha256: request_digest(request)?,
         compilation: compile_experimental_universal_capability_request(request)?,
     })
@@ -224,7 +178,7 @@ pub fn replay_experimental_universal_capability_request(
     request: &UniversalCapabilityCompilationRequest,
     receipt: &UniversalCapabilityCompilationReceipt,
 ) -> BrainResult<()> {
-    if receipt.schema != "cerebro.tidex.universal_capability_compilation_receipt/v1" {
+    if receipt.schema != "cerebro.tidex.universal_capability_compilation_receipt/v2" {
         return Err(BrainError::Invalid(
             "universal_capability_compilation_receipt_schema".into(),
         ));
@@ -248,7 +202,7 @@ pub fn replay_experimental_universal_capability_request(
 pub fn compile_and_plan_experimental_universal_capability(
     request: &UniversalCapabilityPlanningRequest,
 ) -> BrainResult<UniversalCapabilityShadowPlan> {
-    if request.schema != "cerebro.tidex.universal_capability_planning_request/v1" {
+    if request.schema != "cerebro.tidex.universal_capability_planning_request/v2" {
         return Err(BrainError::Invalid(
             "universal_capability_planning_request_schema".into(),
         ));
@@ -268,6 +222,8 @@ pub fn compile_and_plan_experimental_universal_capability(
         .validate_for(&request.receiver_profile)?;
     if request
         .compilation
+        .frozen_compiler
+        .input()
         .calibration
         .receiver_snapshot_binding_sha256
         .as_ref()
@@ -301,7 +257,7 @@ pub fn compile_and_plan_experimental_universal_capability(
         request.affected_regions.clone(),
     )?;
     Ok(UniversalCapabilityShadowPlan {
-        schema: "cerebro.tidex.universal_capability_shadow_plan/v1".into(),
+        schema: "cerebro.tidex.universal_capability_shadow_plan/v2".into(),
         compilation_receipt,
         compatibility,
         materialization_plan,
@@ -312,7 +268,7 @@ fn planning_request_digest(
     request: &UniversalCapabilityPlanningRequest,
 ) -> BrainResult<Sha256Digest> {
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSAL-CAPABILITY-PLANNING-REQUEST:v1\0",
+        b"CEREBRO:TIDEX:UNIVERSAL-CAPABILITY-PLANNING-REQUEST:v2\0",
         &serde_json::to_vec(request)?,
     ))
 }
@@ -321,7 +277,7 @@ pub fn execute_universal_capability_shadow_plan(
     request: &UniversalCapabilityPlanningRequest,
 ) -> BrainResult<UniversalCapabilityShadowPlanReceipt> {
     Ok(UniversalCapabilityShadowPlanReceipt {
-        schema: "cerebro.tidex.universal_capability_shadow_plan_receipt/v1".into(),
+        schema: "cerebro.tidex.universal_capability_shadow_plan_receipt/v2".into(),
         planning_request_sha256: planning_request_digest(request)?,
         shadow_plan: compile_and_plan_experimental_universal_capability(request)?,
     })
@@ -331,7 +287,7 @@ pub fn replay_universal_capability_shadow_plan(
     request: &UniversalCapabilityPlanningRequest,
     receipt: &UniversalCapabilityShadowPlanReceipt,
 ) -> BrainResult<()> {
-    if receipt.schema != "cerebro.tidex.universal_capability_shadow_plan_receipt/v1" {
+    if receipt.schema != "cerebro.tidex.universal_capability_shadow_plan_receipt/v2" {
         return Err(BrainError::Invalid(
             "universal_capability_shadow_plan_receipt_schema".into(),
         ));
@@ -365,6 +321,7 @@ mod tests {
         IrNode, OperatorIrTransition, OutputBinding, PrimitiveSet, StateIrAnchor, TypedPort,
         ValueReference,
     };
+    use crate::contracts::ProtectedCortex;
     use crate::dense_shadow_materializer::{
         load_dense_delta_shadow, materialize_replayed_dense_delta_shadow,
         persist_dense_delta_shadow,
@@ -377,6 +334,10 @@ mod tests {
     use crate::low_rank_shadow_materializer::{
         load_low_rank_shadow, materialize_replayed_low_rank_shadow, persist_low_rank_shadow,
         LowRankShadowPolicy,
+    };
+    use crate::receiver_compiler::{
+        freeze_receiver_compiler, FrozenReceiverCompiler, FrozenReceiverCompilerInput,
+        ReceiverCalibrationSet, ReceiverCompilerPolicy, ReceiverProposalMethod,
     };
     use crate::receiver_layout::{
         FloatingScalarType, ReceiverMaterializationLayout, ReceiverScalarEncoding,
@@ -507,30 +468,37 @@ mod tests {
         ]
     }
 
-    #[test]
-    fn binds_existing_verified_components_without_donor_parameters() {
-        let (root, envelope, ir, operational) = fixture();
-        let functional = calibration();
-        let compilation = compile_experimental_universal_capability(
-            &envelope,
-            &ir,
-            &operational,
-            &ReceiverCalibrationSet {
-                receiver_snapshot_binding_sha256: Some(Sha256Digest::zero()),
-                functional_signatures: functional.clone(),
-                receiver_solutions: functional
-                    .iter()
-                    .map(|row| receiver_solution(row))
-                    .collect(),
-                wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
+    fn frozen_compiler(
+        functional: &[Vec<f64>],
+        receiver_solutions: Vec<Vec<f64>>,
+        receiver_snapshot_sha256: Sha256Digest,
+        maximum_quadratic_cost: f64,
+    ) -> FrozenReceiverCompiler {
+        let dimension = receiver_solutions.first().unwrap().len();
+        let input = FrozenReceiverCompilerInput {
+            schema: "cerebro.tidex.frozen_receiver_compiler_input/v1".into(),
+            calibration_capability_ids: (0..functional.len())
+                .map(|index| CapabilityId::parse(format!("calibration.{index}:v1")).unwrap())
+                .collect(),
+            calibration: ReceiverCalibrationSet {
+                receiver_snapshot_binding_sha256: Some(receiver_snapshot_sha256),
+                functional_signatures: functional.to_vec(),
+                receiver_solutions,
+                wrong_functional_signatures: Vec::new(),
             },
-            &ProtectedCortex {
-                parameter_importance: vec![0.0; 5],
+            protected_cortex: ProtectedCortex {
+                parameter_importance: vec![0.0; dimension],
                 directions: Vec::new(),
                 max_damage_ratio: 0.01,
             },
-            &Matrix::identity(5),
-            &ReceiverCompilerPolicy {
+            risk_metric_rows: (0..dimension)
+                .map(|row| {
+                    (0..dimension)
+                        .map(|column| f64::from(row == column))
+                        .collect()
+                })
+                .collect(),
+            policy: ReceiverCompilerPolicy {
                 schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
                 ridge: 1e-10,
                 minimum_decoder_loo_r2: 0.999,
@@ -538,8 +506,57 @@ mod tests {
                 minimum_decoder_loo_cosine: 0.999,
                 maximum_functional_relative_error: 1e-4,
                 minimum_identity_margin: 0.05,
-                maximum_quadratic_cost: 1e6,
+                maximum_quadratic_cost,
             },
+            proposal_method: ReceiverProposalMethod::DecodeThenProject,
+        };
+        freeze_receiver_compiler(&input).unwrap()
+    }
+
+    fn compilation_request(
+        system_envelope: SystemEnvelope,
+        capability_ir: CapabilityIr,
+        operational_contract: OperationalCapabilityContract,
+        functional: &[Vec<f64>],
+        receiver_solutions: Vec<Vec<f64>>,
+        receiver_snapshot_sha256: Sha256Digest,
+        maximum_quadratic_cost: f64,
+    ) -> UniversalCapabilityCompilationRequest {
+        UniversalCapabilityCompilationRequest {
+            schema: "cerebro.tidex.universal_capability_compilation_request/v2".into(),
+            system_envelope,
+            capability_ir,
+            operational_contract,
+            frozen_compiler: frozen_compiler(
+                functional,
+                receiver_solutions,
+                receiver_snapshot_sha256,
+                maximum_quadratic_cost,
+            ),
+            wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
+        }
+    }
+
+    #[test]
+    fn binds_existing_verified_components_without_donor_parameters() {
+        let (root, envelope, ir, operational) = fixture();
+        let functional = calibration();
+        let frozen = frozen_compiler(
+            &functional,
+            functional
+                .iter()
+                .map(|row| receiver_solution(row))
+                .collect(),
+            Sha256Digest::digest_bytes(b"standalone-receiver-snapshot"),
+            1e6,
+        );
+        let wrong = vec![functional[0].clone(), functional[2].clone()];
+        let compilation = compile_experimental_universal_capability(
+            &envelope,
+            &ir,
+            &operational,
+            &frozen,
+            &wrong,
         )
         .unwrap();
         assert!(compilation.is_experimentally_usable(), "{compilation:#?}");
@@ -552,41 +569,24 @@ mod tests {
     }
 
     #[test]
-    fn serialized_request_is_executable_and_rejects_a_nonsquare_risk_metric() {
+    fn serialized_request_is_executable_and_rejects_missing_target_controls() {
         let (root, envelope, ir, operational) = fixture();
         let functional = calibration();
         let request = UniversalCapabilityCompilationRequest {
-            schema: "cerebro.tidex.universal_capability_compilation_request/v1".into(),
+            schema: "cerebro.tidex.universal_capability_compilation_request/v2".into(),
             system_envelope: envelope,
             capability_ir: ir,
             operational_contract: operational,
-            calibration: ReceiverCalibrationSet {
-                receiver_snapshot_binding_sha256: Some(Sha256Digest::zero()),
-                functional_signatures: functional.clone(),
-                receiver_solutions: functional
+            frozen_compiler: frozen_compiler(
+                &functional,
+                functional
                     .iter()
                     .map(|row| receiver_solution(row))
                     .collect(),
-                wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
-            },
-            protected_cortex: ProtectedCortex {
-                parameter_importance: vec![0.0; 5],
-                directions: Vec::new(),
-                max_damage_ratio: 0.01,
-            },
-            risk_metric_rows: (0..5)
-                .map(|row| (0..5).map(|column| f64::from(row == column)).collect())
-                .collect(),
-            policy: ReceiverCompilerPolicy {
-                schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
-                ridge: 1e-10,
-                minimum_decoder_loo_r2: 0.999,
-                minimum_encoder_loo_r2: 0.999,
-                minimum_decoder_loo_cosine: 0.999,
-                maximum_functional_relative_error: 1e-4,
-                minimum_identity_margin: 0.05,
-                maximum_quadratic_cost: 1e6,
-            },
+                Sha256Digest::digest_bytes(b"serialized-receiver-snapshot"),
+                1e6,
+            ),
+            wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
         };
         let restored: UniversalCapabilityCompilationRequest =
             serde_json::from_slice(&serde_json::to_vec(&request).unwrap()).unwrap();
@@ -603,7 +603,7 @@ mod tests {
         );
 
         let mut malformed = restored;
-        malformed.risk_metric_rows.pop();
+        malformed.wrong_functional_signatures.clear();
         assert!(compile_experimental_universal_capability_request(&malformed).is_err());
         fs::remove_dir_all(root).unwrap();
     }
@@ -672,40 +672,19 @@ mod tests {
             ]),
         };
         let request = UniversalCapabilityPlanningRequest {
-            schema: "cerebro.tidex.universal_capability_planning_request/v1".into(),
-            compilation: UniversalCapabilityCompilationRequest {
-                schema: "cerebro.tidex.universal_capability_compilation_request/v1".into(),
-                system_envelope: envelope,
-                capability_ir: ir.clone(),
-                operational_contract: operational,
-                calibration: ReceiverCalibrationSet {
-                    receiver_snapshot_binding_sha256: Some(snapshot.manifest_digest().clone()),
-                    functional_signatures: functional.clone(),
-                    receiver_solutions: functional
-                        .iter()
-                        .map(|row| receiver_solution(row))
-                        .collect(),
-                    wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
-                },
-                protected_cortex: ProtectedCortex {
-                    parameter_importance: vec![0.0; 5],
-                    directions: Vec::new(),
-                    max_damage_ratio: 0.01,
-                },
-                risk_metric_rows: (0..5)
-                    .map(|row| (0..5).map(|column| f64::from(row == column)).collect())
+            schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+            compilation: compilation_request(
+                envelope,
+                ir.clone(),
+                operational,
+                &functional,
+                functional
+                    .iter()
+                    .map(|row| receiver_solution(row))
                     .collect(),
-                policy: ReceiverCompilerPolicy {
-                    schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
-                    ridge: 1e-10,
-                    minimum_decoder_loo_r2: 0.999,
-                    minimum_encoder_loo_r2: 0.999,
-                    minimum_decoder_loo_cosine: 0.999,
-                    maximum_functional_relative_error: 1e-4,
-                    minimum_identity_margin: 0.05,
-                    maximum_quadratic_cost: 1e6,
-                },
-            },
+                snapshot.manifest_digest().clone(),
+                1e6,
+            ),
             receiver_profile: profile,
             receiver_snapshot: snapshot,
             capability_requirements: requirements,
@@ -859,37 +838,16 @@ mod tests {
         )
         .unwrap();
         let request = UniversalCapabilityPlanningRequest {
-            schema: "cerebro.tidex.universal_capability_planning_request/v1".into(),
-            compilation: UniversalCapabilityCompilationRequest {
-                schema: "cerebro.tidex.universal_capability_compilation_request/v1".into(),
-                system_envelope: envelope,
-                capability_ir: ir.clone(),
-                operational_contract: operational,
-                calibration: ReceiverCalibrationSet {
-                    receiver_snapshot_binding_sha256: Some(snapshot.manifest_digest().clone()),
-                    functional_signatures: functional.clone(),
-                    receiver_solutions: functional.iter().map(|row| solve(row)).collect(),
-                    wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
-                },
-                protected_cortex: ProtectedCortex {
-                    parameter_importance: vec![0.0; 16],
-                    directions: vec![],
-                    max_damage_ratio: 0.01,
-                },
-                risk_metric_rows: (0..16)
-                    .map(|row| (0..16).map(|column| f64::from(row == column)).collect())
-                    .collect(),
-                policy: ReceiverCompilerPolicy {
-                    schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
-                    ridge: 1e-10,
-                    minimum_decoder_loo_r2: 0.999,
-                    minimum_encoder_loo_r2: 0.999,
-                    minimum_decoder_loo_cosine: 0.999,
-                    maximum_functional_relative_error: 1e-4,
-                    minimum_identity_margin: 0.05,
-                    maximum_quadratic_cost: 1e9,
-                },
-            },
+            schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+            compilation: compilation_request(
+                envelope,
+                ir.clone(),
+                operational,
+                &functional,
+                functional.iter().map(|row| solve(row)).collect(),
+                snapshot.manifest_digest().clone(),
+                1e9,
+            ),
             receiver_profile: profile,
             receiver_snapshot: snapshot,
             capability_requirements: CapabilityRequirements {
@@ -1014,37 +972,16 @@ mod tests {
         )
         .unwrap();
         let request = UniversalCapabilityPlanningRequest {
-            schema: "cerebro.tidex.universal_capability_planning_request/v1".into(),
-            compilation: UniversalCapabilityCompilationRequest {
-                schema: "cerebro.tidex.universal_capability_compilation_request/v1".into(),
-                system_envelope: envelope,
-                capability_ir: ir.clone(),
-                operational_contract: operational,
-                calibration: ReceiverCalibrationSet {
-                    receiver_snapshot_binding_sha256: Some(snapshot.manifest_digest().clone()),
-                    functional_signatures: functional.clone(),
-                    receiver_solutions: functional.iter().map(|row| solve(row)).collect(),
-                    wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
-                },
-                protected_cortex: ProtectedCortex {
-                    parameter_importance: vec![0.0; 16],
-                    directions: vec![],
-                    max_damage_ratio: 0.01,
-                },
-                risk_metric_rows: (0..16)
-                    .map(|row| (0..16).map(|column| f64::from(row == column)).collect())
-                    .collect(),
-                policy: ReceiverCompilerPolicy {
-                    schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
-                    ridge: 1e-10,
-                    minimum_decoder_loo_r2: 0.999,
-                    minimum_encoder_loo_r2: 0.999,
-                    minimum_decoder_loo_cosine: 0.999,
-                    maximum_functional_relative_error: 1e-4,
-                    minimum_identity_margin: 0.05,
-                    maximum_quadratic_cost: 1e9,
-                },
-            },
+            schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+            compilation: compilation_request(
+                envelope,
+                ir.clone(),
+                operational,
+                &functional,
+                functional.iter().map(|row| solve(row)).collect(),
+                snapshot.manifest_digest().clone(),
+                1e9,
+            ),
             receiver_profile: profile,
             receiver_snapshot: snapshot,
             capability_requirements: CapabilityRequirements {
@@ -1170,37 +1107,16 @@ mod tests {
         )
         .unwrap();
         let request = UniversalCapabilityPlanningRequest {
-            schema: "cerebro.tidex.universal_capability_planning_request/v1".into(),
-            compilation: UniversalCapabilityCompilationRequest {
-                schema: "cerebro.tidex.universal_capability_compilation_request/v1".into(),
-                system_envelope: envelope,
-                capability_ir: ir.clone(),
-                operational_contract: operational,
-                calibration: ReceiverCalibrationSet {
-                    receiver_snapshot_binding_sha256: Some(snapshot.manifest_digest().clone()),
-                    functional_signatures: functional.clone(),
-                    receiver_solutions: functional.iter().map(|row| solve(row)).collect(),
-                    wrong_functional_signatures: vec![functional[0].clone(), functional[2].clone()],
-                },
-                protected_cortex: ProtectedCortex {
-                    parameter_importance: vec![0.0; 16],
-                    directions: vec![],
-                    max_damage_ratio: 0.01,
-                },
-                risk_metric_rows: (0..16)
-                    .map(|row| (0..16).map(|column| f64::from(row == column)).collect())
-                    .collect(),
-                policy: ReceiverCompilerPolicy {
-                    schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
-                    ridge: 1e-10,
-                    minimum_decoder_loo_r2: 0.999,
-                    minimum_encoder_loo_r2: 0.999,
-                    minimum_decoder_loo_cosine: 0.999,
-                    maximum_functional_relative_error: 1e-4,
-                    minimum_identity_margin: 0.05,
-                    maximum_quadratic_cost: 1e9,
-                },
-            },
+            schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+            compilation: compilation_request(
+                envelope,
+                ir.clone(),
+                operational,
+                &functional,
+                functional.iter().map(|row| solve(row)).collect(),
+                snapshot.manifest_digest().clone(),
+                1e9,
+            ),
             receiver_profile: profile,
             receiver_snapshot: snapshot,
             capability_requirements: CapabilityRequirements {

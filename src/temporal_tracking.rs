@@ -276,7 +276,7 @@ pub fn sbas_inversion(
         .enumerate()
         .map(|(i, u)| u - (velocity * i as f64 + intercept))
         .collect();
-    let residual_rms = stable_rms(residuals.into_iter())?;
+    let residual_rms = stable_rms(residuals)?;
 
     Ok(SbasTimeSeries {
         schema: "sbas_time_series:v1".into(),

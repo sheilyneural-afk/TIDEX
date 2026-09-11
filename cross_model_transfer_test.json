@@ -1,0 +1,89 @@
+{
+  "schema": "cerebro.cross_model.behavioral_benchmark/v1",
+  "benchmark_id": "python_semantics_v1",
+  "domain": "programming",
+  "probes": [
+    {
+      "probe_id": "c01",
+      "prompt": "Python expression: len([1,2,3,4]). Return only the integer result.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 4,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "c02",
+      "prompt": "Python expression: sum([2,4,6]). Return only the integer result.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 12,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "c03",
+      "prompt": "Python expression: list(range(5))[-1]. Return only the integer result.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 4,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "c04",
+      "prompt": "Python expression: 7 // 2. Return only the integer result.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 3,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "c05",
+      "prompt": "Python expression: 2 ** 8. Return only the integer result.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 256,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "c06",
+      "prompt": "Python expression: len({1,1,2,3}). Return only the integer result.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 3,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "c07",
+      "prompt": "Python expression: int(True) + int(False). Return only the integer result.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 1,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "c08",
+      "prompt": "Python expression: min([9,3,7]). Return only the integer result.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 3,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    }
+  ],
+  "minimum_mean_gap": 0.1,
+  "significance_alpha": 0.05
+}

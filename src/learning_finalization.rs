@@ -323,7 +323,7 @@ fn prepare_learning_finalization_under_root(
 /// Prepare a finalization input solely from the current receipt-backed
 /// adaptive-learning session and a separately recorded sealed-representation
 /// receipt. The public boundary is permanently confined to CEREBRO's private
-/// root; raw adaptive observations are never a finalization fallback.
+/// root; raw adaptive observations are never a finalization substitute.
 pub fn prepare_learning_finalization(
     root: impl AsRef<Path>,
     session_id: &str,

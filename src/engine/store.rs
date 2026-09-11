@@ -638,7 +638,7 @@ impl BrainEngine {
 
     /// A missing active bank is meaningful only while establishing the first
     /// sleep transaction.  This preserves that explicit bootstrap state
-    /// without exposing a generic empty-bank fallback to runtime authority.
+    /// without exposing a generic empty-bank substitute to runtime authority.
     pub(super) fn load_bank_for_initial_sleep_bootstrap(&self) -> BrainResult<Option<SkillBank>> {
         let p = self.bank_path();
         match fs::symlink_metadata(&p) {

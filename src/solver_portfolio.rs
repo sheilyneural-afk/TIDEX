@@ -1775,7 +1775,7 @@ fn seal_with_unavailable_direct_solver(
 fn aggregate_rejection_reason(
     evaluations: &[CandidateEvaluation],
 ) -> BrainResult<EvaluationReason> {
-    // The rank-revealing built-in is the portfolio's canonical fallback. Its
+    // The rank-revealing built-in is an explicitly planned portfolio backend. Its
     // verified rejection explains why the portfolio itself has no candidate;
     // an unrelated external malformed proposal must not overwrite that cause.
     evaluations
@@ -3101,7 +3101,7 @@ mod tests {
     }
 
     #[test]
-    fn ill_conditioned_full_rank_problem_falls_back_to_spectral_backend() {
+    fn ill_conditioned_full_rank_problem_selects_preplanned_spectral_backend() {
         let problem = LeastSquaresProblem::new(
             vec![vec![1.0, 0.0], vec![0.0, 1.0e-3]],
             vec![vec![1.0], vec![1.0e-3]],

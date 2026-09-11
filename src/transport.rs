@@ -564,6 +564,83 @@ fn validated_from_predictions(
     })
 }
 
+fn augment(values: &[f64]) -> Vec<f64> {
+    let mut augmented = Vec::with_capacity(values.len() + 1);
+    augmented.extend_from_slice(values);
+    augmented.push(1.0);
+    augmented
+}
+
+pub(crate) fn functional_leverage(
+    calibration: &[Vec<f64>],
+    query: &[f64],
+    ridge: f64,
+) -> BrainResult<f64> {
+    if calibration.len() < 4
+        || query.is_empty()
+        || !ridge.is_finite()
+        || ridge <= 0.0
+        || calibration
+            .iter()
+            .any(|row| row.len() != query.len() || row.iter().any(|value| !value.is_finite()))
+        || query.iter().any(|value| !value.is_finite())
+    {
+        return Err(BrainError::Invalid(
+            "receiver_weight_functional_support_input_invalid".into(),
+        ));
+    }
+    let dimension = query.len() + 1;
+    let mut gram = Matrix::zeros(dimension, dimension);
+    for row in calibration {
+        let augmented = augment(row);
+        for i in 0..dimension {
+            for j in 0..=i {
+                let value = gram.get(i, j) + augmented[i] * augmented[j];
+                gram.set(i, j, value);
+                if i != j {
+                    gram.set(j, i, value);
+                }
+            }
+        }
+    }
+    for index in 0..dimension {
+        gram.set(index, index, gram.get(index, index) + ridge);
+    }
+    let query = augment(query);
+    let solved = solve(gram, query.clone())?;
+    let leverage = dot(&query, &solved)?;
+    if !leverage.is_finite() || leverage < 0.0 {
+        return Err(BrainError::Numerical(
+            "receiver_weight_functional_support_nonfinite".into(),
+        ));
+    }
+    Ok(leverage)
+}
+
+/// Maximum leave-one-capability-out leverage is fixed from calibration alone.
+pub(crate) fn functional_support_envelope(
+    calibration: &[Vec<f64>],
+    query: &[f64],
+    ridge: f64,
+) -> BrainResult<(f64, f64)> {
+    if calibration.len() < 5 {
+        return Err(BrainError::Invalid(
+            "receiver_weight_functional_support_anchor_count".into(),
+        ));
+    }
+    let mut maximum_loo = 0.0_f64;
+    for holdout in 0..calibration.len() {
+        let train = calibration
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| *index != holdout)
+            .map(|(_, row)| row.clone())
+            .collect::<Vec<_>>();
+        maximum_loo = maximum_loo.max(functional_leverage(&train, &calibration[holdout], ridge)?);
+    }
+    Ok((functional_leverage(calibration, query, ridge)?, maximum_loo))
+}
+
 /// Validates a transport map by checking both quantitative leave-one-out metrics
 /// (R^2, RMS, Cosine) and qualitative manifold topology (Betti numbers, homotopy score).
 pub fn validate_transport_with_topology(
@@ -743,7 +820,8 @@ impl FunctionalTransplantMap {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct RelationalTransportMap {
     pub schema: String,
     pub source_signature_dim: usize,
@@ -1132,7 +1210,7 @@ mod tests {
         assert_eq!(fit.loo_cv_r2, 0.0);
         assert!(!fit.resolved);
         let policy_json =
-            r#"{"kind":"centered_trace_ridge","relative_ridge":1.0,"hidden_fallback":true}"#;
+            r#"{"kind":"centered_trace_ridge","relative_ridge":1.0,"hidden_alternate":true}"#;
         assert!(serde_json::from_str::<AffineTransportPolicy>(policy_json).is_err());
     }
 

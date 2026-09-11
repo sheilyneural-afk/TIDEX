@@ -1251,6 +1251,12 @@ pub enum FormalEvidenceProtocol {
     ExternalCertificateV1,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyGraphEvidenceProtocol {
+    CanonicalDependencyEdgesV1,
+}
+
 struct EvidenceVerificationContext<'a> {
     private_root: &'a Path,
     authority_instance: &'a AuthorityInstanceId,
@@ -1736,6 +1742,71 @@ struct UntrustedFormalCertificateArtifactDto {
     certificate: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DependencyGraphEvidenceArtifact {
+    binding: EvidenceAuthorityBinding,
+    protocol: DependencyGraphEvidenceProtocol,
+    root: DependencyNodeId,
+    depth: u16,
+    max_depth: u16,
+    edges: BTreeSet<DependencyEdge>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UntrustedDependencyGraphEvidenceArtifactDto {
+    binding: EvidenceAuthorityBinding,
+    protocol: DependencyGraphEvidenceProtocol,
+    root: DependencyNodeId,
+    depth: u16,
+    max_depth: u16,
+    edges: BTreeSet<DependencyEdge>,
+}
+
+impl DependencyGraphEvidenceArtifact {
+    pub fn from_invocation(
+        invocation: &CognitiveInvocation,
+        executor: &ExecutorIdentityDraft,
+        edges: BTreeSet<DependencyEdge>,
+    ) -> BrainResult<Self> {
+        let CognitiveInvocation::ExpandDependencyClosure(expansion) = invocation else {
+            return Err(invalid(
+                "dependency_graph_evidence_requires_dependency_invocation",
+            ));
+        };
+        Ok(Self {
+            binding: EvidenceAuthorityBinding::from_invocation(invocation, executor)?,
+            protocol: DependencyGraphEvidenceProtocol::CanonicalDependencyEdgesV1,
+            root: expansion.root.clone(),
+            depth: expansion.depth,
+            max_depth: expansion.max_depth,
+            edges,
+        })
+    }
+
+    pub fn canonical_bytes(&self) -> BrainResult<Vec<u8>> {
+        Ok(serde_json::to_vec(self)?)
+    }
+
+    fn decode_canonical(bytes: &[u8]) -> BrainResult<Self> {
+        let dto: UntrustedDependencyGraphEvidenceArtifactDto = serde_json::from_slice(bytes)
+            .map_err(|_| integrity("dependency_graph_evidence_encoding_invalid"))?;
+        let artifact = Self {
+            binding: dto.binding,
+            protocol: dto.protocol,
+            root: dto.root,
+            depth: dto.depth,
+            max_depth: dto.max_depth,
+            edges: dto.edges,
+        };
+        if artifact.canonical_bytes()? != bytes {
+            return Err(integrity("dependency_graph_evidence_not_canonical"));
+        }
+        Ok(artifact)
+    }
+}
+
 fn calculate_executor_version_digest(
     executor_id: &ExecutorId,
     interface_version: ExecutorInterfaceVersion,
@@ -1760,6 +1831,32 @@ fn canonical_completed(observations: BTreeMap<ObservationKey, ObservedValue>) ->
         dependency_edges: BTreeSet::new(),
         discovered_obligations: BTreeMap::new(),
     }
+}
+
+fn observation_for_predicate(predicate: &KnowledgePredicate) -> ObservedValue {
+    match predicate {
+        KnowledgePredicate::BoolEquals { expected, .. } => ObservedValue::Bool(*expected),
+        KnowledgePredicate::I64Equals { expected, .. } => ObservedValue::I64(*expected),
+        KnowledgePredicate::U64Equals { expected, .. } => ObservedValue::U64(*expected),
+        KnowledgePredicate::U64AtLeast { minimum, .. } => ObservedValue::U64(*minimum),
+        KnowledgePredicate::U64AtMost { maximum, .. } => ObservedValue::U64(*maximum),
+        KnowledgePredicate::SymbolEquals { expected, .. } => {
+            ObservedValue::Symbol(expected.clone())
+        }
+        KnowledgePredicate::ExactBytesDigestEquals { expected, .. } => {
+            ObservedValue::ExactBytesDigest(expected.clone())
+        }
+    }
+}
+
+fn canonical_dependency_closure_observations(
+    invocation: &DependencyExpansionInvocation,
+) -> BTreeMap<ObservationKey, ObservedValue> {
+    let predicate = invocation.binding.criterion.predicate();
+    BTreeMap::from_iter(std::iter::once((
+        predicate.observation_key().clone(),
+        observation_for_predicate(predicate),
+    )))
 }
 
 fn validate_exact_observation_keys(
@@ -1848,7 +1945,12 @@ impl EvidenceVerifierRegistry {
                 "completed_evidence_derivation_requires_completed_outcome",
             ));
         };
-        if !dependency_edges.is_empty() || !discovered_obligations.is_empty() {
+        if !discovered_obligations.is_empty()
+            || (!matches!(
+                context.invocation,
+                CognitiveInvocation::ExpandDependencyClosure(_)
+            ) && !dependency_edges.is_empty())
+        {
             return Err(integrity(
                 "semantic_verifier_forbids_unverified_derivations",
             ));
@@ -1871,7 +1973,7 @@ impl EvidenceVerifierRegistry {
                 return self.reject_unchecked_formal_certificate(context, formal, evidence);
             }
             CognitiveInvocation::ExpandDependencyClosure(_) => {
-                return Err(integrity("dependency_evidence_verifier_not_implemented"));
+                self.derive_dependency_graph(context, evidence)?
             }
         };
         if derived != *proposed {
@@ -2071,6 +2173,44 @@ impl EvidenceVerifierRegistry {
         Ok(canonical_completed(observations))
     }
 
+    fn derive_dependency_graph(
+        &self,
+        context: &EvidenceVerificationContext<'_>,
+        evidence: &[EvidenceArtifactInput],
+    ) -> BrainResult<ActionOutcome> {
+        let bytes = read_single_evidence(
+            context.private_root,
+            evidence,
+            EvidenceKind::DependencyGraph,
+            "dependency_graph_evidence_cardinality_or_kind_invalid",
+        )?;
+        let artifact = DependencyGraphEvidenceArtifact::decode_canonical(&bytes)?;
+        artifact.binding.validate(context)?;
+        let CognitiveInvocation::ExpandDependencyClosure(expansion) = context.invocation else {
+            return Err(integrity(
+                "dependency_graph_verifier_requires_dependency_invocation",
+            ));
+        };
+        if artifact.protocol != DependencyGraphEvidenceProtocol::CanonicalDependencyEdgesV1
+            || artifact.root != expansion.root
+            || artifact.depth != expansion.depth
+            || artifact.max_depth != expansion.max_depth
+            || artifact
+                .edges
+                .iter()
+                .any(|edge| edge.from() != &expansion.root)
+        {
+            return Err(integrity(
+                "dependency_graph_evidence_protocol_or_inputs_mismatch",
+            ));
+        }
+        Ok(ActionOutcome::Completed {
+            observations: canonical_dependency_closure_observations(expansion),
+            dependency_edges: artifact.edges,
+            discovered_obligations: BTreeMap::new(),
+        })
+    }
+
     fn derive_formal_backend_unavailable(
         &self,
         context: &EvidenceVerificationContext<'_>,
@@ -2264,6 +2404,50 @@ mod sealed {
 pub trait CognitiveExecutorAdapter: sealed::Sealed {
     fn identity(&self) -> ExecutorIdentityDraft;
     fn invoke(&self, invocation: &CognitiveInvocation) -> BrainResult<AdapterExecution>;
+}
+
+/// Production bridge for evidence produced by a real executor and retained
+/// under the private authority root. This bridge has no semantic authority:
+/// `KnowledgeEngine` re-derives every completed outcome through
+/// `EvidenceVerifierRegistry` before minting a receipt.
+#[derive(Debug, Clone)]
+pub struct AuthenticatedEvidenceExecutor {
+    identity: ExecutorIdentityDraft,
+    expected_invocation: CognitiveInvocationDigest,
+    execution: AdapterExecution,
+}
+
+impl AuthenticatedEvidenceExecutor {
+    pub fn new(
+        identity: ExecutorIdentityDraft,
+        expected_invocation: CognitiveInvocationDigest,
+        outcome: ActionOutcome,
+        evidence: Vec<EvidenceArtifactInput>,
+    ) -> BrainResult<Self> {
+        if evidence.is_empty() {
+            return Err(invalid("authenticated_executor_evidence_empty"));
+        }
+        Ok(Self {
+            identity,
+            expected_invocation,
+            execution: AdapterExecution::new(outcome, evidence),
+        })
+    }
+}
+
+impl sealed::Sealed for AuthenticatedEvidenceExecutor {}
+
+impl CognitiveExecutorAdapter for AuthenticatedEvidenceExecutor {
+    fn identity(&self) -> ExecutorIdentityDraft {
+        self.identity.clone()
+    }
+
+    fn invoke(&self, invocation: &CognitiveInvocation) -> BrainResult<AdapterExecution> {
+        if invocation.digest()? != self.expected_invocation {
+            return Err(integrity("authenticated_executor_invocation_mismatch"));
+        }
+        Ok(self.execution.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -2783,6 +2967,44 @@ impl TransitionReceipt {
 pub struct KnowledgeAdvance {
     state: KnowledgeState,
     transition: TransitionReceipt,
+}
+
+/// Read-only executable projection of the current governed knowledge state as
+/// the system's living staircase. It introduces no second persistence graph:
+/// every step is derived from canonical obligations, dependency depths and the
+/// planner decision already authenticated by `KnowledgeEngine`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LivingStaircaseProjection {
+    pub schema: String,
+    pub inquiry_id: InquiryId,
+    pub knowledge_state: KnowledgeStateDigest,
+    pub revision: u64,
+    pub steps: Vec<LivingStaircaseStep>,
+    pub maximum_depth: u16,
+    pub next: PlanningDecision,
+    pub manifest_sha256: Sha256Digest,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LivingStaircaseStepState {
+    Open,
+    Satisfied,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LivingStaircaseStep {
+    pub obligation_id: KnowledgeObligationId,
+    pub claim_id: KnowledgeClaimId,
+    pub domain: KnowledgeDomain,
+    pub depth: u16,
+    pub plan: CognitivePlan,
+    pub state: LivingStaircaseStepState,
+    pub attempts: u16,
+    pub witnesses: BTreeSet<ActionReceiptDigest>,
 }
 
 /// One durable, serializable answer to "which state is authoritative now for
@@ -3773,6 +3995,73 @@ impl KnowledgeEngine {
                 })
                 .collect(),
         }
+    }
+
+    /// Derive the live staircase from the one canonical knowledge state.
+    /// Depth is never caller supplied: dependency-closure steps inherit their
+    /// authenticated graph depth and all other local obligations remain at the
+    /// root layer until a dependency relationship is actually established.
+    pub fn living_staircase(
+        &self,
+        state: &KnowledgeState,
+    ) -> BrainResult<LivingStaircaseProjection> {
+        self.validate_state(state)?;
+        let mut steps = state
+            .obligations
+            .values()
+            .map(|obligation| {
+                let depth = match &obligation.plan {
+                    CognitivePlan::ExpandDependencyClosure { root, depth, .. } => {
+                        if state.dependency_depths.get(root) != Some(depth) {
+                            return Err(integrity("living_staircase_depth_not_authenticated"));
+                        }
+                        *depth
+                    }
+                    _ => 0,
+                };
+                let step_state = match obligation.state() {
+                    KnowledgeObligationState::Open { .. } => LivingStaircaseStepState::Open,
+                    KnowledgeObligationState::Satisfied { .. } => {
+                        LivingStaircaseStepState::Satisfied
+                    }
+                    KnowledgeObligationState::Blocked { .. } => LivingStaircaseStepState::Blocked,
+                };
+                Ok(LivingStaircaseStep {
+                    obligation_id: obligation.obligation_id.clone(),
+                    claim_id: obligation.claim_id.clone(),
+                    domain: obligation.domain.clone(),
+                    depth,
+                    plan: obligation.plan.clone(),
+                    state: step_state,
+                    attempts: obligation.state.attempts(),
+                    witnesses: obligation.state.witnesses().clone(),
+                })
+            })
+            .collect::<BrainResult<Vec<_>>>()?;
+        steps.sort_by(|left, right| {
+            left.depth
+                .cmp(&right.depth)
+                .then_with(|| left.obligation_id.cmp(&right.obligation_id))
+        });
+        let maximum_depth = steps.iter().map(|step| step.depth).max().unwrap_or(0);
+        let next = self.plan(state)?;
+        let mut projection = LivingStaircaseProjection {
+            schema: "cerebro.tidex.living_staircase_projection/v1".into(),
+            inquiry_id: state.inquiry_id.clone(),
+            knowledge_state: state.manifest_digest.clone(),
+            revision: state.revision,
+            steps,
+            maximum_depth,
+            next,
+            manifest_sha256: Sha256Digest::zero(),
+        };
+        let mut unsigned = projection.clone();
+        unsigned.manifest_sha256 = Sha256Digest::zero();
+        projection.manifest_sha256 = Sha256Digest::digest_domain(
+            b"CEREBRO:TIDEX:LIVING-STAIRCASE-PROJECTION:v1\0",
+            &serde_json::to_vec(&unsigned)?,
+        );
+        Ok(projection)
     }
 
     /// Execute exactly the invocation selected by the internal planner.
@@ -6271,6 +6560,143 @@ mod tests {
             .evidence_verifiers
             .derive_completed(&foreign_context, &proposed, &evidence)
             .is_err());
+    }
+
+    #[test]
+    fn dependency_graph_verifier_derives_typed_edges() {
+        let mut fixture = fixture();
+        let state = initialize(
+            &fixture,
+            "dependency.graph.verifier.inquiry.v1",
+            dependency_contract("component.root"),
+        );
+        let invocation = planned_invocation(&fixture.engine, &state);
+        let CognitiveInvocation::ExpandDependencyClosure(expansion) = &invocation else {
+            panic!("expected dependency expansion invocation");
+        };
+        let executor = fixture
+            .engine
+            .authenticate_executor(fixture.executor.clone())
+            .unwrap();
+        let edge = DependencyEdge::new(
+            expansion.root.clone(),
+            DependencyNodeId::parse("component.child").unwrap(),
+        );
+        let artifact = DependencyGraphEvidenceArtifact::from_invocation(
+            &invocation,
+            &fixture.executor,
+            BTreeSet::from([edge.clone()]),
+        )
+        .unwrap();
+        let observations = canonical_dependency_closure_observations(expansion);
+        let proposed = ActionOutcome::Completed {
+            observations,
+            dependency_edges: BTreeSet::from([edge.clone()]),
+            discovered_obligations: BTreeMap::new(),
+        };
+        let evidence = evidence_input(
+            &mut fixture,
+            EvidenceKind::DependencyGraph,
+            artifact.canonical_bytes().unwrap(),
+        );
+        assert_eq!(
+            fixture
+                .engine
+                .evidence_verifiers
+                .derive_completed(
+                    &verification_context(&fixture.engine, &invocation, &executor),
+                    &proposed,
+                    std::slice::from_ref(&evidence),
+                )
+                .unwrap(),
+            proposed
+        );
+
+        let tampered = UntrustedDependencyGraphEvidenceArtifactDto {
+            binding: artifact.binding,
+            protocol: DependencyGraphEvidenceProtocol::CanonicalDependencyEdgesV1,
+            root: DependencyNodeId::parse("component.foreign.root").unwrap(),
+            depth: expansion.depth,
+            max_depth: expansion.max_depth,
+            edges: artifact.edges,
+        };
+        let invalid_tampered_root = evidence_input(
+            &mut fixture,
+            EvidenceKind::DependencyGraph,
+            serde_json::to_vec(&tampered).unwrap(),
+        );
+        assert!(fixture
+            .engine
+            .evidence_verifiers
+            .derive_completed(
+                &verification_context(&fixture.engine, &invocation, &executor),
+                &proposed,
+                std::slice::from_ref(&invalid_tampered_root),
+            )
+            .is_err());
+
+        let foreign_engine = KnowledgeEngine::from_verified_root(
+            fixture.root.clone(),
+            AuthorityInstanceId::parse("foreign-dependency-authority.v1").unwrap(),
+        )
+        .unwrap();
+        let foreign_executor = foreign_engine
+            .authenticate_executor(fixture.executor.clone())
+            .unwrap();
+        assert!(foreign_engine
+            .evidence_verifiers
+            .derive_completed(
+                &verification_context(&foreign_engine, &invocation, &foreign_executor),
+                &proposed,
+                std::slice::from_ref(&evidence),
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn dependency_graph_verifier_drives_real_advance_with_dependency_evidence() {
+        let mut fixture = fixture();
+        let state = initialize(
+            &fixture,
+            "dependency.graph.advance.inquiry.v1",
+            dependency_contract("component.root"),
+        );
+        fixture.engine.persist_state(&state).unwrap();
+        let invocation = planned_invocation(&fixture.engine, &state);
+        let edge = DependencyEdge::new(
+            DependencyNodeId::parse("component.root").unwrap(),
+            DependencyNodeId::parse("component.child").unwrap(),
+        );
+        let artifact = DependencyGraphEvidenceArtifact::from_invocation(
+            &invocation,
+            &fixture.executor,
+            BTreeSet::from([edge.clone()]),
+        )
+        .unwrap();
+        let observations = canonical_dependency_closure_observations(match &invocation {
+            CognitiveInvocation::ExpandDependencyClosure(expansion) => expansion,
+            _ => unreachable!(),
+        });
+        let evidence = evidence_input(
+            &mut fixture,
+            EvidenceKind::DependencyGraph,
+            artifact.canonical_bytes().unwrap(),
+        );
+        let adapter = ProductionEvidenceAdapter {
+            identity: fixture.executor.clone(),
+            expected_invocation: invocation.digest().unwrap(),
+            execution: AdapterExecution::new(
+                ActionOutcome::Completed {
+                    observations,
+                    dependency_edges: BTreeSet::from([edge.clone()]),
+                    discovered_obligations: BTreeMap::new(),
+                },
+                vec![evidence],
+            ),
+        };
+        let receipt = fixture.engine.execute(&state, &adapter).unwrap();
+        let advanced = fixture.engine.advance(&state, &receipt).unwrap();
+        assert!(advanced.state().claims().len() >= 2);
     }
 
     #[test]

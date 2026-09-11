@@ -43,6 +43,8 @@ pub struct SafeTensorsReceiverRequest {
     pub configuration_file: PathBuf,
     pub tokenizer_file: PathBuf,
     pub supported_strategies: BTreeSet<MaterializationStrategy>,
+    #[serde(default)]
+    pub materialization_tensors: BTreeSet<TensorId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -67,12 +69,35 @@ fn confined(root: &Path, relative: &Path) -> BrainResult<PathBuf> {
     }
     let canonical_root = root.canonicalize()?;
     let path = canonical_root.join(relative).canonicalize()?;
-    if !path.starts_with(&canonical_root) || !path.metadata()?.is_file() {
+    if !path.metadata()?.is_file() || !confined_file_target_allowed(&canonical_root, &path) {
         return Err(BrainError::Invalid(
             "checkpoint_path_not_confined_file".into(),
         ));
     }
     Ok(path)
+}
+
+/// Hugging Face snapshots are immutable directory views whose regular entries
+/// are symlinks into the sibling repository-local `blobs/` CAS. Permit only
+/// that exact escape from a `snapshots/<revision>` root; arbitrary symlink
+/// targets remain rejected after canonicalization.
+fn confined_file_target_allowed(canonical_root: &Path, path: &Path) -> bool {
+    if path.starts_with(canonical_root) {
+        return true;
+    }
+    let Some(snapshots_root) = canonical_root.parent() else {
+        return false;
+    };
+    if snapshots_root.file_name().and_then(|value| value.to_str()) != Some("snapshots") {
+        return false;
+    }
+    let Some(repository_root) = snapshots_root.parent() else {
+        return false;
+    };
+    let Ok(blobs_root) = repository_root.join("blobs").canonicalize() else {
+        return false;
+    };
+    blobs_root.is_dir() && path.starts_with(blobs_root)
 }
 
 fn auxiliary_bytes(path: &Path, maximum: u64) -> BrainResult<Vec<u8>> {
@@ -221,10 +246,23 @@ fn assemble_inspected(
     } else {
         request.architecture
     };
-    let mut shapes = Vec::with_capacity(all.len());
-    let mut regions = Vec::with_capacity(all.len());
-    let mut physical = Vec::with_capacity(all.len());
-    for (name, (header, encoding)) in all {
+    let selected = if request.materialization_tensors.is_empty() {
+        all.into_iter().collect::<Vec<_>>()
+    } else {
+        let mut all = all;
+        let mut selected = Vec::with_capacity(request.materialization_tensors.len());
+        for tensor_id in &request.materialization_tensors {
+            let item = all.remove(tensor_id.as_str()).ok_or_else(|| {
+                BrainError::Invalid("materialization_tensor_not_in_checkpoint".into())
+            })?;
+            selected.push((tensor_id.as_str().to_string(), item));
+        }
+        selected
+    };
+    let mut shapes = Vec::with_capacity(selected.len());
+    let mut regions = Vec::with_capacity(selected.len());
+    let mut physical = Vec::with_capacity(selected.len());
+    for (name, (header, encoding)) in selected {
         let tensor_id = TensorId::parse(&name)?;
         let count = header.shape.iter().try_fold(1usize, |a, v| {
             a.checked_mul(*v)
@@ -340,6 +378,7 @@ pub fn planning_profile_from_physical(
             MaterializationStrategy::LowRank,
             MaterializationStrategy::SparseDelta,
         ]),
+        materialization_tensors: BTreeSet::new(),
     };
     assemble_inspected(
         &declarations,
@@ -356,6 +395,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::io::Write;
+    use std::os::unix::fs::symlink;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -387,6 +427,7 @@ mod tests {
             configuration_file: "config.json".into(),
             tokenizer_file: "tokenizer.json".into(),
             supported_strategies: BTreeSet::from([MaterializationStrategy::DenseDelta]),
+            materialization_tensors: BTreeSet::new(),
         };
         let inspected = inspect_safetensors_receiver(&root, &request).unwrap();
         assert_eq!(inspected.profile.parameter_dimension, 4);
@@ -396,5 +437,62 @@ mod tests {
             Sha256Digest::zero()
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn accepts_only_repository_local_huggingface_blob_symlinks() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let repo = std::env::temp_dir().join(format!(
+            "models--fixture--hf-{}-{nonce}",
+            std::process::id()
+        ));
+        let snapshot = repo.join("snapshots/revision");
+        let blobs = repo.join("blobs");
+        fs::create_dir_all(&snapshot).unwrap();
+        fs::create_dir_all(&blobs).unwrap();
+        let header =
+            br#"{"encoder.layer.0.weight":{"dtype":"F32","shape":[2,2],"data_offsets":[0,16]}}"#;
+        let mut model = (header.len() as u64).to_le_bytes().to_vec();
+        model.extend_from_slice(header);
+        model.extend_from_slice(&[0u8; 16]);
+        fs::write(blobs.join("model"), model).unwrap();
+        fs::write(
+            blobs.join("config"),
+            br#"{"model_type":"bert","architectures":["BertModel"]}"#,
+        )
+        .unwrap();
+        fs::write(blobs.join("tokenizer"), b"{}").unwrap();
+        symlink("../../blobs/model", snapshot.join("model.safetensors")).unwrap();
+        symlink("../../blobs/config", snapshot.join("config.json")).unwrap();
+        symlink("../../blobs/tokenizer", snapshot.join("tokenizer.json")).unwrap();
+        let request = SafeTensorsReceiverRequest {
+            schema: "cerebro.tidex.safetensors_receiver_request/v1".into(),
+            model_id: ModelId::parse("receiver.hf.fixture").unwrap(),
+            architecture_id: ArchitectureId::parse("bert.fixture").unwrap(),
+            architecture: ReceiverArchitecture::Unknown,
+            modalities: BTreeSet::from([CapabilityModality::Text]),
+            supports_persistent_state: false,
+            checkpoint_files: vec!["model.safetensors".into()],
+            configuration_file: "config.json".into(),
+            tokenizer_file: "tokenizer.json".into(),
+            supported_strategies: BTreeSet::from([MaterializationStrategy::DenseDelta]),
+            materialization_tensors: BTreeSet::new(),
+        };
+        let inspected = inspect_safetensors_receiver(&snapshot, &request).unwrap();
+        assert_eq!(inspected.profile.parameter_dimension, 4);
+        assert_eq!(
+            inspected.architecture_fingerprint.model_family,
+            crate::architecture_families::ModelFamily::EncoderTransformer
+        );
+        let outside = repo.with_extension("outside");
+        fs::write(&outside, b"{}").unwrap();
+        fs::remove_file(snapshot.join("config.json")).unwrap();
+        symlink(&outside, snapshot.join("config.json")).unwrap();
+        assert!(inspect_safetensors_receiver(&snapshot, &request).is_err());
+        fs::remove_dir_all(repo).unwrap();
+        fs::remove_file(outside).unwrap();
     }
 }

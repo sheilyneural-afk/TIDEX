@@ -1,0 +1,24 @@
+schema = "cerebro.cross_model.governance/v1"
+
+[discovery]
+minimum_probes = 4
+minimum_mean_gap = 0.10
+significance_alpha = 0.05
+
+[alignment]
+ridge_lambda = 0.0001
+maximum_validation_residual = 0.35
+maximum_calibration_pairs = 256
+
+[promotion]
+minimum_behavioral_score = 0.55
+minimum_preservation_score = 0.98
+minimum_independent_replay_score = 0.98
+require_domain_fitness = true
+production_authority = "core_universal_promotion_gate_and_adapter_bank"
+
+[policy]
+auto_promote = false
+auto_transfer = false
+behavioral_evidence_may_create_steering = false
+steering_may_create_weight_delta = false

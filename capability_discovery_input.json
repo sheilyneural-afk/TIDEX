@@ -1,0 +1,97 @@
+{
+  "schema": "cerebro.cross_model.behavioral_benchmark/v1",
+  "benchmark_id": "binary_logic_v1",
+  "domain": "reasoning",
+  "probes": [
+    {
+      "probe_id": "l01",
+      "prompt": "Return only YES or NO: If every zorp is a mip and every mip is a tav, is every zorp a tav?",
+      "verifier": {
+        "kind": "exact_text",
+        "expected": "YES",
+        "trim": true,
+        "case_sensitive": false
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "l02",
+      "prompt": "Return only YES or NO: If no red object is blue and X is red, can X be blue?",
+      "verifier": {
+        "kind": "exact_text",
+        "expected": "NO",
+        "trim": true,
+        "case_sensitive": false
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "l03",
+      "prompt": "Return only YES or NO: If A > B and B > C, must A > C?",
+      "verifier": {
+        "kind": "exact_text",
+        "expected": "YES",
+        "trim": true,
+        "case_sensitive": false
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "l04",
+      "prompt": "Return only YES or NO: If some cats are black, does it follow that all cats are black?",
+      "verifier": {
+        "kind": "exact_text",
+        "expected": "NO",
+        "trim": true,
+        "case_sensitive": false
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "l05",
+      "prompt": "Return only YES or NO: If P implies Q and P is true, must Q be true?",
+      "verifier": {
+        "kind": "exact_text",
+        "expected": "YES",
+        "trim": true,
+        "case_sensitive": false
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "l06",
+      "prompt": "Return only YES or NO: If P implies Q and Q is false, can P be true?",
+      "verifier": {
+        "kind": "exact_text",
+        "expected": "NO",
+        "trim": true,
+        "case_sensitive": false
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "l07",
+      "prompt": "Return only YES or NO: If all squares are rectangles, is every square a rectangle?",
+      "verifier": {
+        "kind": "exact_text",
+        "expected": "YES",
+        "trim": true,
+        "case_sensitive": false
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "l08",
+      "prompt": "Return only YES or NO: If some rectangles are squares, are all rectangles squares?",
+      "verifier": {
+        "kind": "exact_text",
+        "expected": "NO",
+        "trim": true,
+        "case_sensitive": false
+      },
+      "weight": 1.0
+    }
+  ],
+  "minimum_mean_gap": 0.1,
+  "significance_alpha": 0.05
+}

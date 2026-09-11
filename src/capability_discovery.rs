@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_TRIALS: usize = 1_000_000;
 const MAX_SIGNATURE_DIMENSION: usize = 1_048_576;
+const MAX_TOTAL_SIGNATURE_ELEMENTS: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -228,6 +229,16 @@ pub fn discover_capabilities(
     if trials.is_empty() || trials.len() > MAX_TRIALS {
         return Err(BrainError::Invalid(
             "capability_discovery_input_invalid".into(),
+        ));
+    }
+    let elements = trials.iter().try_fold(0usize, |total, trial| {
+        total
+            .checked_add(trial.functional_signature.len())
+            .and_then(|value| value.checked_add(trial.wrong_control_signature.len()))
+    });
+    if elements.is_none_or(|value| value > MAX_TOTAL_SIGNATURE_ELEMENTS) {
+        return Err(BrainError::Invalid(
+            "capability_discovery_storage_limit".into(),
         ));
     }
     let mut ids = BTreeSet::new();

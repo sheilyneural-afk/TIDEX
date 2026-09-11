@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85.0
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Compile project
+        run: cargo check --all-targets
+
+      - name: Library test suite
+        run: cargo test --lib
+
+      - name: Integration smoke tests
+        run: cargo test --test brain --test production_surface --test quality_properties --test convergence_pipeline

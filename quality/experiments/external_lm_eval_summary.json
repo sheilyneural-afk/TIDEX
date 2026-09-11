@@ -1,0 +1,43 @@
+{
+  "plan": {
+    "schema": "cerebro.tidex.external_lm_eval_plan/v1",
+    "internal_gate": {
+      "source": "/home/yo/Future/cerebro3/quality/experiments/universality_augmented.json",
+      "summary": {
+        "status": "available",
+        "capability_count": 6,
+        "trial_count": 50,
+        "minimum_held_out_capabilities": 2,
+        "minimum_seeds_per_capability": 12,
+        "scope": "unknown"
+      },
+      "policy_role": "authority_for_admission"
+    },
+    "external_benchmark": {
+      "harness_root": "/home/yo/Future/lm-evaluation-harness",
+      "present": true,
+      "interpreter": "/home/yo/Future/lm-evaluation-harness/.venv/bin/python",
+      "model": "hf",
+      "tasks": [
+        "hellaswag",
+        "arc_easy"
+      ],
+      "command": [
+        "/home/yo/Future/lm-evaluation-harness/.venv/bin/python",
+        "-m",
+        "lm_eval",
+        "--model",
+        "hf",
+        "--tasks",
+        "hellaswag,arc_easy"
+      ],
+      "role": "external_comparison_layer_only"
+    },
+    "notes": [
+      "The benchmark output is not used to admit or reject capabilities.",
+      "The internal TIDE-X universality receipt remains the gate.",
+      "LM Eval Harness is used for public comparison and reporting only."
+    ]
+  },
+  "status": "dry_run"
+}

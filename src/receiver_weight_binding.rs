@@ -32,7 +32,7 @@ use crate::contracts::ProtectedCortex;
 use crate::digest::Sha256Digest;
 use crate::error::{BrainError, BrainResult};
 use crate::identity::{AcquisitionId, CapabilityId, ObservationId, ProbeId, SkillId, TensorId};
-use crate::linalg::{dot, norm, solve, Matrix};
+use crate::linalg::{dot, norm, Matrix};
 use crate::pure_capability_e2e::{LinearMapDescriptor, PureCapabilityDiscoveryAuthority};
 use crate::receiver_compiler::{
     compile_receiver_readout_capability, compile_receiver_signature,
@@ -41,6 +41,7 @@ use crate::receiver_compiler::{
     ReceiverReadoutCapabilityInput, ReceiverSignatureCompilation,
 };
 use crate::security::verify_internal_private_root;
+use crate::transport::functional_support_envelope;
 use crate::weight_actuator::{
     authenticate_lora_adapter_axis_receipt, inspect_linear_readout, inspect_model_safetensors,
     materialize_dense_delta_checkpoint, LinearReadoutInspection, LoraAdapterAxisReceipt,
@@ -267,29 +268,6 @@ fn exact_f32(value: f64) -> bool {
 /// covers rounded products and reduction; the absolute term also covers
 /// gradual underflow. The F64 reference uses the existing scaled compensated
 /// dot product, conservatively enclosed by gamma_(8d+8).
-fn readout_dot_roundoff_bound(weights: &[f64], input: &[f64]) -> BrainResult<f64> {
-    let dimension = weights.len();
-    if dimension == 0 || dimension != input.len() || dimension > 4_096 {
-        return Err(invalid("readout_dot_bound_shape"));
-    }
-    let absolute_weights = weights.iter().map(|value| value.abs()).collect::<Vec<_>>();
-    let absolute_input = input.iter().map(|value| value.abs()).collect::<Vec<_>>();
-    let absolute_sum = dot(&absolute_weights, &absolute_input)?;
-    let unit32 = 2.0_f64.powi(-24);
-    let unit64 = 2.0_f64.powi(-53);
-    let count32 = dimension as f64;
-    let count64 = (8 * dimension + 8) as f64;
-    let gamma32 = (count32 * unit32) / (1.0 - count32 * unit32);
-    let gamma64 = (count64 * unit64) / (1.0 - count64 * unit64);
-    let upper_sum = absolute_sum / (1.0 - gamma64);
-    let underflow = (2 * dimension + 1) as f64 * 2.0_f64.powi(-150);
-    let bound = (gamma32 + gamma64) * upper_sum + underflow;
-    if !bound.is_finite() || bound < 0.0 {
-        return Err(invalid("readout_dot_bound_nonfinite"));
-    }
-    Ok(bound)
-}
-
 fn verify_observed_linear_readout(
     observed: &ObservedLinearReadout,
     inspection: &LinearReadoutInspection,
@@ -338,8 +316,10 @@ fn verify_observed_linear_readout(
         let input = &observed.inputs[index];
         let positive = dot(&inspection.positive_weights, input)?;
         let negative = dot(&inspection.negative_weights, input)?;
-        let positive_bound = readout_dot_roundoff_bound(&inspection.positive_weights, input)?;
-        let negative_bound = readout_dot_roundoff_bound(&inspection.negative_weights, input)?;
+        let positive_bound =
+            crate::validation::readout_dot_roundoff_bound(&inspection.positive_weights, input)?;
+        let negative_bound =
+            crate::validation::readout_dot_roundoff_bound(&inspection.negative_weights, input)?;
         let observed_positive = observed.observed_positive_logits[index];
         let observed_negative = observed.observed_negative_logits[index];
         let positive_error = (positive - observed_positive).abs();
@@ -358,7 +338,7 @@ fn verify_observed_linear_readout(
             * (observed_positive.abs() + observed_negative.abs())
             + 2.0_f64.powi(-150);
         let reference_difference_bound =
-            readout_dot_roundoff_bound(&inspection.difference_weights, input)?;
+            crate::validation::readout_dot_roundoff_bound(&inspection.difference_weights, input)?;
         let margin_bound =
             positive_bound + negative_bound + subtraction_bound + reference_difference_bound;
         let margin_error = (execution.raw_margins[index] - f32_margin).abs();
@@ -1428,90 +1408,7 @@ fn validate_behavioral_calibration_evidence(
     })
 }
 
-fn validate_values(values: &[f64], dimension: usize) -> BrainResult<()> {
-    if values.len() != dimension || values.iter().any(|value| !value.is_finite()) {
-        return Err(invalid("receiver_weight_response_shape_or_nonfinite"));
-    }
-    Ok(())
-}
-
-fn augmented_signature(values: &[f64]) -> Vec<f64> {
-    let mut augmented = Vec::with_capacity(values.len() + 1);
-    augmented.extend_from_slice(values);
-    augmented.push(1.0);
-    augmented
-}
-
-/// Ridge leverage of one functional signature against calibration signatures.
-/// This is a source/functional support test, not a receiver-parameter norm
-/// heuristic.  It is invariant to receiver basis rotations and therefore
-/// better matches the question the compiler actually needs to answer: whether
-/// the target functional query is supported by the calibrated semantic design.
-fn functional_leverage(calibration: &[Vec<f64>], query: &[f64], ridge: f64) -> BrainResult<f64> {
-    if calibration.len() < 4
-        || query.is_empty()
-        || !ridge.is_finite()
-        || ridge <= 0.0
-        || calibration
-            .iter()
-            .any(|row| row.len() != query.len() || row.iter().any(|value| !value.is_finite()))
-        || query.iter().any(|value| !value.is_finite())
-    {
-        return Err(invalid("receiver_weight_functional_support_input_invalid"));
-    }
-    let dimension = query.len() + 1;
-    let mut gram = Matrix::zeros(dimension, dimension);
-    for row in calibration {
-        let augmented = augmented_signature(row);
-        for i in 0..dimension {
-            for j in 0..=i {
-                let value = gram.get(i, j) + augmented[i] * augmented[j];
-                gram.set(i, j, value);
-                if i != j {
-                    gram.set(j, i, value);
-                }
-            }
-        }
-    }
-    for index in 0..dimension {
-        gram.set(index, index, gram.get(index, index) + ridge);
-    }
-    let query = augmented_signature(query);
-    let solved = solve(gram, query.clone())?;
-    let leverage = dot(&query, &solved)?;
-    if !leverage.is_finite() || leverage < 0.0 {
-        return Err(BrainError::Numerical(
-            "receiver_weight_functional_support_nonfinite".into(),
-        ));
-    }
-    Ok(leverage)
-}
-
-/// Data-derived support envelope. Each calibration capability is treated once
-/// as if it were a target and scored against all remaining capabilities. The
-/// final target must not have greater leverage than the worst such calibration
-/// holdout. No target receiver solution is required for this gate.
-fn functional_support_envelope(
-    calibration: &[Vec<f64>],
-    query: &[f64],
-    ridge: f64,
-) -> BrainResult<(f64, f64)> {
-    if calibration.len() < 5 {
-        return Err(invalid("receiver_weight_functional_support_anchor_count"));
-    }
-    let mut maximum_loo = 0.0_f64;
-    for holdout in 0..calibration.len() {
-        let train = calibration
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| *index != holdout)
-            .map(|(_, row)| row.clone())
-            .collect::<Vec<_>>();
-        maximum_loo = maximum_loo.max(functional_leverage(&train, &calibration[holdout], ridge)?);
-    }
-    let query_score = functional_leverage(calibration, query, ridge)?;
-    Ok((query_score, maximum_loo))
-}
+// `validate_values` moved to `crate::validation::validate_values`.
 
 fn validate_target(
     target: &FunctionalResponseTarget,
@@ -1521,35 +1418,14 @@ fn validate_target(
     if target.schema != TARGET_SCHEMA || target.protocol_sha256 != protocol.sha256 {
         return Err(invalid("receiver_weight_target_protocol_mismatch"));
     }
-    validate_values(&target.values, dimension)?;
+    crate::validation::validate_values(&target.values, dimension)?;
     if norm(&target.values)? <= 1e-15 {
         return Err(invalid("receiver_weight_target_degenerate"));
     }
     Ok(())
 }
 
-fn layout_realization_coverage(
-    layout: &ParameterBlockLayout,
-) -> (BTreeSet<String>, BTreeSet<usize>) {
-    let mut families = BTreeSet::new();
-    let mut layers = BTreeSet::new();
-    for block in &layout.blocks {
-        if let Some(stem) = block.name.strip_suffix(".weight") {
-            if let Some(family) = stem.rsplit('.').next() {
-                families.insert(family.to_string());
-            }
-        }
-        let parts = block.name.split('.').collect::<Vec<_>>();
-        if let Some(layer) = parts
-            .windows(2)
-            .find(|window| window[0] == "layers")
-            .and_then(|window| window[1].parse::<usize>().ok())
-        {
-            layers.insert(layer);
-        }
-    }
-    (families, layers)
-}
+// `layout_realization_coverage` moved to `crate::validation::layout_realization_coverage`.
 
 fn assess_realization(
     basis: &ReceiverWeightBasis,
@@ -1584,7 +1460,8 @@ fn assess_realization(
     {
         return Err(invalid("receiver_weight_realization_manifest_invalid"));
     }
-    let (layout_families, layout_layers) = layout_realization_coverage(&basis.layout);
+    let (layout_families, layout_layers) =
+        crate::validation::layout_realization_coverage(&basis.layout);
     if layout_families != manifest.target_tensor_families
         || layout_layers != manifest.covered_transformer_layers
     {
@@ -1592,22 +1469,30 @@ fn assess_realization(
     }
     let required_attention = ["q_proj", "k_proj", "v_proj", "o_proj"];
     let required_mlp = ["gate_proj", "up_proj", "down_proj"];
-    let attention_and_mlp_coverage = required_attention
-        .iter()
-        .chain(required_mlp.iter())
-        .all(|family| manifest.target_tensor_families.contains(*family));
-    let full_layer_coverage = manifest.total_transformer_layers > 0
-        && manifest.covered_transformer_layers
-            == (0..manifest.total_transformer_layers).collect::<BTreeSet<_>>();
+    let attention_and_mlp_coverage = crate::validation::families_include(
+        &required_attention
+            .iter()
+            .chain(required_mlp.iter())
+            .copied()
+            .collect::<Vec<_>>(),
+        &manifest.target_tensor_families,
+    );
+    let full_layer_coverage = crate::validation::is_full_layer_coverage(
+        manifest.total_transformer_layers,
+        &manifest.covered_transformer_layers,
+    );
     let distributed = manifest.scope == ReceiverRealizationScope::DistributedTransformer
         && matches!(
             manifest.axis_construction_method,
             ReceiverAxisConstructionMethod::CalibrationLora
                 | ReceiverAxisConstructionMethod::CalibrationDenseUpdate
         )
-        && manifest.learned_parameter_count_per_axis > 0
-        && attention_and_mlp_coverage
-        && full_layer_coverage;
+        && crate::validation::distributed_permitted_from_primitives(
+            true,
+            manifest.learned_parameter_count_per_axis,
+            attention_and_mlp_coverage,
+            full_layer_coverage,
+        );
     if manifest.scope == ReceiverRealizationScope::DistributedTransformer && !distributed {
         return Err(invalid(
             "receiver_weight_distributed_realization_incomplete",
@@ -1624,8 +1509,10 @@ fn assess_realization(
         requested_scope,
         available_scope: manifest.scope,
         writable_parameter_count: manifest.writable_parameter_count,
-        writable_parameter_fraction: manifest.writable_parameter_count as f64
-            / manifest.total_model_parameter_count as f64,
+        writable_parameter_fraction: crate::validation::compute_writable_fraction(
+            manifest.writable_parameter_count,
+            manifest.total_model_parameter_count,
+        )?,
         target_tensor_family_count: manifest.target_tensor_families.len(),
         covered_transformer_layer_count: manifest.covered_transformer_layers.len(),
         total_transformer_layers: manifest.total_transformer_layers,
@@ -1938,8 +1825,8 @@ fn derive_candidate(
         if observation.capability_id == target.capability_id {
             return Err(invalid("receiver_weight_target_leaked_into_calibration"));
         }
-        validate_values(&observation.values, dimension)?;
-        validate_values(&observation.receiver_coordinates, k)?;
+        crate::validation::validate_values(&observation.values, dimension)?;
+        crate::validation::validate_values(&observation.receiver_coordinates, k)?;
         if let Some(cross_model) = protocol.cross_model() {
             let functional_evidence =
                 observation.functional_evidence.as_ref().ok_or_else(|| {

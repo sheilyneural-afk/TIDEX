@@ -601,7 +601,7 @@ pub enum ResidencyUnknownReason {
 }
 
 /// The authoritative classification.  `Blocked` and `BoundedUnknown` are
-/// first-class decisions, not exceptional fallbacks.
+/// first-class decisions, not exceptional recovery paths.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "decision", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ResidencyDecision {

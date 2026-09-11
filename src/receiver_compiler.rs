@@ -18,6 +18,7 @@ use crate::capability_ir::{
     OperationalInterfaceVerification,
 };
 use crate::contracts::{BrainConfig, ProtectedCortex};
+use crate::digest::Sha256Digest;
 use crate::error::{BrainError, BrainResult};
 use crate::identifiability::{resolution_map, ResolutionMap};
 use crate::identity::CapabilityId;
@@ -28,7 +29,8 @@ use crate::transport::{
     learn_functional_transplant, learn_functional_transplant_with_policy,
     learn_relational_transport, learn_transport_validated, learn_transport_validated_with_policy,
     validate_transport_with_topology, AffineTransportDiagnostics, AffineTransportPolicy,
-    TopologicallyValidatedTransportMap, TransportMap,
+    FunctionalTransplantMap, RelationalTransportMap, TopologicallyValidatedTransportMap,
+    TransportMap, ValidatedTransportMap,
 };
 use crate::trust_region::{apply_quadratic_trust_region, TrustRegionResult};
 use serde::{Deserialize, Serialize};
@@ -406,18 +408,7 @@ fn validate_rows(
     expected_dim: Option<usize>,
     label: &str,
 ) -> BrainResult<usize> {
-    if rows.is_empty() {
-        return Err(BrainError::Invalid(format!("{label}_empty")));
-    }
-    let dimension = expected_dim.unwrap_or(rows[0].len());
-    if dimension == 0
-        || rows
-            .iter()
-            .any(|row| row.len() != dimension || row.iter().any(|value| !value.is_finite()))
-    {
-        return Err(BrainError::Invalid(format!("{label}_shape")));
-    }
-    Ok(dimension)
+    crate::validation::validate_rows_expected(rows, expected_dim, label)
 }
 
 /// Numerical candidate in an explicitly calibrated response space.
@@ -491,6 +482,14 @@ pub fn compile_receiver_capability(
         risk_metric,
         policy,
     )?;
+    finish_operational_compilation(ir, operational, numerical)
+}
+
+fn finish_operational_compilation(
+    ir: &CapabilityIr,
+    operational: &OperationalCapabilityContract,
+    numerical: ReceiverSignatureCompilation,
+) -> BrainResult<ReceiverCompilation> {
     let operational_verification =
         operational.verify_receiver_signature(ir, &numerical.predicted_functional_signature)?;
     Ok(ReceiverCompilation {
@@ -616,7 +615,7 @@ pub(crate) fn project_functional_signature(
     Ok(projected)
 }
 
-/// Explicit numerical profile: no failure-triggered fallback is permitted.
+/// Explicit numerical profile: no failure-triggered alternate is permitted.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ReceiverProposalMethod {
@@ -639,6 +638,684 @@ pub enum ReceiverProposalValidationProfile {
     ParametricCrossValidation,
     BehavioralCalibrationMeasurement,
     AuthenticatedBehavioralCalibration,
+}
+
+#[derive(Debug, Clone)]
+struct ReceiverCompilerMaps {
+    decoder: FunctionalTransplantMap,
+    encoder: ValidatedTransportMap,
+    relational: Option<RelationalTransportMap>,
+    decoder_fit_diagnostics: Option<AffineTransportDiagnostics>,
+    encoder_fit_diagnostics: Option<AffineTransportDiagnostics>,
+    minimum_functional_anchor_separation: Option<f64>,
+    encoder_topology: Option<TopologicallyValidatedTransportMap>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct FrozenTransportMap {
+    source_dim: usize,
+    target_dim: usize,
+    weights: Vec<Vec<f64>>,
+    bias: Vec<f64>,
+    training_rms: f64,
+}
+
+impl FrozenTransportMap {
+    fn from_map(map: &TransportMap) -> Self {
+        Self {
+            source_dim: map.source_dim,
+            target_dim: map.target_dim,
+            weights: (0..map.weights.row_count())
+                .map(|row| map.weights.row_vec(row))
+                .collect(),
+            bias: map.bias.clone(),
+            training_rms: map.training_rms,
+        }
+    }
+
+    fn to_map(&self) -> BrainResult<TransportMap> {
+        let weights = Matrix::from_rows(&self.weights)?;
+        if self.source_dim == 0
+            || self.target_dim == 0
+            || weights.row_count() != self.target_dim
+            || weights.column_count() != self.source_dim
+            || self.bias.len() != self.target_dim
+            || self.bias.iter().any(|value| !value.is_finite())
+            || !self.training_rms.is_finite()
+            || self.training_rms < 0.0
+        {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_transport_map_invalid".into(),
+            ));
+        }
+        Ok(TransportMap {
+            source_dim: self.source_dim,
+            target_dim: self.target_dim,
+            weights,
+            bias: self.bias.clone(),
+            training_rms: self.training_rms,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct FrozenFunctionalTransplantMap {
+    schema: String,
+    functional_dim: usize,
+    target_dim: usize,
+    target_decoder: FrozenTransportMap,
+    anchor_count: usize,
+    loo_cv_r2: f64,
+    mean_loo_cosine: f64,
+    min_loo_cosine: f64,
+    resolved: bool,
+}
+
+impl FrozenFunctionalTransplantMap {
+    fn from_map(map: &FunctionalTransplantMap) -> Self {
+        Self {
+            schema: map.schema.clone(),
+            functional_dim: map.functional_dim,
+            target_dim: map.target_dim,
+            target_decoder: FrozenTransportMap::from_map(&map.target_decoder),
+            anchor_count: map.anchor_count,
+            loo_cv_r2: map.loo_cv_r2,
+            mean_loo_cosine: map.mean_loo_cosine,
+            min_loo_cosine: map.min_loo_cosine,
+            resolved: map.resolved,
+        }
+    }
+
+    fn to_map(&self) -> BrainResult<FunctionalTransplantMap> {
+        let target_decoder = self.target_decoder.to_map()?;
+        if self.schema != "cerebro.tidex.functional_transplant/v1"
+            || self.functional_dim != target_decoder.source_dim
+            || self.target_dim != target_decoder.target_dim
+            || self.anchor_count < 4
+            || [self.loo_cv_r2, self.mean_loo_cosine, self.min_loo_cosine]
+                .iter()
+                .any(|value| !value.is_finite())
+        {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_decoder_map_invalid".into(),
+            ));
+        }
+        Ok(FunctionalTransplantMap {
+            schema: self.schema.clone(),
+            functional_dim: self.functional_dim,
+            target_dim: self.target_dim,
+            target_decoder,
+            anchor_count: self.anchor_count,
+            loo_cv_r2: self.loo_cv_r2,
+            mean_loo_cosine: self.mean_loo_cosine,
+            min_loo_cosine: self.min_loo_cosine,
+            resolved: self.resolved,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct FrozenValidatedTransportMap {
+    schema: String,
+    map: FrozenTransportMap,
+    anchor_count: usize,
+    loo_cv_r2: f64,
+    loo_cv_rms: f64,
+    mean_loo_cosine: f64,
+    min_loo_cosine: f64,
+    resolved: bool,
+}
+
+impl FrozenValidatedTransportMap {
+    fn from_map(map: &ValidatedTransportMap) -> Self {
+        Self {
+            schema: map.schema.clone(),
+            map: FrozenTransportMap::from_map(&map.map),
+            anchor_count: map.anchor_count,
+            loo_cv_r2: map.loo_cv_r2,
+            loo_cv_rms: map.loo_cv_rms,
+            mean_loo_cosine: map.mean_loo_cosine,
+            min_loo_cosine: map.min_loo_cosine,
+            resolved: map.resolved,
+        }
+    }
+
+    fn to_map(&self) -> BrainResult<ValidatedTransportMap> {
+        let map = self.map.to_map()?;
+        if self.schema != "cerebro.tidex.validated_transport/v1"
+            || self.anchor_count < 4
+            || [
+                self.loo_cv_r2,
+                self.loo_cv_rms,
+                self.mean_loo_cosine,
+                self.min_loo_cosine,
+            ]
+            .iter()
+            .any(|value| !value.is_finite())
+            || self.loo_cv_rms < 0.0
+        {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_encoder_map_invalid".into(),
+            ));
+        }
+        Ok(ValidatedTransportMap {
+            schema: self.schema.clone(),
+            map,
+            anchor_count: self.anchor_count,
+            loo_cv_r2: self.loo_cv_r2,
+            loo_cv_rms: self.loo_cv_rms,
+            mean_loo_cosine: self.mean_loo_cosine,
+            min_loo_cosine: self.min_loo_cosine,
+            resolved: self.resolved,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct FrozenTopologyMetrics {
+    target_betti_0: usize,
+    predicted_betti_0: usize,
+    target_betti_1: usize,
+    predicted_betti_1: usize,
+    target_homotopy_score: f64,
+    predicted_homotopy_score: f64,
+    topology_preserved: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct FrozenReceiverCompilerMaps {
+    decoder: FrozenFunctionalTransplantMap,
+    encoder: FrozenValidatedTransportMap,
+    relational: Option<RelationalTransportMap>,
+    decoder_fit_diagnostics: Option<AffineTransportDiagnostics>,
+    encoder_fit_diagnostics: Option<AffineTransportDiagnostics>,
+    minimum_functional_anchor_separation: Option<f64>,
+    encoder_topology: Option<FrozenTopologyMetrics>,
+}
+
+impl FrozenReceiverCompilerMaps {
+    fn from_maps(maps: &ReceiverCompilerMaps) -> Self {
+        Self {
+            decoder: FrozenFunctionalTransplantMap::from_map(&maps.decoder),
+            encoder: FrozenValidatedTransportMap::from_map(&maps.encoder),
+            relational: maps.relational.clone(),
+            decoder_fit_diagnostics: maps.decoder_fit_diagnostics.clone(),
+            encoder_fit_diagnostics: maps.encoder_fit_diagnostics.clone(),
+            minimum_functional_anchor_separation: maps.minimum_functional_anchor_separation,
+            encoder_topology: maps.encoder_topology.as_ref().map(|topology| {
+                FrozenTopologyMetrics {
+                    target_betti_0: topology.target_betti_0,
+                    predicted_betti_0: topology.predicted_betti_0,
+                    target_betti_1: topology.target_betti_1,
+                    predicted_betti_1: topology.predicted_betti_1,
+                    target_homotopy_score: topology.target_homotopy_score,
+                    predicted_homotopy_score: topology.predicted_homotopy_score,
+                    topology_preserved: topology.topology_preserved,
+                }
+            }),
+        }
+    }
+
+    fn to_maps(&self, calibration: &ReceiverCalibrationSet) -> BrainResult<ReceiverCompilerMaps> {
+        let decoder = self.decoder.to_map()?;
+        let encoder = self.encoder.to_map()?;
+        if decoder.anchor_count != calibration.functional_signatures.len()
+            || encoder.anchor_count != calibration.functional_signatures.len()
+            || decoder.functional_dim
+                != calibration
+                    .functional_signatures
+                    .first()
+                    .map_or(0, Vec::len)
+            || decoder.target_dim != calibration.receiver_solutions.first().map_or(0, Vec::len)
+            || encoder.map.source_dim != decoder.target_dim
+            || encoder.map.target_dim != decoder.functional_dim
+        {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_map_calibration_binding_invalid".into(),
+            ));
+        }
+        if let Some(relational) = &self.relational {
+            if relational.source_signature_dim != decoder.functional_dim
+                || relational.target_signature_dim != decoder.target_dim
+                || relational.anchor_count != decoder.anchor_count
+                || !relational.ridge.is_finite()
+                || relational.ridge < 0.0
+                || [
+                    relational.min_loo_source_cosine,
+                    relational.min_loo_target_cosine,
+                    relational.mean_loo_source_cosine,
+                    relational.mean_loo_target_cosine,
+                    relational.max_loo_coefficient_norm,
+                ]
+                .iter()
+                .any(|value| !value.is_finite())
+                || calibration
+                    .functional_signatures
+                    .iter()
+                    .any(|signature| relational.transplant(signature).is_err())
+            {
+                return Err(BrainError::Integrity(
+                    "frozen_receiver_relational_map_invalid".into(),
+                ));
+            }
+        }
+        let encoder_topology =
+            self.encoder_topology
+                .as_ref()
+                .map(|topology| TopologicallyValidatedTransportMap {
+                    base: encoder.clone(),
+                    target_betti_0: topology.target_betti_0,
+                    predicted_betti_0: topology.predicted_betti_0,
+                    target_betti_1: topology.target_betti_1,
+                    predicted_betti_1: topology.predicted_betti_1,
+                    target_homotopy_score: topology.target_homotopy_score,
+                    predicted_homotopy_score: topology.predicted_homotopy_score,
+                    topology_preserved: topology.topology_preserved,
+                });
+        if self.encoder_topology.as_ref().is_some_and(|topology| {
+            !topology.target_homotopy_score.is_finite()
+                || !topology.predicted_homotopy_score.is_finite()
+        }) || self
+            .minimum_functional_anchor_separation
+            .is_some_and(|value| !value.is_finite() || value <= 0.0)
+        {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_map_diagnostics_invalid".into(),
+            ));
+        }
+        Ok(ReceiverCompilerMaps {
+            decoder,
+            encoder,
+            relational: self.relational.clone(),
+            decoder_fit_diagnostics: self.decoder_fit_diagnostics.clone(),
+            encoder_fit_diagnostics: self.encoder_fit_diagnostics.clone(),
+            minimum_functional_anchor_separation: self.minimum_functional_anchor_separation,
+            encoder_topology,
+        })
+    }
+
+    fn sha256(&self) -> BrainResult<Sha256Digest> {
+        Ok(Sha256Digest::digest_domain(
+            b"CEREBRO:TIDEX:RECEIVER-COMPILER-MAPS:v2\0",
+            &serde_json::to_vec(self)?,
+        ))
+    }
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static COMPILER_FIT_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn fit_receiver_compiler_maps(
+    calibration: &ReceiverCalibrationSet,
+    policy: &ReceiverCompilerPolicy,
+    proposal_method: ReceiverProposalMethod,
+) -> BrainResult<ReceiverCompilerMaps> {
+    #[cfg(test)]
+    COMPILER_FIT_CALLS.with(|count| count.set(count.get() + 1));
+    let calibrated_affine = proposal_method == ReceiverProposalMethod::CalibratedAffine;
+    let minimum_functional_anchor_separation = if calibrated_affine {
+        Some(validate_functional_anchor_identity(
+            &calibration.functional_signatures,
+        )?)
+    } else {
+        None
+    };
+    let (decoder, decoder_fit_diagnostics, encoder, encoder_fit_diagnostics) = if calibrated_affine
+    {
+        let regression = AffineTransportPolicy::CenteredTraceRidge {
+            relative_ridge: policy.ridge,
+        };
+        let (decoder, decoder_diagnostics) = learn_functional_transplant_with_policy(
+            &calibration.functional_signatures,
+            &calibration.receiver_solutions,
+            &regression,
+        )?;
+        let (encoder, encoder_diagnostics) = learn_transport_validated_with_policy(
+            &calibration.receiver_solutions,
+            &calibration.functional_signatures,
+            &regression,
+        )?;
+        (
+            decoder,
+            Some(decoder_diagnostics),
+            encoder,
+            Some(encoder_diagnostics),
+        )
+    } else {
+        let decoder = learn_functional_transplant(
+            &calibration.functional_signatures,
+            &calibration.receiver_solutions,
+            policy.ridge,
+        )?;
+        let encoder = learn_transport_validated(
+            &calibration.receiver_solutions,
+            &calibration.functional_signatures,
+            policy.ridge,
+        )?;
+        (decoder, None, encoder, None)
+    };
+    let relational = if proposal_method == ReceiverProposalMethod::RelationalAnchors {
+        Some(learn_relational_transport(
+            &calibration.functional_signatures,
+            &calibration.receiver_solutions,
+            policy.ridge,
+        )?)
+    } else {
+        None
+    };
+    let encoder_training_predictions = calibration
+        .receiver_solutions
+        .iter()
+        .map(|source| encoder.map.apply(source))
+        .collect::<BrainResult<Vec<_>>>()?;
+    let topology_distance_threshold = (encoder.map.training_rms * 3.0).max(1e-6);
+    let encoder_topology = validate_transport_with_topology(
+        encoder.map.clone(),
+        &calibration.functional_signatures,
+        &encoder_training_predictions,
+        topology_distance_threshold,
+    )
+    .ok();
+    Ok(ReceiverCompilerMaps {
+        decoder,
+        encoder,
+        relational,
+        decoder_fit_diagnostics,
+        encoder_fit_diagnostics,
+        minimum_functional_anchor_separation,
+        encoder_topology,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FrozenReceiverCompilerInput {
+    pub schema: String,
+    pub calibration_capability_ids: Vec<CapabilityId>,
+    pub calibration: ReceiverCalibrationSet,
+    pub protected_cortex: ProtectedCortex,
+    pub risk_metric_rows: Vec<Vec<f64>>,
+    pub policy: ReceiverCompilerPolicy,
+    pub proposal_method: ReceiverProposalMethod,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FrozenReceiverCompiler {
+    schema: String,
+    input: FrozenReceiverCompilerInput,
+    compiler_source_sha256: Sha256Digest,
+    maps: FrozenReceiverCompilerMaps,
+    maps_sha256: Sha256Digest,
+    maximum_functional_leverage: f64,
+    manifest_sha256: Sha256Digest,
+}
+
+pub struct VerifiedFrozenReceiverCompiler<'a> {
+    frozen: &'a FrozenReceiverCompiler,
+    maps: ReceiverCompilerMaps,
+}
+
+pub fn freeze_receiver_compiler(
+    input: &FrozenReceiverCompilerInput,
+) -> BrainResult<FrozenReceiverCompiler> {
+    input.policy.validate()?;
+    let calibration = &input.calibration;
+    let n = calibration.functional_signatures.len();
+    let f = calibration
+        .functional_signatures
+        .first()
+        .map_or(0, Vec::len);
+    let k = calibration.receiver_solutions.first().map_or(0, Vec::len);
+    if input.schema != "cerebro.tidex.frozen_receiver_compiler_input/v1"
+        || !(5..=256).contains(&n)
+        || !(1..=256).contains(&f)
+        || !(1..=256).contains(&k)
+        || calibration.receiver_solutions.len() != n
+        || !calibration.wrong_functional_signatures.is_empty()
+        || calibration
+            .receiver_snapshot_binding_sha256
+            .as_ref()
+            .is_none_or(|value| *value == Sha256Digest::zero())
+        || input.calibration_capability_ids.len() != n
+        || input
+            .calibration_capability_ids
+            .iter()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != n
+        || input.protected_cortex.parameter_importance.len() != k
+        || input.protected_cortex.directions.len() > 256
+        || input.risk_metric_rows.len() != k
+        || input.risk_metric_rows.iter().any(|row| row.len() != k)
+    {
+        return Err(BrainError::Invalid(
+            "frozen_receiver_compiler_input_invalid".into(),
+        ));
+    }
+    let work = (n as u128 + 1)
+        * ((k as u128 + 1) * (f as u128 + 1).pow(3) + (f as u128 + 1) * (k as u128 + 1).pow(3));
+    if work > 250_000_000 {
+        return Err(BrainError::Invalid(
+            "frozen_receiver_compiler_work_limit".into(),
+        ));
+    }
+    validate_rows(
+        &calibration.functional_signatures,
+        Some(f),
+        "frozen_functional",
+    )?;
+    validate_rows(&calibration.receiver_solutions, Some(k), "frozen_receiver")?;
+    validate_functional_anchor_identity(&calibration.functional_signatures)?;
+    let risk_metric = Matrix::from_rows(&input.risk_metric_rows)?;
+    let zero = vec![0.0; k];
+    project_to_safe_subspace(&zero, &input.protected_cortex)?;
+    apply_quadratic_trust_region(&risk_metric, &zero, input.policy.maximum_quadratic_cost)?;
+    let maps = fit_receiver_compiler_maps(calibration, &input.policy, input.proposal_method)?;
+    if !maps.decoder.resolved
+        || !maps.encoder.resolved
+        || maps.decoder.loo_cv_r2 < input.policy.minimum_decoder_loo_r2
+        || maps.encoder.loo_cv_r2 < input.policy.minimum_encoder_loo_r2
+        || maps.decoder.min_loo_cosine < input.policy.minimum_decoder_loo_cosine
+        || maps
+            .encoder_topology
+            .as_ref()
+            .is_some_and(|topology| !topology.topology_preserved)
+        || maps
+            .relational
+            .as_ref()
+            .is_some_and(|relational| !relational.resolved)
+    {
+        return Err(BrainError::Integrity(
+            "frozen_receiver_calibration_gates_failed".into(),
+        ));
+    }
+    let (_, maximum_functional_leverage) = crate::transport::functional_support_envelope(
+        &calibration.functional_signatures,
+        &calibration.functional_signatures[0],
+        input.policy.ridge,
+    )?;
+    let compiler_source_sha256 = Sha256Digest::parse(env!("TIDEX_SOURCE_TREE_DIGEST"))?;
+    let frozen_maps = FrozenReceiverCompilerMaps::from_maps(&maps);
+    let maps_sha256 = frozen_maps.sha256()?;
+    let mut frozen = FrozenReceiverCompiler {
+        schema: "cerebro.tidex.frozen_receiver_compiler/v3".into(),
+        input: input.clone(),
+        compiler_source_sha256,
+        maps: frozen_maps,
+        maps_sha256,
+        maximum_functional_leverage,
+        manifest_sha256: Sha256Digest::zero(),
+    };
+    let mut unsigned = frozen.clone();
+    unsigned.manifest_sha256 = Sha256Digest::zero();
+    frozen.manifest_sha256 = Sha256Digest::digest_domain(
+        b"CEREBRO:TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
+        &serde_json::to_vec(&unsigned)?,
+    );
+    Ok(frozen)
+}
+
+impl FrozenReceiverCompiler {
+    pub fn manifest_sha256(&self) -> &Sha256Digest {
+        &self.manifest_sha256
+    }
+
+    pub fn input(&self) -> &FrozenReceiverCompilerInput {
+        &self.input
+    }
+
+    /// Authentication replays calibration once under the exact compiled source
+    /// identity. The returned handle owns the replayed maps; target compilation
+    /// performs no calibration fitting.
+    pub fn verify(&self) -> BrainResult<VerifiedFrozenReceiverCompiler<'_>> {
+        if self.schema != "cerebro.tidex.frozen_receiver_compiler/v3"
+            || self.compiler_source_sha256 != Sha256Digest::parse(env!("TIDEX_SOURCE_TREE_DIGEST"))?
+            || self.maps.sha256()? != self.maps_sha256
+        {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_compiler_source_mismatch".into(),
+            ));
+        }
+        let mut unsigned = self.clone();
+        unsigned.manifest_sha256 = Sha256Digest::zero();
+        let manifest = Sha256Digest::digest_domain(
+            b"CEREBRO:TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
+            &serde_json::to_vec(&unsigned)?,
+        );
+        if manifest != self.manifest_sha256 {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_compiler_manifest_mismatch".into(),
+            ));
+        }
+        let maps = self.maps.to_maps(&self.input.calibration)?;
+        let replay = fit_receiver_compiler_maps(
+            &self.input.calibration,
+            &self.input.policy,
+            self.input.proposal_method,
+        )?;
+        if FrozenReceiverCompilerMaps::from_maps(&replay) != self.maps {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_compiler_map_replay_mismatch".into(),
+            ));
+        }
+        let (_, leverage) = crate::transport::functional_support_envelope(
+            &self.input.calibration.functional_signatures,
+            &self.input.calibration.functional_signatures[0],
+            self.input.policy.ridge,
+        )?;
+        if leverage.to_bits() != self.maximum_functional_leverage.to_bits() {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_compiler_support_replay_mismatch".into(),
+            ));
+        }
+        Ok(VerifiedFrozenReceiverCompiler { frozen: self, maps })
+    }
+
+    pub fn validate_binding(
+        &self,
+        calibration: &ReceiverCalibrationSet,
+        protected_cortex: &ProtectedCortex,
+        risk_metric: &Matrix,
+        policy: &ReceiverCompilerPolicy,
+    ) -> BrainResult<()> {
+        if self.input.calibration.receiver_snapshot_binding_sha256
+            != calibration.receiver_snapshot_binding_sha256
+            || self.input.calibration.functional_signatures != calibration.functional_signatures
+            || self.input.calibration.receiver_solutions != calibration.receiver_solutions
+            || self.input.protected_cortex != *protected_cortex
+            || Matrix::from_rows(&self.input.risk_metric_rows)? != *risk_metric
+            || self.input.policy != *policy
+        {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_compiler_binding_mismatch".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl VerifiedFrozenReceiverCompiler<'_> {
+    pub fn compile_capability(
+        &self,
+        ir: &CapabilityIr,
+        operational: &OperationalCapabilityContract,
+        wrong_functional_signatures: &[Vec<f64>],
+    ) -> BrainResult<ReceiverCompilation> {
+        operational.validate_against(ir)?;
+        let requested = operational.canonical_transition_signature(ir)?;
+        let numerical =
+            self.compile(ir.capability_id(), &requested, wrong_functional_signatures)?;
+        finish_operational_compilation(ir, operational, numerical)
+    }
+
+    pub fn compile(
+        &self,
+        capability_id: &CapabilityId,
+        requested: &[f64],
+        wrong_functional_signatures: &[Vec<f64>],
+    ) -> BrainResult<ReceiverSignatureCompilation> {
+        let input = &self.frozen.input;
+        if input.calibration_capability_ids.contains(capability_id)
+            || input
+                .calibration
+                .functional_signatures
+                .iter()
+                .any(|row| row == requested)
+        {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_target_leaked_into_calibration".into(),
+            ));
+        }
+        if wrong_functional_signatures.is_empty() || wrong_functional_signatures.len() > 256 {
+            return Err(BrainError::Invalid(
+                "frozen_receiver_wrong_signature_cardinality".into(),
+            ));
+        }
+        if requested.len() != input.calibration.functional_signatures[0].len()
+            || requested.iter().any(|value| !value.is_finite())
+            || norm(requested)? <= 1e-15
+        {
+            return Err(BrainError::Invalid("frozen_receiver_query_shape".into()));
+        }
+        let mut identities = input.calibration.functional_signatures.clone();
+        identities.push(requested.to_vec());
+        validate_functional_anchor_identity(&identities).map_err(|_| {
+            BrainError::Integrity("frozen_receiver_target_leaked_into_calibration".into())
+        })?;
+        let leverage = crate::transport::functional_leverage(
+            &input.calibration.functional_signatures,
+            requested,
+            input.policy.ridge,
+        )?;
+        if leverage > self.frozen.maximum_functional_leverage * (1.0 + 1e-10) {
+            return Err(BrainError::Integrity(
+                "frozen_receiver_query_outside_calibrated_support".into(),
+            ));
+        }
+        let mut calibration = input.calibration.clone();
+        calibration.wrong_functional_signatures = wrong_functional_signatures.to_vec();
+        let risk_metric = Matrix::from_rows(&input.risk_metric_rows)?;
+        compile_signature_with_maps(
+            requested,
+            ReceiverCompileContext {
+                calibration: &calibration,
+                protected_cortex: &input.protected_cortex,
+                risk_metric: &risk_metric,
+                policy: &input.policy,
+                proposal_method: input.proposal_method,
+                validation_profile: ReceiverProposalValidationProfile::ParametricCrossValidation,
+            },
+            Some(&self.maps),
+        )
+    }
 }
 
 /// Fit the requested response through the actual protection operator P:
@@ -682,22 +1359,13 @@ struct RelationalReceiverProposal {
     max_loo_coefficient_norm: f64,
 }
 
-/// Reuse the capability relations discovered in functional space rather than
-/// fitting an unconstrained global affine extrapolator.  The relational map
-/// derives coefficients only from calibration functional anchors; those same
-/// coefficients are then applied to the *raw* receiver coordinates, preserving
-/// receiver magnitude while keeping target receiver parameters completely
-/// absent from the solve.
-fn relational_receiver_proposal(
+/// Apply a previously calibrated relational map. The target contributes only
+/// its functional signature; no target receiver observations are used here.
+fn relational_receiver_proposal_from_map(
     calibration: &ReceiverCalibrationSet,
     requested: &[f64],
-    ridge: f64,
+    map: &RelationalTransportMap,
 ) -> BrainResult<RelationalReceiverProposal> {
-    let map = learn_relational_transport(
-        &calibration.functional_signatures,
-        &calibration.receiver_solutions,
-        ridge,
-    )?;
     let transplant = map.transplant(requested)?;
     if transplant.target_coefficients.len() != calibration.receiver_solutions.len() {
         return Err(BrainError::Integrity(
@@ -833,7 +1501,7 @@ pub fn compile_receiver_signature_behaviorally_calibrated_candidate(
 }
 
 /// Response-space inversion that includes protection in the forward design.
-/// This is an explicitly selected candidate profile, not a fallback used to
+/// This is an explicitly selected candidate profile, not an automatic alternate used to
 /// turn a rejected legacy compilation into an accepted one. Legacy operational
 /// compilation retains DecodeThenProject and its original serialized contract.
 pub fn compile_receiver_signature_in_safe_coordinates(
@@ -902,6 +1570,42 @@ fn compile_signature_with_method_and_validation(
     proposal_method: ReceiverProposalMethod,
     validation_profile: ReceiverProposalValidationProfile,
 ) -> BrainResult<ReceiverSignatureCompilation> {
+    compile_signature_with_maps(
+        requested,
+        ReceiverCompileContext {
+            calibration,
+            protected_cortex,
+            risk_metric,
+            policy,
+            proposal_method,
+            validation_profile,
+        },
+        None,
+    )
+}
+
+struct ReceiverCompileContext<'a> {
+    calibration: &'a ReceiverCalibrationSet,
+    protected_cortex: &'a ProtectedCortex,
+    risk_metric: &'a Matrix,
+    policy: &'a ReceiverCompilerPolicy,
+    proposal_method: ReceiverProposalMethod,
+    validation_profile: ReceiverProposalValidationProfile,
+}
+
+fn compile_signature_with_maps(
+    requested: &[f64],
+    context: ReceiverCompileContext<'_>,
+    fitted: Option<&ReceiverCompilerMaps>,
+) -> BrainResult<ReceiverSignatureCompilation> {
+    let ReceiverCompileContext {
+        calibration,
+        protected_cortex,
+        risk_metric,
+        policy,
+        proposal_method,
+        validation_profile,
+    } = context;
     policy.validate()?;
     if matches!(
         validation_profile,
@@ -979,50 +1683,19 @@ fn compile_signature_with_method_and_validation(
         return Err(BrainError::Invalid("receiver_compiler_safety_shape".into()));
     }
 
-    let calibrated_affine = proposal_method == ReceiverProposalMethod::CalibratedAffine;
-    let minimum_functional_anchor_separation = if calibrated_affine {
-        Some(validate_functional_anchor_identity(
-            &calibration.functional_signatures,
-        )?)
-    } else {
-        None
+    let freshly_fitted;
+    let maps = match fitted {
+        Some(maps) => maps,
+        None => {
+            freshly_fitted = fit_receiver_compiler_maps(calibration, policy, proposal_method)?;
+            &freshly_fitted
+        }
     };
-    // The forward decoder and inverse have different input geometry. Each fit
-    // derives its own scale from exactly its training rows, including inner LOO.
-    let (decoder, decoder_fit_diagnostics, encoder, encoder_fit_diagnostics) = if calibrated_affine
-    {
-        let regression = AffineTransportPolicy::CenteredTraceRidge {
-            relative_ridge: policy.ridge,
-        };
-        let (decoder, decoder_diagnostics) = learn_functional_transplant_with_policy(
-            &calibration.functional_signatures,
-            &calibration.receiver_solutions,
-            &regression,
-        )?;
-        let (encoder, encoder_diagnostics) = learn_transport_validated_with_policy(
-            &calibration.receiver_solutions,
-            &calibration.functional_signatures,
-            &regression,
-        )?;
-        (
-            decoder,
-            Some(decoder_diagnostics),
-            encoder,
-            Some(encoder_diagnostics),
-        )
-    } else {
-        let decoder = learn_functional_transplant(
-            &calibration.functional_signatures,
-            &calibration.receiver_solutions,
-            policy.ridge,
-        )?;
-        let encoder = learn_transport_validated(
-            &calibration.receiver_solutions,
-            &calibration.functional_signatures,
-            policy.ridge,
-        )?;
-        (decoder, None, encoder, None)
-    };
+    let decoder = &maps.decoder;
+    let encoder = &maps.encoder;
+    let decoder_fit_diagnostics = maps.decoder_fit_diagnostics.clone();
+    let encoder_fit_diagnostics = maps.encoder_fit_diagnostics.clone();
+    let minimum_functional_anchor_separation = maps.minimum_functional_anchor_separation;
     let (
         proposed,
         proposal_within_calibrated_support,
@@ -1048,7 +1721,11 @@ fn compile_signature_with_method_and_validation(
             None,
         ),
         ReceiverProposalMethod::RelationalAnchors => {
-            let relational = relational_receiver_proposal(calibration, requested, policy.ridge)?;
+            let relational_map = maps.relational.as_ref().ok_or_else(|| {
+                BrainError::Integrity("receiver_compiler_relational_map_missing".into())
+            })?;
+            let relational =
+                relational_receiver_proposal_from_map(calibration, requested, relational_map)?;
             (
                 relational.coordinates,
                 relational.within_calibrated_support,
@@ -1940,6 +2617,110 @@ mod tests {
             maximum_functional_relative_error: 1e-4,
             minimum_identity_margin: 0.1,
             maximum_quadratic_cost: 10.0,
+        }
+    }
+
+    fn frozen_test_input(method: ReceiverProposalMethod) -> FrozenReceiverCompilerInput {
+        let mut calibration = coupled_calibration();
+        calibration.receiver_snapshot_binding_sha256 =
+            Some(Sha256Digest::digest_bytes(b"receiver-A"));
+        calibration.wrong_functional_signatures.clear();
+        FrozenReceiverCompilerInput {
+            schema: "cerebro.tidex.frozen_receiver_compiler_input/v1".into(),
+            calibration_capability_ids: (0..calibration.functional_signatures.len())
+                .map(|index| CapabilityId::parse(format!("calibration.{index}")).unwrap())
+                .collect(),
+            calibration,
+            protected_cortex: ProtectedCortex {
+                parameter_importance: vec![0.0; 2],
+                directions: Vec::new(),
+                max_damage_ratio: 0.01,
+            },
+            risk_metric_rows: vec![vec![1.0, 0.0], vec![0.0, 1.0]],
+            policy: response_policy(),
+            proposal_method: method,
+        }
+    }
+
+    #[test]
+    fn frozen_compiler_roundtrip_uses_stored_maps_without_target_time_fitting() {
+        for method in [
+            ReceiverProposalMethod::DecodeThenProject,
+            ReceiverProposalMethod::CalibratedAffine,
+        ] {
+            let input = frozen_test_input(method);
+            let frozen = freeze_receiver_compiler(&input).unwrap();
+            let bytes = serde_json::to_vec(&frozen).unwrap();
+            let reopened: FrozenReceiverCompiler = serde_json::from_slice(&bytes).unwrap();
+            let verified = reopened.verify().unwrap();
+            let fit_count = COMPILER_FIT_CALLS.with(|count| count.get());
+            for (index, requested) in [vec![0.2, 0.4], vec![0.3, 0.8], vec![-0.1, 0.2]]
+                .iter()
+                .enumerate()
+            {
+                let wrong = vec![requested.iter().map(|value| -value).collect::<Vec<_>>()];
+                let result = verified
+                    .compile(
+                        &CapabilityId::parse(format!("heldout.{index}")).unwrap(),
+                        requested,
+                        &wrong,
+                    )
+                    .unwrap();
+                assert!(result.allowed, "{result:#?}");
+                assert_eq!(COMPILER_FIT_CALLS.with(|count| count.get()), fit_count);
+            }
+            assert_eq!(serde_json::to_vec(&reopened).unwrap(), bytes);
+        }
+    }
+
+    #[test]
+    fn frozen_compiler_rejects_rehashed_forged_stored_maps() {
+        let frozen = freeze_receiver_compiler(&frozen_test_input(
+            ReceiverProposalMethod::DecodeThenProject,
+        ))
+        .unwrap();
+        let mut forged = frozen.clone();
+        forged.maps.decoder.target_decoder.weights[0][0] += 999.0;
+        forged.maps_sha256 = forged.maps.sha256().unwrap();
+        forged.manifest_sha256 = Sha256Digest::zero();
+        let mut unsigned = forged.clone();
+        unsigned.manifest_sha256 = Sha256Digest::zero();
+        forged.manifest_sha256 = Sha256Digest::digest_domain(
+            b"CEREBRO:TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
+            &serde_json::to_vec(&unsigned).unwrap(),
+        );
+        match forged.verify() {
+            Err(error) => assert!(error.to_string().contains("map_replay_mismatch")),
+            Ok(_) => panic!("forged frozen compiler was accepted"),
+        }
+    }
+
+    #[test]
+    fn frozen_compiler_rejects_target_leakage_and_unsupported_extrapolation() {
+        let mut input = frozen_test_input(ReceiverProposalMethod::DecodeThenProject);
+        input.policy.maximum_quadratic_cost = 1e9;
+        let frozen = freeze_receiver_compiler(&input).unwrap();
+        let verified = frozen.verify().unwrap();
+        let wrong = vec![vec![-0.2, -0.4]];
+        assert!(verified
+            .compile(&input.calibration_capability_ids[0], &[0.2, 0.4], &wrong)
+            .is_err());
+        assert!(verified
+            .compile(
+                &CapabilityId::parse("heldout.same").unwrap(),
+                &input.calibration.functional_signatures[0],
+                &wrong,
+            )
+            .is_err());
+        match verified.compile(
+            &CapabilityId::parse("heldout.ood").unwrap(),
+            &[100.0, 400.0],
+            &[vec![-100.0, -400.0]],
+        ) {
+            Err(error) => assert!(error
+                .to_string()
+                .contains("frozen_receiver_query_outside_calibrated_support")),
+            Ok(_) => panic!("out-of-support frozen query was accepted"),
         }
     }
     #[test]

@@ -1,0 +1,7 @@
+edition = "2021"
+version = "Two"
+use_small_heuristics = "Default"
+fn_call_width = 80
+max_width = 100
+imports_granularity = "Crate"
+reorder_imports = true

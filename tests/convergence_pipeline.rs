@@ -23,7 +23,10 @@ use cerebro_tidex::materialization_pipeline::{
     PhysicalMaterializationReceipt, PhysicalMaterializationRequest,
 };
 use cerebro_tidex::model_adaptation::{ReceiverModelProfileInput, ReceiverModelProfileReceipt};
-use cerebro_tidex::receiver_compiler::{ReceiverCalibrationSet, ReceiverCompilerPolicy};
+use cerebro_tidex::receiver_compiler::{
+    freeze_receiver_compiler, FrozenReceiverCompilerInput, ReceiverCalibrationSet,
+    ReceiverCompilerPolicy, ReceiverProposalMethod,
+};
 use cerebro_tidex::receiver_profile::{
     CapabilityModality, CapabilityRequirements, MaterializationStrategy,
 };
@@ -200,7 +203,7 @@ fn planning_request(
         .sort_by(|a, b| a.anchor_id.cmp(&b.anchor_id));
     let query = operational.canonical_transition_signature(&ir).unwrap();
     let functions = vec![
-        vec![1.0, 0.0, 0.0, 1.0],
+        vec![0.8, 0.1, 0.1, 1.2],
         vec![1.0, 0.0, 1.0, 0.0],
         vec![0.0, 1.0, 0.0, 1.0],
         vec![1.0, 1.0, 0.0, 0.0],
@@ -239,37 +242,50 @@ fn planning_request(
             MaterializationStrategy::SparseDelta,
         ]),
     };
+    let wrong_functional_signatures = vec![functions[1].clone(), functions[2].clone()];
+    let frozen_compiler = freeze_receiver_compiler(&FrozenReceiverCompilerInput {
+        schema: "cerebro.tidex.frozen_receiver_compiler_input/v1".into(),
+        calibration_capability_ids: (0..functions.len())
+            .map(|index| {
+                CapabilityId::parse(format!("convergence.calibration.{index}:v1")).unwrap()
+            })
+            .collect(),
+        calibration: ReceiverCalibrationSet {
+            receiver_snapshot_binding_sha256: Some(profile.snapshot.manifest_digest().clone()),
+            receiver_solutions: solutions,
+            wrong_functional_signatures: Vec::new(),
+            functional_signatures: functions,
+        },
+        protected_cortex: ProtectedCortex {
+            parameter_importance: vec![0.0; 18],
+            directions: vec![],
+            max_damage_ratio: 0.01,
+        },
+        risk_metric_rows: (0..18)
+            .map(|i| (0..18).map(|j| f64::from(i == j)).collect())
+            .collect(),
+        policy: ReceiverCompilerPolicy {
+            schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
+            ridge: 1e-10,
+            minimum_decoder_loo_r2: 0.999,
+            minimum_encoder_loo_r2: 0.999,
+            minimum_decoder_loo_cosine: 0.999,
+            maximum_functional_relative_error: 1e-4,
+            minimum_identity_margin: 0.05,
+            maximum_quadratic_cost: 1e9,
+        },
+        proposal_method: ReceiverProposalMethod::DecodeThenProject,
+    })
+    .unwrap();
     UniversalCapabilityPlanningRequest {
-        schema: "cerebro.tidex.universal_capability_planning_request/v1".into(),
+        schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
         compilation: UniversalCapabilityCompilationRequest {
-            schema: "cerebro.tidex.universal_capability_compilation_request/v1".into(),
+            schema: "cerebro.tidex.universal_capability_compilation_request/v2".into(),
             system_envelope: envelope,
             capability_ir: ir,
             operational_contract: operational,
-            calibration: ReceiverCalibrationSet {
-                receiver_snapshot_binding_sha256: Some(profile.snapshot.manifest_digest().clone()),
-                receiver_solutions: solutions,
-                wrong_functional_signatures: vec![functions[1].clone(), functions[2].clone()],
-                functional_signatures: functions,
-            },
-            protected_cortex: ProtectedCortex {
-                parameter_importance: vec![0.0; 18],
-                directions: vec![],
-                max_damage_ratio: 0.01,
-            },
-            risk_metric_rows: (0..18)
-                .map(|i| (0..18).map(|j| f64::from(i == j)).collect())
-                .collect(),
-            policy: ReceiverCompilerPolicy {
-                schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
-                ridge: 1e-10,
-                minimum_decoder_loo_r2: 0.999,
-                minimum_encoder_loo_r2: 0.999,
-                minimum_decoder_loo_cosine: 0.999,
-                maximum_functional_relative_error: 1e-4,
-                minimum_identity_margin: 0.05,
-                maximum_quadratic_cost: 1e9,
-            },
+            frozen_compiler,
+            wrong_functional_signatures,
         },
         receiver_profile: profile.profile.clone(),
         receiver_snapshot: profile.snapshot.clone(),

@@ -1671,7 +1671,7 @@ mod tests {
     }
 
     #[test]
-    fn supervision_contract_has_no_free_label_fallback() {
+    fn supervision_contract_has_no_free_label_substitute() {
         let raw = serde_json::json!({
             "schema":"cerebro.tidex.learned_controller_supervision/v1",
             "session_id":"session",

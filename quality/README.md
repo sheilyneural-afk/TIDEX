@@ -1,3 +1,11 @@
+# Nota de mantenimiento del dossier de calidad
+
+Este archivo contiene la evidencia histórica de las puertas de validación del proyecto y sirve como documento de referencia de calidad técnica. Sin embargo, el estado operativo actual y la visión del sistema en ejecución quedan descritos en [../README.md](../README.md), [../SYSTEM_STATUS.md](../SYSTEM_STATUS.md) y [../ARCHITECTURE.md](../ARCHITECTURE.md).
+
+El contenido histórico que sigue documenta los gates, snapshots y mensajes de aseguramiento del proyecto. Debe leerse como un dossier de evidencia y control, no como un resumen de la arquitectura moderna del runtime.
+
+---
+
 # Puerta 0: aptitud de una entrega
 
 ## Estado de evidencia frente al HEAD actual

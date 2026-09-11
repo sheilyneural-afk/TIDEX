@@ -1081,7 +1081,7 @@ fn verify_causal_credit_artifacts(
 /// Load causal credit only after its source replay and wrapper have both been
 /// recomputed and matched. The returned priority vector is the authoritative
 /// lower-confidence-bound ordering used by the trust region; absence of that
-/// vector is an evidence failure, never a uniform-scaling fallback.
+/// vector is an evidence failure, never a uniform-scaling substitute.
 fn verified_causal_credit_with_weights(
     root: &Path,
     summary: &CausalCreditEvidenceSummary,

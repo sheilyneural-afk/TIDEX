@@ -5,11 +5,11 @@ use crate::digest::Sha256Digest;
 use crate::error::{BrainError, BrainResult};
 use crate::receiver_profile::MaterializationStrategy;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 const MAX_EVALUATIONS: usize = 1_024;
 const MAX_COMPLEMENTARITY_PAIRS: usize = 4_096;
+const MAX_RECORDED_CONTROLS: usize = 64;
 const MIN_REQUIRED_CONTROLS: &[ComparativeControl] = &[
     ComparativeControl::UnmodifiedReceiver,
     ComparativeControl::WrongCapabilityIr,
@@ -237,6 +237,10 @@ pub(crate) fn validate_evaluation(e: &BackendEvaluation) -> BrainResult<()> {
             .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
         || !e.identity_margin.is_finite()
         || !(0.0..=1.0).contains(&e.identity_margin)
+        || e.latency_micros == 0
+        || e.resident_bytes == 0
+        || e.completed_controls.is_empty()
+        || e.completed_controls.len() > MAX_RECORDED_CONTROLS
     {
         return Err(BrainError::Invalid("backend_evaluation_invalid".into()));
     }
@@ -292,6 +296,10 @@ pub fn select_materialization_backend(
     }
     let mut evaluations = evaluations.to_vec();
     evaluations.sort_by(|a, b| a.candidate_sha256.cmp(&b.candidate_sha256));
+    let strategies = evaluations
+        .iter()
+        .map(|evaluation| (&evaluation.candidate_sha256, evaluation.strategy))
+        .collect::<std::collections::BTreeMap<_, _>>();
     let mut complementarity = complementarity.to_vec();
     let mut pair_ids = BTreeSet::new();
     for pair in &mut complementarity {
@@ -304,6 +312,7 @@ pub fn select_materialization_backend(
         if pair.first_candidate_sha256 == pair.second_candidate_sha256
             || !ids.contains(&pair.first_candidate_sha256)
             || !ids.contains(&pair.second_candidate_sha256)
+            || strategies[&pair.first_candidate_sha256] == strategies[&pair.second_candidate_sha256]
             || !pair_ids.insert((
                 pair.first_candidate_sha256.clone(),
                 pair.second_candidate_sha256.clone(),
@@ -374,8 +383,7 @@ pub fn select_materialization_backend(
         .collect::<Vec<_>>();
     ranked.sort_by(|a, b| {
         b.utility
-            .partial_cmp(&a.utility)
-            .unwrap_or(Ordering::Equal)
+            .total_cmp(&a.utility)
             .then_with(|| a.candidate_sha256.as_str().cmp(b.candidate_sha256.as_str()))
     });
     let mut selected_strategy = ranked[0].strategy;
@@ -414,8 +422,8 @@ pub fn select_materialization_backend(
                 })
                 .max_by(|a, b| {
                     a.held_out_gain
-                        .partial_cmp(&b.held_out_gain)
-                        .unwrap_or(Ordering::Equal)
+                        .total_cmp(&b.held_out_gain)
+                        .then_with(|| a.preservation_delta.total_cmp(&b.preservation_delta))
                         .then_with(|| {
                             (&b.first_candidate_sha256, &b.second_candidate_sha256)
                                 .cmp(&(&a.first_candidate_sha256, &a.second_candidate_sha256))
@@ -623,5 +631,17 @@ mod tests {
         let first = select_materialization_backend(&[a.clone(), b.clone()], &[], &policy).unwrap();
         let reversed = select_materialization_backend(&[b, a], &[], &policy).unwrap();
         assert_eq!(first, reversed);
+    }
+
+    #[test]
+    fn zero_latency_or_resident_bytes_are_rejected() {
+        let policy = BackendSelectionPolicy::rigorous_default(100, 100);
+        let mut zero_latency =
+            evaluation(b"zero-latency", MaterializationStrategy::DenseDelta, 0.99);
+        zero_latency.latency_micros = 0;
+        assert!(select_materialization_backend(&[zero_latency], &[], &policy).is_err());
+        let mut zero_memory = evaluation(b"zero-memory", MaterializationStrategy::DenseDelta, 0.99);
+        zero_memory.resident_bytes = 0;
+        assert!(select_materialization_backend(&[zero_memory], &[], &policy).is_err());
     }
 }

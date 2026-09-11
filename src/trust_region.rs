@@ -152,13 +152,10 @@ pub fn apply_pythagoras_geodesic_trust_region(
 
     // Validate that accepted cost respects budget (with small numerical tolerance)
     if accepted_cost > max_quadratic_cost * (1.0 + 1e-9) {
-        return Err(BrainError::Numerical(
-            format!(
-                "trust_region_budget_violated: accepted={} budget={}",
-                accepted_cost, max_quadratic_cost
-            )
-            .into(),
-        ));
+        return Err(BrainError::Numerical(format!(
+            "trust_region_budget_violated: accepted={} budget={}",
+            accepted_cost, max_quadratic_cost
+        )));
     }
 
     Ok(TrustRegionResult {

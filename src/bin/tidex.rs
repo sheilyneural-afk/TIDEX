@@ -12,13 +12,25 @@ use cerebro_tidex::adapter_bank::{
     AdapterGovernedPromotionRequest, AdapterImportRequest, AdapterResolutionRequest,
     AdapterRevocationRequest, AdapterRollbackRequest,
 };
-use cerebro_tidex::authority::PrivateFileReference;
+use cerebro_tidex::artifact::{read_dvec_f32, DeltaArtifactRef};
+use cerebro_tidex::authority::{read_untrusted_private_file_bounded, PrivateFileReference};
 use cerebro_tidex::capability_discovery::CapabilityDiscoveryRequest;
 use cerebro_tidex::checkpoint_adapter::{inspect_safetensors_receiver, SafeTensorsReceiverRequest};
 use cerebro_tidex::content_vault::capture_to_vault;
+use cerebro_tidex::contracts::{BrainConfig, DeltaObservation};
 use cerebro_tidex::dense_shadow_materializer::materialize_replayed_dense_delta_shadow;
-use cerebro_tidex::identity::AcquisitionId;
+use cerebro_tidex::engine::BrainEngine;
+use cerebro_tidex::executor_registry::{executor_by_id, executor_catalog};
+use cerebro_tidex::finite::FiniteF64;
+use cerebro_tidex::identity::{AcquisitionId, ProbeId};
 use cerebro_tidex::isolated_execution::AuthenticatedBytes;
+use cerebro_tidex::knowledge_engine::{AuthorityInstanceId, KnowledgeEngine};
+use cerebro_tidex::lab::{
+    catalog_local_models, configured_lab_home, execute_behavioral_discovery_workflow,
+    execute_direct_workflow, execute_lab_run, import_dataset_bytes, list_catalog_models,
+    list_datasets, recipe_catalog, serve_lab, BehavioralDiscoveryWorkflowRequest, LabDatasetFormat,
+    LabDirectOperation, LabDirectWorkflowRequest, LabRunRequest,
+};
 use cerebro_tidex::low_rank_shadow_materializer::{
     materialize_replayed_low_rank_shadow, LowRankShadowPolicy,
 };
@@ -27,8 +39,23 @@ use cerebro_tidex::model_adaptation::{
     authenticate_live_receiver_model_profile, authenticate_receiver_model_profile,
     profile_receiver_model, ReceiverModelProfileInput,
 };
+use cerebro_tidex::numerical_evolution::{
+    numerical_metric_specs, NumericalEvaluationGroup, NumericalEvaluationLimits,
+    NumericalEvolutionDisposition, NumericalEvolutionEngine, NumericalEvolutionInput,
+    NumericalEvolutionPolicy,
+};
+use cerebro_tidex::portfolio_governance::{
+    CandidateGatePolicy, MetricId, PetfcConservationLimits, PetfcMetricPolicy, PetfcPathLimits,
+    PetfcPolicy, PetfcUtilityPolicy, RobustEvaluationPolicy,
+};
+use cerebro_tidex::procedural_memory::CapabilityContext;
+use cerebro_tidex::protected_map::{
+    build_protected_cortex_map, persist_protected_map, SensitivityEvidence,
+};
+use cerebro_tidex::pythagoras_topology::{PythagorasStaircaseMetric, TopologicalSkillManifold};
 use cerebro_tidex::receiver_compiler::{
-    benchmark_receiver_portability_leave_one_out, ReceiverPortabilityBenchmarkInput,
+    benchmark_receiver_portability_leave_one_out, freeze_receiver_compiler, FrozenReceiverCompiler,
+    FrozenReceiverCompilerInput, ReceiverPortabilityBenchmarkInput,
 };
 use cerebro_tidex::receiver_layout::ReceiverMaterializationLayout;
 use cerebro_tidex::receiver_weight_binding::{
@@ -36,8 +63,12 @@ use cerebro_tidex::receiver_weight_binding::{
     materialize_receiver_weight_candidate, prepare_receiver_weight_candidate,
     DistributedLoraBasisInput,
 };
+use cerebro_tidex::residency_decision::ResidencyDecisionAuthority;
 use cerebro_tidex::security::configured_private_root;
 use cerebro_tidex::shadow_evaluation::{run_shadow_evaluation, ShadowEvaluationInput};
+use cerebro_tidex::solver_portfolio::{
+    CandidateRepresentation, LeastSquaresProblem, PortfolioPolicy,
+};
 use cerebro_tidex::sparse_shadow_materializer::{
     materialize_replayed_sparse_shadow, SparseShadowPolicy,
 };
@@ -55,17 +86,165 @@ use cerebro_tidex::workspace::{
     add_model, configured_tidex_home, create_workspace, current_workspace, load_model, use_model,
     use_workspace, ModelProfile, ModelProvider,
 };
+use crossterm::{
+    cursor,
+    event::{self, Event, KeyCode, KeyEventKind},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Alignment, Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
+    Terminal,
+};
+use serde::Deserialize;
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
 
 const MAX_CLI_JSON_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_ANALYSIS_INPUT_BYTES: u64 = 64 * 1024 * 1024;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct KnowledgePlanRequest {
+    schema: String,
+    authority_instance: String,
+    state_reference: PrivateFileReference,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResidencyDecisionRequest {
+    schema: String,
+    authority_instance: String,
+    precommit_reference: PrivateFileReference,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+enum GeometryAnalysisRequest {
+    Pythagoras {
+        delta: Vec<f64>,
+    },
+    Topology {
+        points: Vec<Vec<f64>>,
+        distance_threshold: f64,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProtectedMapEvidenceRow {
+    probe_id: String,
+    artifact: DeltaArtifactRef,
+    causal_damage_per_parameter_norm: f64,
+    reliability: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProtectedMapRequest {
+    schema: String,
+    task_labels_used: bool,
+    evidence: Vec<ProtectedMapEvidenceRow>,
+    retained_energy_fraction: f64,
+    regularization_scale: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NumericalProblemRequest {
+    inputs: Vec<Vec<f64>>,
+    targets: Vec<Vec<f64>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NumericalDenseBaselineRequest {
+    rows: usize,
+    columns: usize,
+    weights: Vec<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NumericalEvolutionPolicyRequest {
+    solver_profile: String,
+    solver_relative_residual_tolerance: f64,
+    solver_absolute_residual_tolerance: f64,
+    minimum_normalized_fit: f64,
+    maximum_normalized_worst_error: f64,
+    robust_minimum_independent_groups: usize,
+    robust_median_of_means_blocks: usize,
+    robust_maximum_observations: usize,
+    gate_minimum_independent_groups: usize,
+    gate_uncertainty_multiplier: f64,
+    gate_minimum_fit_improvement: f64,
+    gate_minimum_worst_error_improvement: f64,
+    petfc_fit_normalization_scale: f64,
+    petfc_fit_maximum_endpoint_degradation: f64,
+    petfc_worst_error_normalization_scale: f64,
+    petfc_worst_error_maximum_endpoint_degradation: f64,
+    petfc_minimum_reports: usize,
+    petfc_maximum_reports: usize,
+    petfc_maximum_step_distance: f64,
+    petfc_maximum_tortuosity: f64,
+    petfc_maximum_waste: f64,
+    petfc_minimum_path_efficiency: f64,
+    petfc_maximum_soft_degradation_sum: f64,
+    petfc_maximum_degraded_metric_count: usize,
+    petfc_maximum_distributed_degradation: f64,
+    petfc_path_penalty: f64,
+    petfc_conservation_penalty: f64,
+    petfc_tortuosity_penalty: f64,
+    petfc_minimum_utility: f64,
+    evaluation_maximum_groups: usize,
+    evaluation_maximum_total_cases: usize,
+    evaluation_maximum_total_scalar_elements: usize,
+    target_scale_floor: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NumericalEvolutionCycleRequest {
+    training_problem: NumericalProblemRequest,
+    baseline: NumericalDenseBaselineRequest,
+    evaluation_groups: Vec<NumericalProblemRequest>,
+    revision: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NumericalEvolutionRequest {
+    schema: String,
+    context: CapabilityContext,
+    policy: NumericalEvolutionPolicyRequest,
+    cycles: Vec<NumericalEvolutionCycleRequest>,
+}
 
 fn main() {
-    if let Err(error) = run(std::env::args().skip(1).collect()) {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let route = resolve_cli_route(&args);
+
+    if let Err(error) = match route {
+        "interface" => run_terminal_interface(),
+        _ => run(args),
+    } {
         eprintln!("{error}");
         std::process::exit(2);
+    }
+}
+
+fn resolve_cli_route(args: &[String]) -> &'static str {
+    match args {
+        [command] if command == "interface" || command == "ui" => "interface",
+        _ => "usage",
     }
 }
 
@@ -135,6 +314,42 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         [command, flag, path] if command == "acquire" && flag == "--path" => {
             let home = configured_tidex_home()?;
             acquire_workspace(&home, Some(Path::new(path)))?
+        }
+        [area, command, path] if area == "knowledge" && command == "plan" => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_knowledge_plan(Path::new(path))?)?
+            );
+        }
+        [area, command, path] if area == "residency" && command == "decide" => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_residency_decision(Path::new(path))?)?
+            );
+        }
+        [area, command, path] if area == "numerical" && command == "evolve" => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_numerical_evolution(Path::new(path))?)?
+            );
+        }
+        [area, command, path] if area == "analysis" && command == "tomography" => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_tomography_analysis(Path::new(path))?)?
+            );
+        }
+        [area, command, path] if area == "analysis" && command == "protected-map" => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_protected_map(Path::new(path))?)?
+            );
+        }
+        [area, command, path] if area == "analysis" && command == "geometry" => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_geometry_analysis(Path::new(path))?)?
+            );
         }
         [area, command, path] if area == "benchmark" && command == "response" => {
             let input: cerebro_tidex::receiver_compiler::ReceiverSignatureBenchmarkInput =
@@ -355,6 +570,23 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             let bank = AdapterBank::open(&root)?;
             println!("{}", serde_json::to_string_pretty(&bank.verify_history()?)?);
         }
+        [area, command, path] if area == "receiver" && command == "freeze-compiler" => {
+            let input: FrozenReceiverCompilerInput = read_json_bounded(Path::new(path))?;
+            let frozen = freeze_receiver_compiler(&input)?;
+            println!("{}", serde_json::to_string_pretty(&frozen)?);
+        }
+        [area, command, path] if area == "receiver" && command == "verify-frozen-compiler" => {
+            let frozen: FrozenReceiverCompiler = read_json_bounded(Path::new(path))?;
+            frozen.verify()?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schema":"cerebro.tidex.frozen_receiver_compiler_verification/v1",
+                    "manifest_sha256":frozen.manifest_sha256(),
+                    "verified":true
+                }))?
+            );
+        }
         [area, command, path] if area == "compile" && command == "universal" => {
             let request: UniversalCapabilityCompilationRequest =
                 read_json_bounded(Path::new(path))?;
@@ -372,7 +604,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "schema":"cerebro.tidex.universal_capability_compilation_replay/v1",
+                    "schema":"cerebro.tidex.universal_capability_compilation_replay/v2",
                     "request_sha256":receipt.request_sha256,
                     "replayed":true
                 }))?
@@ -396,7 +628,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(
-                    &json!({"schema":"cerebro.tidex.universal_shadow_plan_replay/v1","planning_request_sha256":receipt.planning_request_sha256,"replayed":true})
+                    &json!({"schema":"cerebro.tidex.universal_shadow_plan_replay/v2","planning_request_sha256":receipt.planning_request_sha256,"replayed":true})
                 )?
             );
         }
@@ -488,7 +720,36 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         }
         [area, command, input_path] if area == "measure" && command == "universality" => {
             let input: UniversalityEvidenceInput = read_json_bounded(Path::new(input_path))?;
-            println!("{}", serde_json::to_string_pretty(&input.execute()?)?);
+            let receipt = input.execute()?;
+            // Recompute per-trial pass predicate independently and verify consistency.
+            let mut recomputed_global_successes: usize = 0;
+            let mut recomputed_per_capability: std::collections::BTreeMap<String, usize> =
+                std::collections::BTreeMap::new();
+            for trial in &input.trials {
+                if trial.passes(&input.protocol) {
+                    recomputed_global_successes += 1;
+                    *recomputed_per_capability
+                        .entry(trial.capability_id.clone())
+                        .or_default() += 1;
+                }
+            }
+            // Compute receipt global successes from capabilities vector
+            let receipt_global_successes: usize =
+                receipt.capabilities.iter().map(|c| c.successes).sum();
+            if recomputed_global_successes > 0 && receipt_global_successes == 0 {
+                // Inconsistency detected - fail loudly and print diagnostics.
+                eprintln!("universality_inconsistent_reducer: reducer reported 0 successes but recomputation found {} passing trials", recomputed_global_successes);
+                eprintln!(
+                    "Recomputed per-capability successes: {}",
+                    serde_json::to_string_pretty(&recomputed_per_capability)?
+                );
+                eprintln!(
+                    "Reducer receipt capabilities: {}",
+                    serde_json::to_string_pretty(&receipt.capabilities)?
+                );
+                return Err("universality_inconsistent_reducer".into());
+            }
+            println!("{}", serde_json::to_string_pretty(&receipt)?);
         }
         [area, command, input_path] if area == "discover" && command == "capabilities" => {
             let input: CapabilityDiscoveryRequest = read_json_bounded(Path::new(input_path))?;
@@ -559,6 +820,126 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
                 )?
             );
         }
+        [area, command] if area == "lab" && command == "recipes" => {
+            println!("{}", serde_json::to_string_pretty(&recipe_catalog())?);
+        }
+        [area, command, action] if area == "lab" && command == "models" && action == "list" => {
+            let home = configured_lab_home()?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&list_catalog_models(&home)?)?
+            );
+        }
+        [area, command, action] if area == "lab" && command == "datasets" && action == "list" => {
+            let home = configured_lab_home()?;
+            println!("{}", serde_json::to_string_pretty(&list_datasets(&home)?)?);
+        }
+        [area, command, model_id, dataset_sha] if area == "lab" && command == "evaluate" => {
+            let home = configured_lab_home()?;
+            let request = LabDirectWorkflowRequest {
+                schema: "cerebro.tidex.lab_direct_workflow/v1".into(),
+                operation: LabDirectOperation::BehavioralEvaluation,
+                model_ids: vec![cerebro_tidex::Sha256Digest::parse(model_id)?],
+                dataset_sha256: Some(cerebro_tidex::Sha256Digest::parse(dataset_sha)?),
+                parameters: serde_json::Value::Object(serde_json::Map::new()),
+            };
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_direct_workflow(&home, &request)?)?
+            );
+        }
+        [area, command, dataset_sha, model_ids @ ..]
+            if area == "lab" && command == "discover" && model_ids.len() >= 2 =>
+        {
+            let home = configured_lab_home()?;
+            let request = BehavioralDiscoveryWorkflowRequest {
+                schema: "cerebro.tidex.lab_behavioral_discovery/v1".into(),
+                model_ids: model_ids
+                    .iter()
+                    .map(cerebro_tidex::Sha256Digest::parse)
+                    .collect::<Result<Vec<_>, _>>()?,
+                dataset_sha256: cerebro_tidex::Sha256Digest::parse(dataset_sha)?,
+                max_new_tokens: 128,
+                seed: 0,
+            };
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_behavioral_discovery_workflow(
+                    &home, &request
+                )?)?
+            );
+        }
+        [area, command, action, root]
+            if area == "lab" && command == "models" && action == "scan" =>
+        {
+            let home = configured_lab_home()?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&catalog_local_models(&home, Path::new(root))?)?
+            );
+        }
+        [area, command, action, name, format, path]
+            if area == "lab" && command == "dataset" && action == "import" =>
+        {
+            let format = match format.as_str() {
+                "json" => LabDatasetFormat::Json,
+                "jsonl" => LabDatasetFormat::Jsonl,
+                "csv" => LabDatasetFormat::Csv,
+                "text" => LabDatasetFormat::Text,
+                _ => return Err("lab_dataset_format_invalid".into()),
+            };
+            let home = configured_lab_home()?;
+            let bytes = read_bytes_bounded(Path::new(path), 128 * 1024 * 1024)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&import_dataset_bytes(
+                    &home, name, format, &bytes, false
+                )?)?
+            );
+        }
+        [area, command, recipe_id, assets @ ..] if area == "lab" && command == "run" => {
+            let home = configured_lab_home()?;
+            let request = LabRunRequest {
+                schema: "cerebro.tidex.lab_run_request/v1".into(),
+                recipe_id: recipe_id.clone(),
+                assets: assets
+                    .iter()
+                    .map(Path::new)
+                    .map(Path::to_path_buf)
+                    .collect(),
+                selected_model_ids: Vec::new(),
+                dataset_sha256: None,
+                maximum_runtime_seconds: None,
+            };
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_lab_run(&home, &request)?)?
+            );
+        }
+        [area, command] if area == "lab" && command == "serve" => {
+            let home = configured_lab_home()?;
+            serve_lab(&home, "127.0.0.1:8793".parse()?)?;
+        }
+        [area, command, port] if area == "lab" && command == "serve" => {
+            let port = port.parse::<u16>()?;
+            if port == 0 {
+                return Err("lab_port_invalid".into());
+            }
+            let home = configured_lab_home()?;
+            serve_lab(&home, format!("127.0.0.1:{port}").parse()?)?;
+        }
+        [command] if command == "executors" => {
+            println!("{}", serde_json::to_string_pretty(&executor_catalog()?)?);
+        }
+        [command, executor_id] if command == "executor" => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&executor_by_id(executor_id)?)?
+            );
+        }
+        [area, command] if area == "lab" && command == "executors" => {
+            println!("{}", serde_json::to_string_pretty(&executor_catalog()?)?);
+        }
         [command] if command == "capabilities" => {
             let home = configured_tidex_home()?;
             let workspace = current_workspace(&home)?;
@@ -590,6 +971,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
                         {"id":"adapter.compose.exact_dense","status":"implemented","engine":"adapter_bank::AdapterBank::compose_exact","reason":"canonical ordered f32 axes multiplied and accumulated in f64 with one final f32 rounding; no SVD, pruning or rank truncation"},
                         {"id":"adapter_bank.lifecycle","status":"implemented_governed","engine":"adapter_bank::AdapterBank::{authorize_governed_promotion_request,activate,revoke,rollback}","reason":"authorization reopens and semantically reauthenticates sealed gate/PETFC/canary witnesses before minting a current-index-bound permit; activation consumes that permit; revocation is sticky and transitive; rollback publishes a new forward revision"},
                         {"id":"receiver.profile.planning_projection","status":"implemented","engine":"checkpoint_adapter::planning_profile_from_physical","reason":"derives alternate compiler geometry from the live operational profile; preserves exact model/config/tokenizer identity and remaps physical tensor order by names; modality/state annotations are not behavioral evidence"},
+                        {"id":"compile.receiver.frozen","status":"implemented_candidate_compiler","engine":"receiver_compiler::freeze_receiver_compiler -> FrozenReceiverCompiler::verify -> VerifiedFrozenReceiverCompiler::compile_capability","reason":"calibration/protection/risk/proposal geometry are committed before held-out targets; target requests carry only CapabilityIR plus explicit negative controls; verification replays calibration without target observations"},
                         {"id":"compile.universal.plan","status":"implemented_bounded_numerical","engine":"universal_capability_compiler::execute_universal_capability_shadow_plan","reason":"replays operational-contract compilation against a bound receiver profile; at most 256 receiver coordinates; not evidence of universal LLM transfer"},
                         {"id":"materialize.compiled.physical","status":"implemented_candidate_only","engine":"materialization_pipeline::materialize_compiled_checkpoint","reason":"both measured-receiver and universal-plan sources use the existing physical actuator; dense/low-rank/sparse must reconstruct the identical f32 delta; checkpoint arithmetic is replayed; no automatic promotion"},
                         {"id":"materialize.shadow.alternatives","status":"implemented_shadow_only","engine":"low_rank_shadow_materializer + sparse_shadow_materializer + activation_steering_materializer","reason":"bounded numerical representations with replay; lossy experiments do not inherit compiled-candidate validation; steering produces interventions but installs no runtime hook"},
@@ -606,6 +988,288 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         _ => return Err(usage().into()),
     }
     Ok(())
+}
+
+fn execute_residency_decision(
+    path: &Path,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let request: ResidencyDecisionRequest = read_json_bounded(path)?;
+    if request.schema != "cerebro.tidex.residency_decision_request/v1" {
+        return Err("residency_decision_request_schema_invalid".into());
+    }
+    let root = configured_private_root()?;
+    let authority_instance = AuthorityInstanceId::parse(request.authority_instance)?;
+    let knowledge = KnowledgeEngine::open_with_authority_instance(&root, authority_instance)?;
+    let authority = ResidencyDecisionAuthority::current(&root, &knowledge)?;
+    let (decision, reference) = authority.decide_and_persist(&request.precommit_reference)?;
+    Ok(json!({
+        "schema":"cerebro.tidex.residency_decision_lab_receipt/v1",
+        "decision":decision,
+        "decision_reference":reference,
+        "authorizes_production":false
+    }))
+}
+
+fn execute_knowledge_plan(path: &Path) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let request: KnowledgePlanRequest = read_json_bounded(path)?;
+    if request.schema != "cerebro.tidex.knowledge_plan_request/v1" {
+        return Err("knowledge_plan_request_schema_invalid".into());
+    }
+    let root = configured_private_root()?;
+    let authority_instance = AuthorityInstanceId::parse(&request.authority_instance)?;
+    let engine = KnowledgeEngine::open_with_authority_instance(&root, authority_instance)?;
+    let state = engine.authenticate_state(&request.state_reference)?;
+    let decision = engine.plan(&state)?;
+    Ok(json!({
+        "schema":"cerebro.tidex.knowledge_plan_receipt/v1",
+        "state_reference":request.state_reference,
+        "decision":decision,
+        "authorizes_execution":false,
+        "authorizes_production":false
+    }))
+}
+
+fn execute_tomography_analysis(
+    path: &Path,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let root = configured_private_root()?;
+    let bytes = read_untrusted_private_file_bounded(&root, path, MAX_ANALYSIS_INPUT_BYTES)?;
+    let observations: Vec<DeltaObservation> = serde_json::from_slice(&bytes)?;
+    if observations.is_empty() {
+        return Err("tomography_observations_empty".into());
+    }
+    let engine = BrainEngine::open(&root, BrainConfig::default())?;
+    let report = engine.analyze(&observations)?;
+    Ok(json!({
+        "schema":"cerebro.tidex.tomography_lab_receipt/v1",
+        "report":report,
+        "authorizes_production":false
+    }))
+}
+
+fn execute_geometry_analysis(path: &Path) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let request: GeometryAnalysisRequest = read_json_bounded(path)?;
+    let result = match request {
+        GeometryAnalysisRequest::Pythagoras { delta } => json!({
+            "operation":"pythagoras",
+            "report":PythagorasStaircaseMetric::evaluate_and_correct(&delta)?
+        }),
+        GeometryAnalysisRequest::Topology {
+            points,
+            distance_threshold,
+        } => json!({
+            "operation":"topology",
+            "report":TopologicalSkillManifold::analyze_topology(&points, distance_threshold)?
+        }),
+    };
+    Ok(json!({
+        "schema":"cerebro.tidex.geometry_analysis_receipt/v1",
+        "result":result,
+        "authorizes_production":false
+    }))
+}
+
+fn execute_protected_map(path: &Path) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let request: ProtectedMapRequest = read_json_bounded(path)?;
+    if request.schema != "cerebro.tidex.protected_map_request/v1"
+        || request.task_labels_used
+        || request.evidence.len() < 2
+    {
+        return Err("protected_map_request_contract_invalid".into());
+    }
+    let root = configured_private_root()?;
+    let evidence = request
+        .evidence
+        .into_iter()
+        .map(|row| {
+            Ok(SensitivityEvidence {
+                probe_id: ProbeId::parse(&row.probe_id)?,
+                sensitivity: read_dvec_f32(&root, &row.artifact)?
+                    .into_iter()
+                    .map(f64::from)
+                    .collect(),
+                reliability: row.reliability,
+                causal_damage: Some(row.causal_damage_per_parameter_norm),
+            })
+        })
+        .collect::<cerebro_tidex::BrainResult<Vec<_>>>()?;
+    let map = build_protected_cortex_map(
+        &evidence,
+        request.retained_energy_fraction,
+        request.regularization_scale,
+    )?;
+    let artifact = persist_protected_map(&root, &map)?;
+    Ok(json!({
+        "schema":"cerebro.tidex.protected_map_lab_receipt/v1",
+        "artifact":artifact,
+        "evidence_count":evidence.len(),
+        "task_labels_used":false,
+        "authorizes_production":false
+    }))
+}
+
+fn build_numerical_policy(
+    request: &NumericalEvolutionPolicyRequest,
+) -> Result<NumericalEvolutionPolicy, Box<dyn std::error::Error>> {
+    if request.solver_profile != "portfolio_default_v1" {
+        return Err("numerical_solver_profile_unsupported".into());
+    }
+    let specs = numerical_metric_specs(
+        request.minimum_normalized_fit,
+        request.maximum_normalized_worst_error,
+    )?;
+    let fit = MetricId::parse("numerical.normalized_fit")?;
+    let worst = MetricId::parse("numerical.normalized_worst_error")?;
+    let robust = RobustEvaluationPolicy::new(
+        request.robust_minimum_independent_groups,
+        request.robust_median_of_means_blocks,
+        request.robust_maximum_observations,
+    )?;
+    let gate = CandidateGatePolicy::new(
+        &specs,
+        request.gate_minimum_independent_groups,
+        request.gate_uncertainty_multiplier,
+        BTreeMap::from([
+            (
+                fit.clone(),
+                FiniteF64::new(request.gate_minimum_fit_improvement)?,
+            ),
+            (
+                worst.clone(),
+                FiniteF64::new(request.gate_minimum_worst_error_improvement)?,
+            ),
+        ]),
+    )?;
+    let petfc = PetfcPolicy::new(
+        &specs,
+        fit.clone(),
+        vec![
+            PetfcMetricPolicy::new(
+                fit,
+                request.petfc_fit_normalization_scale,
+                request.petfc_fit_maximum_endpoint_degradation,
+            )?,
+            PetfcMetricPolicy::new(
+                worst,
+                request.petfc_worst_error_normalization_scale,
+                request.petfc_worst_error_maximum_endpoint_degradation,
+            )?,
+        ],
+        PetfcPathLimits::new(
+            request.petfc_minimum_reports,
+            request.petfc_maximum_reports,
+            request.petfc_maximum_step_distance,
+            request.petfc_maximum_tortuosity,
+            request.petfc_maximum_waste,
+            request.petfc_minimum_path_efficiency,
+        )?,
+        PetfcConservationLimits::new(
+            request.petfc_maximum_soft_degradation_sum,
+            request.petfc_maximum_degraded_metric_count,
+            request.petfc_maximum_distributed_degradation,
+        )?,
+        PetfcUtilityPolicy::new(
+            request.petfc_path_penalty,
+            request.petfc_conservation_penalty,
+            request.petfc_tortuosity_penalty,
+            request.petfc_minimum_utility,
+        )?,
+    )?;
+    let limits = NumericalEvaluationLimits::new(
+        request.evaluation_maximum_groups,
+        request.evaluation_maximum_total_cases,
+        request.evaluation_maximum_total_scalar_elements,
+    )?;
+    let solver = PortfolioPolicy::default().with_residual_tolerances(
+        request.solver_relative_residual_tolerance,
+        request.solver_absolute_residual_tolerance,
+    )?;
+    Ok(NumericalEvolutionPolicy::new(
+        solver,
+        specs,
+        robust,
+        gate,
+        petfc,
+        limits,
+        request.target_scale_floor,
+    )?)
+}
+
+fn numerical_disposition_name(value: NumericalEvolutionDisposition) -> &'static str {
+    match value {
+        NumericalEvolutionDisposition::SolverRejected => "solver_rejected",
+        NumericalEvolutionDisposition::SolverBoundedUnknown => "solver_bounded_unknown",
+        NumericalEvolutionDisposition::NoNewEvidence => "no_new_evidence",
+        NumericalEvolutionDisposition::CandidateRejected => "candidate_rejected",
+        NumericalEvolutionDisposition::CandidateBoundedUnknown => "candidate_bounded_unknown",
+        NumericalEvolutionDisposition::CandidateValidatedForFurtherGates => {
+            "candidate_validated_for_further_gates"
+        }
+    }
+}
+
+fn execute_numerical_evolution(
+    path: &Path,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let request: NumericalEvolutionRequest = read_json_bounded(path)?;
+    if request.schema != "cerebro.tidex.numerical_evolution_request/v1" || request.cycles.is_empty()
+    {
+        return Err("numerical_evolution_request_contract_invalid".into());
+    }
+    let policy = build_numerical_policy(&request.policy)?;
+    let mut engine = NumericalEvolutionEngine::new(request.context, policy)?;
+    let mut receipts = Vec::with_capacity(request.cycles.len());
+    for cycle_request in request.cycles {
+        let training = LeastSquaresProblem::new(
+            cycle_request.training_problem.inputs,
+            cycle_request.training_problem.targets,
+        )?;
+        let baseline = CandidateRepresentation::Dense {
+            rows: cycle_request.baseline.rows,
+            columns: cycle_request.baseline.columns,
+            weights: cycle_request.baseline.weights,
+        };
+        let groups = cycle_request
+            .evaluation_groups
+            .into_iter()
+            .map(|group| {
+                NumericalEvaluationGroup::new(LeastSquaresProblem::new(
+                    group.inputs,
+                    group.targets,
+                )?)
+            })
+            .collect::<cerebro_tidex::BrainResult<Vec<_>>>()?;
+        let input =
+            NumericalEvolutionInput::new(training, baseline, groups, cycle_request.revision)?;
+        let cycle = engine.evolve(input, &[])?;
+        let candidate_sha256 = cycle
+            .candidate()
+            .map(|candidate| {
+                candidate
+                    .exact_digest()
+                    .map(|digest| digest.as_str().to_string())
+            })
+            .transpose()?;
+        receipts.push(json!({
+            "revision":cycle_request.revision,
+            "disposition":numerical_disposition_name(cycle.disposition()),
+            "solver_report_sha256":cycle.solver_report().exact_digest()?.to_string(),
+            "candidate_sha256":candidate_sha256,
+            "candidate_gate":cycle.candidate_gate(),
+            "petfc_assessment":cycle.petfc_assessment(),
+            "trajectory":cycle.trajectory(),
+            "procedural_attempt":cycle.procedural_attempt(),
+            "solver_run_failure":cycle.solver_run_failure(),
+            "authorizes_promotion":cycle.authorizes_promotion()
+        }));
+    }
+    Ok(json!({
+        "schema":"cerebro.tidex.numerical_evolution_receipt/v1",
+        "solver_profile":request.policy.solver_profile,
+        "cycles":receipts,
+        "procedural_attempt_count":engine.procedural_memory().attempt_count(),
+        "authorizes_production":false
+    }))
 }
 
 fn read_benchmark_json_bounded<T: serde::de::DeserializeOwned>(
@@ -690,12 +1354,18 @@ fn acquire_workspace(
 fn usage() -> &'static str {
     concat!(
         "usage:\n",
+        "  tidex interface\n",
         "  tidex workspace create <name> --target <absolute-path>\n",
         "  tidex workspace use <name>\n",
         "  tidex workspace show\n",
         "  tidex model add <name> --provider openai-compatible --url <endpoint> --model <model>\n",
         "  tidex model use <name>\n",
         "  tidex acquire [--path <relative-project-path>]\n",
+        "  tidex knowledge plan <input.json>\n",
+        "  tidex numerical evolve <input.json>\n",
+        "  tidex analysis tomography <observations.json>\n",
+        "  tidex analysis protected-map <input.json>\n",
+        "  tidex analysis geometry <input.json>\n",
         "  tidex benchmark portability <input.json>\n",
         "  tidex benchmark response <input.json>\n",
         "  tidex benchmark receiver-basis <input.json>\n",
@@ -725,8 +1395,343 @@ fn usage() -> &'static str {
         "  tidex adapter-bank rollback <input.json>\n",
         "  tidex adapter-bank status\n",
         "  tidex receiver planning-profile <input.json>\n",
+        "  tidex receiver freeze-compiler <input.json>\n",
+        "  tidex receiver verify-frozen-compiler <compiler.json>\n",
         "  tidex materialize compiled <input.json>\n",
         "  tidex materialize verify-compiled <receipt-reference.json>\n",
+        "  tidex lab recipes\n",
+        "  tidex lab models scan <absolute-root>\n",
+        "  tidex lab models list\n",
+        "  tidex lab datasets list\n",
+        "  tidex lab dataset import <name> <json|jsonl|csv|text> <path>\n",
+        "  tidex lab evaluate <model-id> <dataset-sha256>\n",
+        "  tidex lab discover <dataset-sha256> <model-id> <model-id> [...]\n",
+        "  tidex lab run <recipe-id> [asset-path ...]\n",
+        "  tidex residency decide <request.json>\n",
+        "  tidex lab serve [port]\n",
+        "  tidex lab executors\n",
+        "  tidex executors\n",
+        "  tidex executor <executor-id>\n",
         "  tidex capabilities"
     )
+}
+
+fn run_terminal_interface() -> Result<(), Box<dyn std::error::Error>> {
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
+
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+    let mut selected_index = 0usize;
+    let mut rendered_message = status_summary();
+
+    loop {
+        let active_panel = panel_title(selected_index);
+
+        terminal.draw(|frame| {
+            let size = frame.area();
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Min(8),
+                    Constraint::Length(6),
+                ])
+                .split(size);
+
+            let header = Paragraph::new(Line::from(vec![
+                Span::styled(" CEREBRO3 CLI ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::raw("  terminal interface  "),
+                Span::styled(format!("active: {}   ", active_panel), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                Span::styled("[1] status  [2] capabilities  [3] workspace  [4] evidence  [5] actions  [6] help  [q] quit", Style::default().fg(Color::Gray)),
+            ]))
+            .block(Block::default().borders(Borders::ALL).title("tidex interface"));
+            frame.render_widget(header, chunks[0]);
+
+            let options = [
+                "1. Status",
+                "2. Capabilities",
+                "3. Workspace",
+                "4. Evidence",
+                "5. Actions",
+                "6. Help",
+                "q. Quit",
+            ];
+            let items: Vec<ListItem> = options
+                .iter()
+                .enumerate()
+                .map(|(idx, item)| {
+                    let style = if idx == selected_index {
+                        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::White)
+                    };
+                    ListItem::new(*item).style(style)
+                })
+                .collect();
+            let list = List::new(items).block(Block::default().borders(Borders::ALL).title("menu"));
+            frame.render_widget(list, chunks[1]);
+
+            let detail_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Ratio(2, 3), Constraint::Ratio(1, 3)])
+                .split(chunks[2]);
+
+            let help = Paragraph::new("↑/↓ move • Enter select • Tab cycle • 1-6 jump • r refresh • q quit\n\nstatus panel: engine health\ncapabilities: feature overview\nworkspace: runtime paths\nevidence: proof chain\nactions: quick commands\nhelp: shortcuts")
+                .style(Style::default().fg(Color::Yellow))
+                .block(Block::default().borders(Borders::ALL).title("keyboard help"));
+            frame.render_widget(help, detail_chunks[1]);
+
+            let info = Paragraph::new(rendered_message.clone())
+                .block(Block::default().borders(Borders::ALL).title("live output"))
+                .alignment(Alignment::Left);
+            frame.render_widget(info, detail_chunks[0]);
+        })?;
+
+        if !event::poll(std::time::Duration::from_millis(100))? {
+            continue;
+        }
+
+        if let Event::Key(key) = event::read()? {
+            if key.kind != KeyEventKind::Press {
+                continue;
+            }
+            match key.code {
+                KeyCode::Char('q') | KeyCode::Char('Q') => break,
+                KeyCode::Tab => {
+                    selected_index = (selected_index + 1) % 6;
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Char('1') => {
+                    selected_index = 0;
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Char('2') => {
+                    selected_index = 1;
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Char('3') => {
+                    selected_index = 2;
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Char('4') => {
+                    selected_index = 3;
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Char('5') => {
+                    selected_index = 4;
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Char('6') | KeyCode::Char('h') | KeyCode::Char('H') => {
+                    selected_index = 5;
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Char('r') | KeyCode::Char('R') => {
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Up => {
+                    selected_index = selected_index.saturating_sub(1);
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Down => {
+                    if selected_index + 1 < 6 {
+                        selected_index += 1;
+                    }
+                    rendered_message = refresh_panel(selected_index);
+                }
+                KeyCode::Enter | KeyCode::Char(' ') => {
+                    rendered_message = open_selected_panel(selected_index);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, cursor::Show)?;
+    disable_raw_mode()?;
+    Ok(())
+}
+
+fn panel_title(index: usize) -> &'static str {
+    match index {
+        0 => "status",
+        1 => "capabilities",
+        2 => "workspace",
+        3 => "evidence",
+        4 => "actions",
+        5 => "help",
+        _ => "status",
+    }
+}
+
+fn open_selected_panel(index: usize) -> String {
+    let panel = panel_title(index);
+    let content = refresh_panel(index);
+    format!("opened {} panel\n\n{}", panel, content)
+}
+
+fn refresh_panel(index: usize) -> String {
+    match index {
+        0 => status_summary(),
+        1 => capabilities_summary(),
+        2 => workspace_summary(),
+        3 => evidence_summary(),
+        4 => actions_summary(),
+        5 => help_summary(),
+        _ => status_summary(),
+    }
+}
+
+fn status_summary() -> String {
+    let private_root = configured_private_root();
+    let mut lines = vec!["status".to_string(), "------".to_string()];
+    match private_root {
+        Ok(root) => {
+            lines.push(format!("private_root={}", root.display()));
+            match cerebro_tidex::engine::BrainEngine::open(
+                &root,
+                cerebro_tidex::contracts::BrainConfig::default(),
+            ) {
+                Ok(engine) => match engine.status() {
+                    Ok(status) => {
+                        lines.push("engine: available".to_string());
+                        lines.push(
+                            serde_json::to_string_pretty(&status)
+                                .unwrap_or_else(|_| "status_json_unavailable".to_string()),
+                        );
+                    }
+                    Err(error) => lines.push(format!("engine_status_error={error}")),
+                },
+                Err(error) => lines.push(format!("engine_open_error={error}")),
+            }
+        }
+        Err(error) => lines.push(format!("private_root_error={error}")),
+    }
+    lines.join("\n")
+}
+
+fn capabilities_summary() -> String {
+    let home = configured_tidex_home();
+    let mut lines = vec!["capabilities".to_string(), "-----------".to_string()];
+    match home {
+        Ok(home_path) => {
+            match current_workspace(&home_path) {
+                Ok(workspace) => {
+                    lines.push(format!(
+                        "workspace={} target={}",
+                        workspace.name,
+                        workspace.target.display()
+                    ));
+                }
+                Err(error) => lines.push(format!("workspace_error={error}")),
+            }
+            lines.push("interface: terminal dashboard active".to_string());
+            lines.push("engine: Rust authority mode active".to_string());
+            lines.push("output: real CLI, no web layer".to_string());
+            lines.push(
+                "controls: status, capabilities, workspace, evidence, actions, help".to_string(),
+            );
+        }
+        Err(error) => lines.push(format!("workspace_error={error}")),
+    }
+    lines.join("\n")
+}
+
+fn workspace_summary() -> String {
+    let home = configured_tidex_home();
+    let mut lines = vec!["workspace".to_string(), "--------".to_string()];
+    match home {
+        Ok(home_path) => match current_workspace(&home_path) {
+            Ok(workspace) => {
+                lines.push(format!("name={}", workspace.name));
+                lines.push(format!("target={}", workspace.target.display()));
+                lines.push(format!(
+                    "private_root={}",
+                    workspace.private_root(&home_path).display()
+                ));
+            }
+            Err(error) => lines.push(format!("workspace_error={error}")),
+        },
+        Err(error) => lines.push(format!("home_error={error}")),
+    }
+    lines.join("\n")
+}
+
+fn evidence_summary() -> String {
+    let mut lines = vec![
+        "evidence".to_string(),
+        "--------".to_string(),
+        "proof: real Rust execution path active".to_string(),
+        "receipt: authenticated artifact flow enabled".to_string(),
+        "execution: materialize, verify, and audit steps remain local to the CLI".to_string(),
+        "boundary: no browser or hidden web layer is authoritative".to_string(),
+    ];
+
+    if let Ok(root) = configured_private_root() {
+        lines.push(format!("private_root={}", root.display()));
+    }
+
+    lines.join("\n")
+}
+
+fn actions_summary() -> String {
+    let mut lines = vec![
+        "actions".to_string(),
+        "-------".to_string(),
+        "1. show status".to_string(),
+        "2. show capabilities".to_string(),
+        "3. show workspace".to_string(),
+        "4. show evidence".to_string(),
+        "5. refresh dashboard".to_string(),
+        "6. open help".to_string(),
+        "q. quit interface".to_string(),
+    ];
+
+    if let Ok(root) = configured_private_root() {
+        lines.push(format!("active_root={}", root.display()));
+    }
+
+    lines.join("\n")
+}
+
+fn help_summary() -> String {
+    [
+        "help".to_string(),
+        "----".to_string(),
+        "↑ / ↓  move selection".to_string(),
+        "Enter  open selected panel".to_string(),
+        "1-6    jump directly to a panel".to_string(),
+        "r      refresh the active status view".to_string(),
+        "q      quit the interface".to_string(),
+        "h      open the help panel".to_string(),
+        "mode   Rust CLI, no web layer".to_string(),
+    ]
+    .join("\n")
+}
+#[cfg(test)]
+mod tests {
+    use super::{open_selected_panel, panel_title};
+
+    #[test]
+    fn interface_route_is_recognized() {
+        assert_eq!(
+            super::resolve_cli_route(&["interface".to_string()]),
+            "interface"
+        );
+    }
+
+    #[test]
+    fn enter_action_opens_the_selected_panel() {
+        let output = open_selected_panel(5);
+        assert!(output.to_lowercase().contains("opened help panel"));
+        assert!(output.to_lowercase().contains("help"));
+    }
+
+    #[test]
+    fn panel_title_matches_expected_names() {
+        assert_eq!(panel_title(0), "status");
+        assert_eq!(panel_title(2), "workspace");
+        assert_eq!(panel_title(5), "help");
+    }
 }

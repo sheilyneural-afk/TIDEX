@@ -1,0 +1,169 @@
+{
+  "schema": "cerebro.cross_model.behavioral_benchmark/v1",
+  "benchmark_id": "integer_arithmetic_v1",
+  "domain": "mathematics",
+  "probes": [
+    {
+      "probe_id": "m01",
+      "prompt": "Return only the decimal integer for 127 * 89.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 11303,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m02",
+      "prompt": "Return only the decimal integer for 997 - 463.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 534,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m03",
+      "prompt": "Return only the decimal integer for 48 * 37.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 1776,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m04",
+      "prompt": "Return only the decimal integer for 4096 / 16.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 256,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m05",
+      "prompt": "Return only the decimal integer for 73 + 819.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 892,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m06",
+      "prompt": "Return only the decimal integer for 144 * 12.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 1728,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m07",
+      "prompt": "Return only the decimal integer for 9999 - 1234.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 8765,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m08",
+      "prompt": "Return only the decimal integer for 25 * 25.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 625,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m09",
+      "prompt": "Return only the decimal integer for 1024 + 2048.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 3072,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m10",
+      "prompt": "Return only the decimal integer for 81 / 9.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 9,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m11",
+      "prompt": "Return only the decimal integer for 17 * 19.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 323,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m12",
+      "prompt": "Return only the decimal integer for 123 + 456 + 789.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 1368,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m13",
+      "prompt": "Return only the decimal integer for 2^10.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 1024,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m14",
+      "prompt": "Return only the decimal integer for 15^2.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 225,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m15",
+      "prompt": "Return only the decimal integer for 625 / 25.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": 25,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    },
+    {
+      "probe_id": "m16",
+      "prompt": "Return only the decimal integer for 91 - 137.",
+      "verifier": {
+        "kind": "numeric",
+        "expected": -46,
+        "absolute_tolerance": 0.0
+      },
+      "weight": 1.0
+    }
+  ],
+  "minimum_mean_gap": 0.1,
+  "significance_alpha": 0.05
+}

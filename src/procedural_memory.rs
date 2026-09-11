@@ -2050,8 +2050,8 @@ struct SolverRunFailureProjection<'a> {
 }
 
 /// Immutable evidence for a solver run that ended before any candidate was
-/// produced. It is intentionally separate from [`SolverAttempt`], so no fake
-/// candidate identity or fake candidate metrics are ever required.
+/// produced. It is intentionally separate from [`SolverAttempt`], so no fabricated
+/// candidate identity or fabricated candidate metrics are ever required.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SolverRunFailureRecord {

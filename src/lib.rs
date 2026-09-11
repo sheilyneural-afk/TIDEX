@@ -13,6 +13,7 @@ pub mod dual_space;
 pub mod engine;
 pub mod engine_head;
 pub mod error;
+pub mod executor_registry;
 pub mod finite;
 pub mod functional;
 pub mod gauge;
@@ -71,6 +72,7 @@ pub mod architecture_families;
 pub mod capability_discovery;
 pub mod checkpoint_adapter;
 pub mod dense_shadow_materializer;
+pub mod lab;
 pub mod lab_isolation;
 pub mod low_rank_shadow_materializer;
 pub mod materialization_selector;
@@ -88,3 +90,6 @@ pub mod materialization_pipeline;
 
 pub mod pythagoras_topology;
 pub mod temporal_tracking;
+
+#[cfg(feature = "cross-model-plasticity")]
+pub mod cross_model;

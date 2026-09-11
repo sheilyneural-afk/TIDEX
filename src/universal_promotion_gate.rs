@@ -41,6 +41,8 @@ pub enum UniversalPromotionBlocker {
     UniversalityNInsufficient,
     GlobalConfidenceInsufficient,
     SelectedCandidateMissingEvaluation,
+    SelectionCandidateMissingEvaluation,
+    HybridRequiresJointEvaluation,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -115,6 +117,23 @@ pub fn evaluate_universal_promotion_gate(
         }
     }
     let mut blockers = BTreeSet::new();
+    if request
+        .selection_input
+        .evaluations
+        .iter()
+        .any(|evaluation| !evaluated.contains(&evaluation.candidate_sha256))
+    {
+        blockers.insert(UniversalPromotionBlocker::SelectionCandidateMissingEvaluation);
+    }
+    // Independent receipts for two constituents cannot attest to interference,
+    // aggregate resource use, or behavior of their joint runtime composition.
+    // The current selection wire has no independently materialized hybrid
+    // candidate identity, therefore hybrid readiness must fail closed.
+    if request.selection_receipt.selected_strategy
+        == crate::receiver_profile::MaterializationStrategy::Hybrid
+    {
+        blockers.insert(UniversalPromotionBlocker::HybridRequiresJointEvaluation);
+    }
     if request.universality_receipt.universality_n < request.policy.minimum_universality_n {
         blockers.insert(UniversalPromotionBlocker::UniversalityNInsufficient);
     }
@@ -147,7 +166,7 @@ pub fn evaluate_universal_promotion_gate(
         &serde_json::to_vec(&request.policy)?,
     );
     let mut receipt = UniversalPromotionGateReceipt {
-        schema: "cerebro.tidex.universal_promotion_gate_receipt/v1".into(),
+        schema: "cerebro.tidex.universal_promotion_gate_receipt/v2".into(),
         selection_sha256,
         universality_sha256,
         shadow_evaluations_sha256,
@@ -160,7 +179,7 @@ pub fn evaluate_universal_promotion_gate(
     let mut unsigned = receipt.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     receipt.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSAL-PROMOTION-GATE-RECEIPT:v1\0",
+        b"CEREBRO:TIDEX:UNIVERSAL-PROMOTION-GATE-RECEIPT:v2\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(receipt)
@@ -206,6 +225,7 @@ mod tests {
                     schema: "cerebro.tidex.universality_trial/v1".into(),
                     trial_id: "calibration-trial".into(),
                     capability_id: "calibration:v1".into(),
+                    task_family_id: "calibration_family".into(),
                     receiver_id: "receiver.seen".into(),
                     receiver_family_id: "family.seen".into(),
                     seed: 0,
@@ -222,6 +242,7 @@ mod tests {
                     schema: "cerebro.tidex.universality_trial/v1".into(),
                     trial_id: "held-out-trial".into(),
                     capability_id: "held-out:v1".into(),
+                    task_family_id: "state_identity".into(),
                     receiver_id: "receiver.new".into(),
                     receiver_family_id: "family.new".into(),
                     seed: 1,
@@ -242,11 +263,13 @@ mod tests {
                 minimum_receivers_per_capability: 1,
                 minimum_receiver_families_per_capability: 1,
                 minimum_seeds_per_capability: 1,
+                minimum_task_families_per_capability: 1,
+                scope: "held_out_capability_generalization".into(),
                 require_unseen_receiver: true,
                 minimum_target_score: 0.9,
                 minimum_preservation_score: 0.9,
                 minimum_identity_margin: 0.5,
-                minimum_success_probability: 0.0,
+                minimum_success_probability: 0.1,
                 confidence_z: 1.96,
             },
         };
@@ -297,5 +320,93 @@ mod tests {
         witness.validate_integrity().unwrap();
         request.shadow_evaluations.push(witness);
         assert!(evaluate_universal_promotion_gate(&request).is_err());
+    }
+
+    fn shadow_receipt(evaluation: BackendEvaluation) -> ShadowEvaluationReceipt {
+        let mut receipt = ShadowEvaluationReceipt {
+            schema: "cerebro.tidex.shadow_evaluation_receipt/v1".into(),
+            runner_sha256: Sha256Digest::digest_bytes(b"runner"),
+            bundle_sha256: Sha256Digest::digest_bytes(b"bundle"),
+            isolated_request_sha256: Sha256Digest::digest_bytes(b"request"),
+            evaluation,
+            manifest_sha256: Sha256Digest::zero(),
+        };
+        let mut unsigned = receipt.clone();
+        unsigned.manifest_sha256 = Sha256Digest::zero();
+        receipt.manifest_sha256 = Sha256Digest::digest_domain(
+            b"CEREBRO:TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
+            &serde_json::to_vec(&unsigned).unwrap(),
+        );
+        receipt
+    }
+
+    #[test]
+    fn selection_candidate_without_shadow_evaluation_blocks_readiness() {
+        let mut request = fixture_request();
+        let mut second = request.selection_input.evaluations[0].clone();
+        second.candidate_sha256 = Sha256Digest::digest_bytes(b"candidate-second");
+        second.strategy = MaterializationStrategy::DenseDelta;
+        second.functional_score = 0.95;
+        second.functional_ci_lower = 0.95;
+        request.selection_input.evaluations.push(second);
+        request.selection_receipt = request.selection_input.execute().unwrap();
+        let selected = request
+            .selection_input
+            .evaluations
+            .iter()
+            .find(|evaluation| {
+                request
+                    .selection_receipt
+                    .selected_candidates
+                    .contains(&evaluation.candidate_sha256)
+            })
+            .unwrap()
+            .clone();
+        request.shadow_evaluations = vec![shadow_receipt(selected)];
+        let receipt = evaluate_universal_promotion_gate(&request).unwrap();
+        assert_eq!(receipt.readiness, UniversalPromotionReadiness::Rejected);
+        assert!(receipt
+            .blockers
+            .contains(&UniversalPromotionBlocker::SelectionCandidateMissingEvaluation));
+        assert!(!receipt
+            .blockers
+            .contains(&UniversalPromotionBlocker::SelectedCandidateMissingEvaluation));
+        assert!(!receipt.authorizes_activation);
+    }
+
+    #[test]
+    fn hybrid_selection_requires_joint_evaluation() {
+        let mut request = fixture_request();
+        let first = request.selection_input.evaluations[0].clone();
+        let mut second = first.clone();
+        second.candidate_sha256 = Sha256Digest::digest_bytes(b"hybrid-second");
+        second.strategy = MaterializationStrategy::DenseDelta;
+        second.functional_score = 0.99;
+        second.functional_ci_lower = 0.99;
+        request.selection_input.evaluations.push(second.clone());
+        request.selection_input.complementarity = vec![PairwiseComplementarity {
+            first_candidate_sha256: first.candidate_sha256.clone(),
+            second_candidate_sha256: second.candidate_sha256.clone(),
+            held_out_gain: 0.2,
+            preservation_delta: 0.0,
+        }];
+        request.selection_receipt = request.selection_input.execute().unwrap();
+        assert_eq!(
+            request.selection_receipt.selected_strategy,
+            MaterializationStrategy::Hybrid
+        );
+        request.shadow_evaluations = request
+            .selection_input
+            .evaluations
+            .iter()
+            .cloned()
+            .map(shadow_receipt)
+            .collect();
+        let receipt = evaluate_universal_promotion_gate(&request).unwrap();
+        assert_eq!(receipt.readiness, UniversalPromotionReadiness::Rejected);
+        assert!(receipt
+            .blockers
+            .contains(&UniversalPromotionBlocker::HybridRequiresJointEvaluation));
+        assert!(!receipt.authorizes_activation);
     }
 }

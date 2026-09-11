@@ -1,298 +1,281 @@
-# CEREBRO TIDE-X
+# CEREBRO3
 
-CEREBRO TIDE-X es un motor Rust para adquisición de evidencia, reconstrucción de subespacios de habilidad, consolidación de memoria, aprendizaje adaptativo y ejecución gobernada. Su diseño prioriza autoridad explícita, persistencia direccionada por contenido, idempotencia en rutas críticas, recuperación fail-closed y evidencia de calidad vinculada por hashes.
+CEREBRO3 es un proyecto Rust orientado a la ejecución real, la evidencia verificable y la autoridad explícita. El sistema no busca simular inteligencia ni delegar la verdad a modelos externos. Su objetivo es mantener un ciclo gobernado en el que cada paso sólo avanza si se demuestra que es necesario, útil, autentificado y verificable.
 
-## Estado actual del HEAD
+## 0. Estado honesto y límites de evidencia
 
-El HEAD actual incluye el banco modular de adaptadores y la ruta de adaptación de receptor: perfiles autenticados, importación PEFT LoRA en la superficie admitida, manifiestos CAS inmutables, composición determinista, índice capability/modelo, materialización de candidato, activación, revocación, rollback hacia delante y CLI `tidex receiver profile` / `tidex adapter-bank ...`.
+## Calidad profesional del repositorio
 
-Esto es evidencia de control-plane e integridad de software. No demuestra mejora de inferencia, calidad de tarea, seguridad, latencia, rendimiento de serving, compatibilidad universal ni promoción de producción. El perfilador rechaza checkpoints sharded; el compositor admite layouts idénticos y su contrato es `ordered_f32_axes_mul_f64_accumulate_f64_round_f32/v1`, no aritmética independiente del orden ni fusión factor-native sin pérdida.
+CEREBRO3 mantiene una base de ingeniería real y reproducible:
 
-La última ejecución local posterior a esta integración superó formato, Clippy con `-D warnings` y 504 pruebas de todos los targets al excluir `sleep_cycle_promotes_after_verified_evidence_and_certifies_runtime`, que el canal de ejecución no deja terminar y devolver resultado. No se marca esa prueba como aprobada. Tampoco había checkpoint `.safetensors` ni `adapter_config.json` real disponible para una evaluación E2E de modelo + LoRA; por ello no se hace ninguna afirmación de mejora de modelo.
+- `Makefile` con el pipeline mínimo de validación: `fmt`, `check`, `test`, `integration`, `ci`.
+- `rustfmt.toml` y `clippy.toml` para un estilo y una calidad de código coherentes.
+- `.github/workflows/ci.yml` para ejecutar compilación y pruebas en cada cambio.
+- `docs/QUALITY_AND_TESTING.md` como referencia del modelo de pruebas y la política de evidencia.
 
-Este repositorio no declara por sí solo conformidad DO-178C, ISO 26262, ASIL D ni otra certificación normativa externa. Las puertas `P0` a `P3` son controles internos automatizados del proyecto y fijan toolchains, dependencias y snapshots para hacer sus ejecuciones repetibles bajo un entorno compatible. `P3` añade aseguramiento acotado de concurrencia y recuperación, pero tampoco constituye una prueba universal del kernel, filesystem, hardware o entorno de despliegue.
+Esto evita que el proyecto dependa de una UI bonita, nombres atractivos o una narración de laboratorio sin verificación real.
 
-## Estado de calidad
+La arquitectura formal del sistema y la separación de dominios están documentadas en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), con el propósito de dejar explícito qué es autoridad, qué es workflow y qué es evidencia verificable.
 
-Puerta 2 quedó congelada inicialmente en el commit `c8bbb6e8694ecf41df7b82c4962ddfedeeed3dda`. Puerta 3 se ejecutó después sobre ese commit más el candidato P3 y el snapshot exacto que superó la puerta se congeló finalmente en:
+La documentación de CEREBRO3 distingue tres capas con reglas distintas:
+
+- capa de producción o autoridad: módulos en Rust con validación, receipts y fail-closed;
+- capa de ejecución acotada: workers externos, backends reales y modelos que ejecutan operaciones concretas pero no deciden autoridad;
+- capa experimental o evaluativa: benchmarks, transfer experiments, synthetic data y rutas de diagnóstico que no equivalen a producción ni a autoridad final.
+
+Esto no es un detalle burocrático: es la diferencia entre “lo que está realmente probado” y “lo que es un experimento útil o un punto de investigación”.
+
+Lo que sí está verificado con evidencia real en el repositorio:
+
+- la base Rust del sistema compila y pasa la suite de tests de librería;
+- la autoridad central sigue siendo Rust;
+- la ejecución de modelos externos queda acotada bajo validación explícita;
+- el sistema exige receipts, hashes, identidad y fail-closed cuando la evidencia no encaja.
+
+Lo que todavía no está demostrado como una afirmación universal del proyecto:
+
+- que cualquier backend externo produzca transferencia útil de capacidad sin límites;
+- que la activación o steering automático implique mejora funcional real;
+- que todas las rutas cross-model sean equivalentes en calidad y seguridad;
+- que las métricas experimentales sean automáticamente “promocionables” a producción.
+
+La política del proyecto es clara: no se promociona una hipótesis como hechos reales sin origen verificable, hash, contrato y evidencia.
+
+## 1. La idea central: no hay “segundo cerebro”
+
+CEREBRO3 no se organiza como un sistema paralelo que decide por sí mismo. Su patrón operativo es:
+
+- una capacidad detecta una necesidad;
+- la autoridad del sistema decide si esa necesidad es real;
+- un executor concreto resuelve la acción correcta;
+- la evidencia resultante se valida;
+- el sistema emite un receipt y sólo entonces avanza o bloquea.
+
+La escalera viva no reemplaza la autoridad. La escalera vive encima de la autoridad y la utiliza.
+
+## 2. Autoridad real del sistema
+
+La separación de roles del sistema es clara:
 
 ```text
-43588d43d76269258efd6928b098369030f049cb
+KnowledgeEngine
+  -> autoriza el plan
+  -> revisa obligaciones, hipótesis y evidencia
+  -> decide si una acción puede avanzar
+  -> emite receipts y transiciones autorizadas
+
+AdapterBank
+  -> resuelve un backend o adapter real
+  -> autentica la resolución
+  -> activa, revoca y rollback cuando la evidencia lo exige
+
+Living Staircase
+  -> coordina necesidades, pasos y contención
+  -> no sustituye la autoridad
+  -> no inventa evidencia ni promueve capacidades sin respaldo
+
+Cross-model runtime
+  -> ejecuta backend real
+  -> observa activaciones, métricas y firma del runtime
+  -> devuelve resultados con hashing y contract validation
 ```
 
-La ejecución P3 fue acumulativa: volvió a ejecutar P0, P1 y P2 antes de sus propios controles. En esa corrida:
+No existe un segundo poder de decisión. La autoridad final sigue siendo Rust y la capa de gobernanza legítima del sistema.
 
-- P0 pasó formato, Clippy con `-D warnings`, pruebas `--all-targets`, auditoría/políticas de dependencias y arranque vacío fail-closed.
-- P1 pasó cobertura, Miri, ASan, LSan obligatorio por herencia de P2, TSan y 100.000 ejecuciones de cada uno de los dos targets de fuzz configurados.
-- P2 pasó de nuevo con Miri ampliado sobre `low_rank_math`, `linalg`, `trust_region` y `transport`, TSan sobre `--all-targets` y snapshot SHA-256 pre/post sin mutación del checkout.
-- P3 pasó sus 17 pruebas de aseguramiento obligatorias, incluidos los dos modelos deterministas acotados, concurrencia real de `engine_authority`, carreras/adversarios de filesystem y recuperación del corpus.
+## 3. Qué es la escalera viva en CEREBRO3
 
-Última cobertura P2 medida dentro de la corrida P3:
-
-| Componente | Líneas | Funciones | Regiones |
-| --- | ---: | ---: | ---: |
-| `src/engine/runtime.rs` | 80,18% | 77,12% | 81,49% |
-| `src/engine/transition.rs` | 75,80% | 70,00% | 76,40% |
-| `src/engine/support.rs` | 83,77% | 81,40% | 85,71% |
-| `src/engine/analysis.rs` | 85,30% | 79,69% | 86,37% |
-| `src/isolated_execution.rs` | 87,33% | 82,86% | 89,25% |
-| `src/digest.rs` | 98,97% | 98,18% | 98,50% |
-| **Global** | **86,97%** | **80,24%** | **87,62%** |
-
-El receipt de aquella ejecución P3 se generó fuera del checkout. Como la puerta se ejecutó antes de crear el commit final, su campo `head_commit` identifica el padre `c8bbb6e...`; la vinculación con `43588d4...` se comprobó después comparando el manifiesto SHA-256 completo y los metadatos del checkout, que coincidieron exactamente. Por tanto, el commit `43588d4...` contiene el mismo snapshot de archivos que pasó P3, aunque el receipt original no fue reescrito para fingir un HEAD posterior.
-
-La definición detallada de las puertas y los límites de esta evidencia están en [`quality/README.md`](quality/README.md).
-
-## Toolchain
-
-`rust-toolchain.toml` fija el toolchain estable `1.96.0` con `clippy` y `rustfmt`. Las puertas que necesitan Miri o sanitizadores usan además el nightly fijado por sus propios scripts de calidad y verifican su commit de toolchain.
-
-`Cargo.toml` declara `rust-version = "1.85"` como MSRV del paquete. Esa declaración no sustituye una prueba de la suite completa con Rust 1.85; las puertas actuales se ejecutan con el toolchain estable fijado en `1.96.0`.
-
-El crate aplica:
-
-```toml
-[lints.rust]
-unsafe_code = "forbid"
-```
-
-Actualmente no hay bloques `unsafe` en `src/` ni `tests/`. Esta propiedad reduce clases de errores de memoria en código Rust propio, pero no equivale a demostrar ausencia universal de fugas, carreras, fallos lógicos o defectos en dependencias/sistema operativo; por eso existen Miri y los sanitizadores.
-
-## Raíz privada de autoridad
-
-Las rutas de producción que usan estado TIDE-X obtienen la raíz desde:
-
-```bash
-export TIDEX_PRIVATE_ROOT=/var/lib/tidex-brain
-```
-
-La ruta debe:
-
-- ser absoluta;
-- existir antes de iniciar el programa;
-- ser un directorio real, no un symlink;
-- no conceder permisos a grupo u otros.
-
-Configuración recomendada:
-
-```bash
-sudo install -d -m 0700 /var/lib/tidex-brain
-export TIDEX_PRIVATE_ROOT=/var/lib/tidex-brain
-```
-
-Los helpers internos `secure_dir` y `secure_file` no crean rutas: cuando se aplican a una ruta existente, fijan respectivamente los modos `0700` y `0600`.
-
-## Compilación
-
-Compilación release con dependencias bloqueadas y sin resolución de red:
-
-```bash
-cargo build --release --bins --offline --locked
-```
-
-El perfil release usa `lto = "thin"`, `codegen-units = 1`, `panic = "abort"` y `strip = "symbols"`.
-
-`Cargo.toml` declara diez binarios:
-
-1. `cerebro-tidex`
-2. `acquire-system`
-3. `adaptive-learning-cycle`
-4. `autonomous-learning-plan`
-5. `ledger-diagnose`
-6. `pure-linear-runner`
-7. `record-representation-evidence`
-8. `tidex-finalize`
-9. `tidex`
-10. `v67-weight-actuator-smoke` (smoke experimental; no es interfaz de operador).
-
-## Interfaces reales de los binarios
-
-### `tidex`
-
-`tidex` es la capa de operador. `TIDEX_HOME` mantiene workspaces y perfiles de modelo separados del proyecto objetivo; cada workspace posee su propia raíz privada de estado. El modelo configurado es asistencia no autoritativa y no puede crear evidencia ni promover una capability.
-
-Superficie implementada actualmente:
-
-```bash
-export TIDEX_HOME=/var/lib/tidex
-tidex workspace create proyecto --target /ruta/al/proyecto
-tidex workspace use proyecto
-tidex workspace show
-
-tidex model add qwen --provider openai-compatible --url http://127.0.0.1:8080/v1 --model Qwen
-tidex model use qwen
-
-tidex acquire
-tidex acquire --path src/modulo
-tidex capabilities
-```
-
-La adquisición reutiliza `content_vault::capture_to_vault`; no existe un capturador paralelo. El estado se escribe bajo `TIDEX_HOME/workspaces/<workspace>/state`, nunca dentro del target externo.
-
-El benchmark leave-one-skill-out del `ReceiverCompiler` es independiente de workspaces:
-
-```bash
-tidex benchmark portability receiver-benchmark.json
-```
-
-La solución directa del receptor para la skill evaluada se excluye del ajuste de los mapas forward/reverse y sólo se abre después como oracle de `RecoveredGain`. El benchmark V64 reproducible con dos Transformers pequeños y arquitecturas distintas está en `quality/experiments/v64_transformer_portability.py`; es evidencia micro-transformer y no una afirmación de portabilidad LLM-scale.
-
-#### Perfil físico del receptor y banco de adaptadores
-
-Estas rutas de `tidex` usan la autoridad de instalación indicada por `TIDEX_PRIVATE_ROOT`, no el estado de workspace de `TIDEX_HOME`. La raíz privada debe existir y cumplir los permisos descritos en «Raíz privada de autoridad». Los perfiles autenticados se guardan por contenido bajo `state/receiver_model_profiles/by-sha`; el índice, historial y locks del banco viven bajo `state/adapter_bank`, con sus blobs y deltas referenciados dentro de la misma raíz de autoridad.
-
-```bash
-export TIDEX_PRIVATE_ROOT=/var/lib/tidex-brain
-
-tidex receiver profile receiver-profile-input.json
-tidex receiver verify-profile receiver-profile-reference.json
-tidex receiver verify-live-profile receiver-profile-reference.json
-
-tidex adapter-bank import adapter-import.json
-tidex adapter-bank compose adapter-composition.json
-tidex adapter-bank materialize candidate-materialization.json
-tidex adapter-bank verify-materialization materialization-reference.json
-tidex adapter-bank query adapter-query.json
-tidex adapter-bank show adapter-lookup.json
-tidex adapter-bank resolve adapter-resolution.json
-tidex adapter-bank verify-resolution execution-resolution.json
-tidex adapter-bank activate adapter-activation.json
-tidex adapter-bank revoke adapter-revocation.json
-tidex adapter-bank rollback adapter-rollback.json
-tidex adapter-bank status
-```
-
-`receiver profile` liga la identidad declarada del modelo a los hashes exactos de un checkpoint SafeTensors de un solo fichero, su `config.json`, su tokenizer y su layout físico. `verify-profile` autentica el perfil histórico sellado en CAS; `verify-live-profile` vuelve a medir los artefactos físicos y falla si alguno ha cambiado. La superficie desconocida o no soportada falla cerrada; el perfil no constituye por sí mismo autorización de promoción.
-
-`adapter-bank import` conserva la procedencia PEFT LoRA y crea un manifiesto candidato inmutable. `compose` combina deltas compatibles con suma ordenada determinista f64→f32, sin SVD, poda ni truncamiento de rango. `materialize` aplica el candidato al checkpoint autenticado; `verify-materialization` revalida su recibo sellado. `query` y `show` consultan las proyecciones autenticadas por capability/modelo; `resolve` devuelve el binding activo para ejecución y `verify-resolution` comprueba su revisión, época de fencing, autorización y materialización vigentes. `status` verifica el historial publicado. Las mutaciones llevan una expectativa de revisión para control de concurrencia. `activate` exige autorización de promoción independiente, `revoke` es persistente y transitivo sobre derivados, y `rollback` publica una nueva revisión hacia delante: no reescribe el pasado.
-
-Los ficheros JSON de entrada siguen los contratos versionados y estrictos expuestos por `model_adaptation` y `adapter_bank`; campos desconocidos se rechazan. `TIDEX_HOME` continúa siendo la autoridad de selección de workspace/modelo para `workspace`, `model`, `acquire` y `capabilities`, y no selecciona implícitamente otro banco.
-
-### `cerebro-tidex`
-
-El CLI principal obtiene la raíz de `TIDEX_PRIVATE_ROOT`. No acepta `--root`.
-
-```bash
-cerebro-tidex status
-cerebro-tidex analyze /var/lib/tidex-brain/observations.json
-cerebro-tidex sleep
-```
-
-`analyze` sólo acepta un JSON confinado bajo la raíz privada. `commit`, `artifact-import-f32` y `artifact-ties` están retirados; las mutaciones de aprendizaje/finalización usan binarios receipt-bound separados. El CLI principal actual no expone un comando `search`.
-
-### `acquire-system`
-
-Captura una raíz fuente externa y sella una autoridad de adquisición bajo `TIDEX_PRIVATE_ROOT`.
-
-Ejemplo de proyecto completo:
-
-```bash
-acquire-system \
-  --source-root /srv/project \
-  --acquisition-id capture-001 \
-  --scope whole-project
-```
-
-Para alcance declarado se usa `--scope declared-paths` junto con uno o más `--path`, o la forma de compatibilidad `--scope paths:a,b`. También existen `--residency`, `--max-files`, `--max-bytes`, `--exclude` y `--noise-policy`.
-
-### `adaptive-learning-cycle`
-
-La sintaxis implementada es:
+La escalera viva es la estructura recurrente que hace que todas las capacidades entren en un mismo ciclo:
 
 ```text
-adaptive-learning-cycle start <session-id> <learning-target.json> <policy.json>
-adaptive-learning-cycle next <session-id>
-adaptive-learning-cycle assimilate <session-id> <experiment-evidence.json>
-adaptive-learning-cycle show <session-id>
-adaptive-learning-cycle controller-train <controller-training-dataset.json> <controller-policy.json> <controller-binding.json>
-adaptive-learning-cycle controller-show <session-id>
-adaptive-learning-cycle controller-compose <invocation.json>
+Need
+  -> Detectar brecha / insuficiencia / evidencia pendiente
+  -> Resolver un executor válido
+  -> Ejecutar acción real con evidencia
+  -> Validar provenance, identidad, contrato y hash
+  -> Decidir: commit / refine / prune / block
+  -> Persistir receipt y avanzar o cerrar
 ```
 
-Las operaciones persistentes usan `TIDEX_PRIVATE_ROOT`. `controller-compose` exige una invocación confinada en la raíz privada.
+Esto es la arquitectura que unifica lo que ya existe en el árbol: autoridad, plasticidad, numerics, residency, receiver compiler, materialization, promotion gate y adapter lifecycle.
 
-### `autonomous-learning-plan`
+## 4. Qué debe estar conectado al mismo ciclo
 
-No necesita la raíz privada porque calcula un plan puro desde un fichero de entrada:
+La escalera viva debe coordinar módulos ya existentes, no reemplazarlos. Su papel es canalizar cada capacidad en una dinámica común.
+
+### 4.1 KnowledgeEngine
+
+Es la autoridad epistemológica central. Debe seguir siendo la fuente de:
+
+- planificación,
+- obligaciones,
+- hipótesis,
+- claims,
+- evidence,
+- receipts,
+- decisiones terminales.
+
+### 4.2 ResidencyDecision
+
+Este motor debe derivar residencia, no aceptar un valor impreso por el caller. La decisión debe ser:
+
+- Software,
+- Weights,
+- Hybrid,
+- Unknown.
+
+Si vuelve Unknown, la escalera crea automáticamente un nuevo micro-escalón de evidencia.
+
+### 4.3 BrainEngine
+
+Debe seguir funcionando como ejecutor neuronal y de consolidación, no como coordinador global. Su función final es:
+
+- analizar,
+- consolidar,
+- recuperar transiciones incompletas,
+- preparar memoria/learning sessions,
+- sostener la capa de ejecución y consolidación.
+
+### 4.4 NumericalEvolutionEngine
+
+Debe entrar como executor especializado de un need de profundidad numérica. No es un sistema paralelo; es una vía de resolución para problemas donde la numerics requiere validación o evolución.
+
+### 4.5 Plasticity
+
+La plasticidad no debe gobernar el sistema. Debe ejecutar cambios acotados dentro del ciclo de la escalera:
+
+- BCM,
+- eligibility traces,
+- neuromodulation,
+- routing plasticity,
+- content plasticity,
+- PI controller,
+- ELO.
+
+Todos estos mecanismos son herramientas de adaptación, no autoridad.
+
+### 4.6 UniversalPromotionGate
+
+Debe mantenerse como gate canónico de promoción, pero no como sistema autónomo. La promoción es la etapa final del ciclo, no una decisión aislada.
+
+### 4.7 AdapterBank
+
+Debe seguir siendo la autoridad del lifecycle real de activación, revocación y rollback.
+
+## 5. La relación correcta entre módulos
+
+La relación final que más encaja con el árbol real es esta:
+
+```text
+Living Staircase
+   -> Need detectors
+   -> Executor registry
+   -> KnowledgeEngine authority
+   -> ResidencyDecision
+   -> BrainEngine / Plasticity / NumericalEvolution
+   -> Materialization / ReceiverCompiler / ShadowEvaluation
+   -> UniversalPromotionGate
+   -> AdapterBank lifecycle
+   -> Evidence + Receipt + decision
+```
+
+No se trata de reescribir CEREBRO3 en una sola máquina. Se trata de hacer que todo el árbol entre en una misma dinámica de necesidad → ejecución → evidencia → contención → avance.
+
+## 6. Reglas de diseño que no se deben romper
+
+- ninguna capa ejecuta sin evidencia real;
+- ninguna capa inventa autoridad;
+- ninguna pieza puede promocionar un cambio sin validación y receipt;
+- la escalera sólo orquesta; no sustituye a KnowledgeEngine ni a AdapterBank;
+- la plasticidad modifica dentro de límites; no controla el sistema global;
+- la memoria y la procedimental memory alimentan decisiones, pero no son autoridad;
+- los bridges triviales deben reducirse porque añaden superficie sin aportar verdad.
+
+## 7. TIDE-X Advanced Laboratory
+
+El repositorio incluye una superficie de laboratorio real sobre las autoridades existentes. No reimplementa los algoritmos: ejecuta los mismos backends y contratos del proyecto.
+
+Arranque recomendado desde la raíz del repositorio:
 
 ```bash
-autonomous-learning-plan learning-target.json
+./tidex lab serve
 ```
 
-### `ledger-diagnose`
+La interfaz queda disponible únicamente en loopback:
 
-No define opciones de CLI propias. La implementación actual no inspecciona `argv`, por lo que argumentos adicionales se ignoran. Verifica el ledger de la raíz configurada y emite sus eventos y cabeza verificada:
+```text
+http://127.0.0.1:8793
+```
+
+El launcher `./tidex` es intencionado: el proyecto configura Cargo para construir fuera del checkout, bajo `/home/yo/Future/cerebro3-runtime/cargo-target`, por lo que no se debe asumir que exista `./target/debug/tidex`. El runtime persistente vive fuera del repo pero dentro de `Future`.
+
+Funciones de alto nivel disponibles en el laboratorio:
+
+- catálogo y selección de modelos HF locales;
+- importación y catalogación de datasets con SHA-256 y provenance;
+- evaluación conductual real de un LLM;
+- descubrimiento comparativo multi-LLM;
+- extracción de representaciones internas;
+- instrumentación profunda con NNsight cuando el intérprete configurado la soporte;
+- análisis SAE cuando NNsight + SAE Lens estén disponibles;
+- análisis contrafactual;
+- calibración de alineamiento A→B;
+- experimento de transferencia por activation steering con baseline, intervención, restauración y evaluación separadas;
+- acceso avanzado a las operaciones canónicas de receiver compiler, materialización, universality, promotion gate y AdapterBank.
+
+CLI del laboratorio:
 
 ```bash
-export TIDEX_PRIVATE_ROOT=/var/lib/tidex-brain
-ledger-diagnose
+./tidex lab models scan "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub"
+./tidex lab models list
+./tidex lab datasets list
+./tidex lab dataset import <nombre> json <benchmark.json>
+./tidex lab evaluate <model-id> <dataset-sha256>
+./tidex lab discover <dataset-sha256> <model-id-1> <model-id-2> [model-id...]
 ```
 
-### `pure-linear-runner`
-
-Es una frontera de ejecución aislada para el protocolo `pure_capability_e2e`. No es un CLI interactivo de propósito general y falla cerrado cuando no recibe el contrato de entrada que espera el entorno aislado.
-
-### `record-representation-evidence`
+Para usar un intérprete HF específico —por ejemplo uno que incluya NNsight y SAE Lens— se configura explícitamente:
 
 ```bash
-record-representation-evidence <sealed-install-request.json>
+export TIDEX_HF_PYTHON=/ruta/absoluta/al/python
+./tidex lab serve
 ```
 
-La autoridad destino se toma de `TIDEX_PRIVATE_ROOT`.
+Los resultados del Lab quedan bajo `/home/yo/Future/cerebro3-runtime/tidex/lab/` por defecto. Un resultado de laboratorio nunca concede por sí mismo autoridad de activación productiva.
 
-### `tidex-finalize`
+## 8. Estado verificado del proyecto
 
-La interfaz es posicional, no usa flags `--root` ni `--session-id`:
+La validación de ingeniería debe ejecutarse con los targets/features que correspondan a la superficie probada. El laboratorio se valida con `--all-features --all-targets`; las pruebas de LLM además requieren ejecución real del backend seleccionado.
 
-```bash
-tidex-finalize <session-id> <representation-evidence-receipt.json>
-```
+## 9. Estructura del repositorio
 
-La raíz se obtiene de `TIDEX_PRIVATE_ROOT`. La invocación se valida antes de abrir el lifecycle o el engine.
+- src/ — runtime principal, autoridad y contratos.
+- src/cross_model/ — backends reales y lógica de plasticidad/cross-model.
+- src/adaptive_staircase.rs — coordinación de la escalera viva.
+- src/knowledge_engine.rs — autoridad epistemológica del sistema.
+- src/residency_decision.rs — derivación de residencia.
+- src/numerical_evolution.rs — evolución numérica acotada.
+- src/adapter_bank.rs — autenticación y lifecycle de adaptadores.
+- src/cross_model/runtime/hf_worker.py — executor acotado, no autoridad.
+- design/ — arquitectura y documentos operativos.
+- quality/ — evidencia y puertas de validación.
 
-## Puertas de calidad
+## 10. Política documental
 
-```bash
-bash quality/gate0-release.sh
-bash quality/gate1-tooling.sh
-bash quality/gate2-verification.sh
-bash quality/gate3-assurance.sh
-bash quality/gate4-release-readiness.sh
-```
+La documentación debe reflejar el estado real del código. Si una capacidad no puede justificarse con evidencia, identidad, hashes, contratos y validación auténtica, no debe presentarse como parte del sistema real.
 
-P3 es acumulativa sobre P2 y añade model checking determinista acotado, pruebas concurrentes/recovery obligatorias y un recibo de aseguramiento SHA-256 externo al checkout. El snapshot que la superó está congelado en `43588d43d76269258efd6928b098369030f049cb`. Esta evidencia no debe describirse como “verificación formal universal”.
+## 11. Documentación de referencia
 
-## Release Readiness (P4)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [IMPLEMENTATION.md](IMPLEMENTATION.md)
+- [SYSTEM_STATUS.md](SYSTEM_STATUS.md)
+- [README_CROSS_MODEL.md](README_CROSS_MODEL.md)
+- [design/adaptive_staircase.md](design/adaptive_staircase.md)
 
-P4 añade una capa de distribución técnica sobre P3. Las fronteras son:
+La conclusión operativa es más precisa: CEREBRO3 ya dispone de múltiples autoridades, ejecutores y mecanismos de evidencia reales, pero cada afirmación de capacidad debe seguir demostrarse en el alcance concreto donde se usa. La integración debe unificar esas piezas bajo una misma dinámica sin convertir la escalera en una segunda autoridad.
 
-- `quality/build-release-bundle.sh`: exige Git limpio, hace dos builds independientes de los nueve binarios con `--release --bins --offline --locked`, exige igualdad bit a bit, genera `release-manifest.json`, `SHA256SUMS`, SBOM SPDX 2.3 y un `.tar.zst` determinista fuera del checkout.
-- `quality/verify-release.sh`: valida identidad, conjunto exacto de nueve binarios, hashes/tamaños, permisos, SBOM, miembros del archive y, cuando se solicita, las firmas OpenPGP del fingerprint autorizado.
-- `quality/sign-release.sh`: firma manifest/checksums y opcionalmente archive/checksum externo sin generar ni elegir una clave implícita.
-- `quality/manage-release-installation.sh`: mantiene releases versionadas, `activation.json` como autoridad, `current` como puntero derivado, upgrade, rollback y uninstall de releases inactivas sin borrar `TIDEX_PRIVATE_ROOT`.
-- `quality/gate4-release-readiness.sh`: consume P3 mediante evidencia reutilizable sólo cuando `quality/verify-p3-reuse.sh` demuestra que los 101 inputs cerrados P0–P3 y ambos toolchains siguen byte-idénticos al snapshot P3; si hay drift, falla y exige rerun de P3. Después exige reproducibilidad del bundle completo, firma real con una identidad efímera de prueba, instalación firmada, upgrade, recuperación del puntero derivado, rollback, roll-forward, uninstall y preservación del estado privado.
 
-La evidencia P3 canónica reutilizable vive en `quality/evidence/p3/`. `receipt.json` es una copia exacta del receipt externo que cerró P3; `reuse-anchor.json` liga ese receipt al snapshot `43588d4`, reconstruye los cuatro ficheros ignorados que formaban parte del hash histórico y fija el digest cerrado de los 101 inputs que pueden afectar P0–P3. Cambiar `src/`, `tests/`, fuzz, Cargo/toolchain o Gates 0–3 invalida la reutilización. Cambiar únicamente documentación o tooling P4 no obliga a repetir Miri/TSan/fuzzing.
+### Executor Registry multi-eje
 
-Gate4 distingue **readiness técnica** de **promoción pública**. La puerta técnica no crea una identidad criptográfica persistente ni decide una licencia legal. `Cargo.toml` sigue sin declarar `license`/`license-file`; además, una firma de producción debe realizarse posteriormente con una clave autorizada por el propietario. El receipt externo de Gate4 registra estos límites en vez de ocultarlos.
+`./tidex executors` devuelve el catálogo canónico de ejecutores. Todos los descriptores registrados tienen `state=operational` en el sentido de contrato implementado y rastreable, pero la madurez se separa en campos independientes: `runtime_status`, `workflow_status`, `evidence_status`, `maturity`, `production_authority` y `actionable_now`. No se debe usar `state` como sinónimo de autorización productiva.
 
-## Firma de release (P4)
-
-La frontera de firma está en `quality/sign-release.sh`. Opera únicamente sobre un directorio de release fuera del checkout, exige `release-manifest.json` y `SHA256SUMS`, verifica primero todos los checksums y crea firmas OpenPGP detached ASCII-armored para ambos ficheros. Cuando se proporciona además el `.tar.zst` generado por P4, verifica su checksum externo y firma también el archive y su fichero `.sha256`.
-
-La clave nunca se selecciona de forma implícita. Debe indicarse con su fingerprint completo de 40 hexadecimales:
-
-```bash
-export TIDEX_RELEASE_GPG_KEY=<fingerprint-completo>
-quality/sign-release.sh /ruta/al/release /ruta/al/release.tar.zst
-```
-
-El fingerprint debe corresponder a una clave o subclave secreta con capacidad de firma disponible en el `GNUPGHOME` activo. Si la clave necesita passphrase en automatización, puede proporcionarse mediante un fichero externo al checkout con permisos `0600` o `0400` usando `TIDEX_RELEASE_GPG_PASSPHRASE_FILE`. El script no genera claves, no elige una por defecto, no firma artefactos con checksums inválidos y no sustituye una firma preexistente que no verifique con la clave autorizada.
-
-La infraestructura de firma no decide la licencia legal del producto. `Cargo.toml` continúa sin declarar `license`/`license-file`; una distribución pública debe resolver esa decisión por separado.
-
-## Dependencias y licencias
-
-`deny.toml` controla las licencias y fuentes permitidas de dependencias. La allowlist actual incluye Apache-2.0, Apache-2.0 WITH LLVM-exception, MIT, Unicode-3.0 y Unlicense. El paquete raíz no declara actualmente un campo `license` en `Cargo.toml`; por tanto no debe inferirse una licencia del propio producto a partir de la política de dependencias.
-
-La base RustSec usada por las puertas es una snapshot local. Una ejecución reproducible offline demuestra ausencia de avisos respecto de esa snapshot concreta, no respecto de vulnerabilidades publicadas con posterioridad.
+La única autoridad de ciclo de vida productivo para adaptadores es `adapter.bank`. Los ejecutores candidate/advisory pueden producir evidencia, candidatos o señales, pero no activan producción por sí solos.

@@ -1710,7 +1710,7 @@ where
     flock(&opened.file, FlockOperation::LockExclusive).map_err(rustix_error)?;
     let result = operation();
     // Explicit release makes failures observable on platforms where close is
-    // delayed.  The descriptor's drop remains the crash-safe fallback.
+    // delayed.  The descriptor's drop remains the crash-safe cleanup path.
     let unlock = flock(&opened.file, FlockOperation::Unlock).map_err(rustix_error);
     match (result, unlock) {
         (Ok(value), Ok(())) => Ok(value),

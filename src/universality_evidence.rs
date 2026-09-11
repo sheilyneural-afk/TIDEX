@@ -1,8 +1,10 @@
 //! Reproducible measurement of experimental universality N.
 //!
-//! N counts held-out capabilities that pass receiver/family/seed coverage,
-//! zero-target-optimization, preservation, negative-control, and confidence
-//! gates. It is computed evidence, never a self-declared label.
+//! Universality is admitted only when held-out capability evidence clears the
+//! same success contract across receivers, receiver families, task families and
+//! seeds. Global confidence may never hide a failing subgroup. All identities
+//! and experimental dimensions are explicit; this module has no defaults that
+//! can silently broaden a claim.
 
 use crate::digest::Sha256Digest;
 use crate::error::{BrainError, BrainResult};
@@ -10,6 +12,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_TRIALS: usize = 1_000_000;
+const MAX_ID_BYTES: usize = 4_096;
+
+fn valid_label(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_ID_BYTES
+        && value == value.trim()
+        && !value.chars().any(char::is_control)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -20,6 +30,8 @@ pub struct UniversalityProtocol {
     pub minimum_receivers_per_capability: usize,
     pub minimum_receiver_families_per_capability: usize,
     pub minimum_seeds_per_capability: usize,
+    pub minimum_task_families_per_capability: usize,
+    pub scope: String,
     pub require_unseen_receiver: bool,
     pub minimum_target_score: f64,
     pub minimum_preservation_score: f64,
@@ -41,11 +53,14 @@ impl UniversalityProtocol {
             || self.minimum_receivers_per_capability == 0
             || self.minimum_receiver_families_per_capability == 0
             || self.minimum_seeds_per_capability == 0
+            || self.minimum_task_families_per_capability == 0
+            || !valid_label(&self.scope)
             || unit
                 .iter()
-                .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+            || self.minimum_success_probability == 0.0
             || !self.minimum_identity_margin.is_finite()
-            || self.minimum_identity_margin < 0.0
+            || !(0.0..=1.0).contains(&self.minimum_identity_margin)
             || !self.confidence_z.is_finite()
             || !(0.0..=8.0).contains(&self.confidence_z)
             || self.confidence_z == 0.0
@@ -62,6 +77,7 @@ pub struct UniversalityTrial {
     pub schema: String,
     pub trial_id: String,
     pub capability_id: String,
+    pub task_family_id: String,
     pub receiver_id: String,
     pub receiver_family_id: String,
     pub seed: u64,
@@ -88,20 +104,22 @@ impl UniversalityTrial {
             || [
                 &self.trial_id,
                 &self.capability_id,
+                &self.task_family_id,
                 &self.receiver_id,
                 &self.receiver_family_id,
             ]
             .iter()
-            .any(|v| v.trim().is_empty() || v.len() > 4096)
+            .any(|value| !valid_label(value))
             || values
                 .iter()
-                .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
         {
             return Err(BrainError::Invalid("universality_trial_invalid".into()));
         }
         Ok(())
     }
-    fn passes(&self, protocol: &UniversalityProtocol) -> bool {
+
+    pub fn passes(&self, protocol: &UniversalityProtocol) -> bool {
         let strongest_control = self
             .wrong_ir_score
             .max(self.random_delta_score)
@@ -122,10 +140,19 @@ pub struct CapabilityUniversalityEvidence {
     pub successes: usize,
     pub receivers: usize,
     pub receiver_families: usize,
+    pub task_families: usize,
     pub seeds: usize,
     pub includes_unseen_receiver: bool,
+    pub successful_receivers: usize,
+    pub successful_receiver_families: usize,
+    pub successful_task_families: usize,
+    pub successful_seeds: usize,
+    pub unseen_receiver_successes: usize,
     pub success_rate: f64,
     pub wilson_lower_bound: f64,
+    pub minimum_receiver_wilson_lower_bound: f64,
+    pub minimum_receiver_family_wilson_lower_bound: f64,
+    pub minimum_task_family_wilson_lower_bound: f64,
     pub admitted: bool,
 }
 
@@ -186,6 +213,23 @@ fn wilson_lower(successes: usize, total: usize, z: f64) -> f64 {
         .clamp(0.0, 1.0)
 }
 
+fn minimum_group_wilson<'a, K: Ord + ?Sized + 'a>(
+    group: &[&'a UniversalityTrial],
+    key: impl Fn(&'a UniversalityTrial) -> &'a K,
+    protocol: &UniversalityProtocol,
+) -> f64 {
+    let mut counts = BTreeMap::<&K, (usize, usize)>::new();
+    for trial in group {
+        let entry = counts.entry(key(trial)).or_default();
+        entry.0 += usize::from(trial.passes(protocol));
+        entry.1 += 1;
+    }
+    counts
+        .values()
+        .map(|(successes, total)| wilson_lower(*successes, *total, protocol.confidence_z))
+        .fold(1.0, f64::min)
+}
+
 pub fn measure_universality_n(
     calibration_capabilities: &BTreeSet<String>,
     trials: &[UniversalityTrial],
@@ -195,22 +239,34 @@ pub fn measure_universality_n(
     if calibration_capabilities.len() < protocol.minimum_calibration_capabilities
         || trials.is_empty()
         || trials.len() > MAX_TRIALS
-        || calibration_capabilities.iter().any(|v| v.trim().is_empty())
+        || calibration_capabilities
+            .iter()
+            .any(|value| !valid_label(value))
     {
         return Err(BrainError::Invalid(
             "universality_evidence_cardinality_invalid".into(),
         ));
     }
+
     let mut canonical_trials = trials.to_vec();
-    canonical_trials.sort_by(|a, b| {
-        (&a.capability_id, &a.receiver_id, a.seed, &a.trial_id).cmp(&(
-            &b.capability_id,
-            &b.receiver_id,
-            b.seed,
-            &b.trial_id,
-        ))
+    canonical_trials.sort_by(|left, right| {
+        (
+            &left.capability_id,
+            &left.task_family_id,
+            &left.receiver_id,
+            left.seed,
+            &left.trial_id,
+        )
+            .cmp(&(
+                &right.capability_id,
+                &right.task_family_id,
+                &right.receiver_id,
+                right.seed,
+                &right.trial_id,
+            ))
     });
     let trials = canonical_trials.as_slice();
+
     let mut receiver_identity = BTreeMap::new();
     let mut ids = BTreeSet::new();
     let mut design_units = BTreeSet::new();
@@ -235,6 +291,7 @@ pub fn measure_universality_n(
         }
         if !design_units.insert((
             trial.capability_id.as_str(),
+            trial.task_family_id.as_str(),
             trial.receiver_id.as_str(),
             trial.seed,
         )) {
@@ -268,56 +325,86 @@ pub fn measure_universality_n(
             "universality_held_out_coverage_insufficient".into(),
         ));
     }
+
     let mut capabilities = Vec::with_capacity(groups.len());
     let mut global_successes = 0usize;
     let mut global_trials = 0usize;
     for (capability_id, group) in groups {
-        let successes = group.iter().filter(|trial| trial.passes(protocol)).count();
-        let receivers = group
-            .iter()
-            .map(|t| &t.receiver_id)
-            .collect::<BTreeSet<_>>()
-            .len();
-        let families = group
-            .iter()
-            .map(|t| &t.receiver_family_id)
-            .collect::<BTreeSet<_>>()
-            .len();
-        let seeds = group.iter().map(|t| t.seed).collect::<BTreeSet<_>>().len();
-        let includes_unseen = group.iter().any(|t| !t.receiver_was_calibration);
-        let lower = wilson_lower(successes, group.len(), protocol.confidence_z);
         let successful = group
             .iter()
+            .copied()
             .filter(|trial| trial.passes(protocol))
             .collect::<Vec<_>>();
-        let success_receivers = successful
+        let successes = successful.len();
+        let receivers = group
             .iter()
-            .map(|trial| &trial.receiver_id)
+            .map(|trial| trial.receiver_id.as_str())
             .collect::<BTreeSet<_>>()
             .len();
-        let success_families = successful
+        let receiver_families = group
             .iter()
-            .map(|trial| &trial.receiver_family_id)
+            .map(|trial| trial.receiver_family_id.as_str())
             .collect::<BTreeSet<_>>()
             .len();
-        let success_seeds = successful
+        let task_families = group
+            .iter()
+            .map(|trial| trial.task_family_id.as_str())
+            .collect::<BTreeSet<_>>()
+            .len();
+        let seeds = group
             .iter()
             .map(|trial| trial.seed)
             .collect::<BTreeSet<_>>()
             .len();
+        let includes_unseen_receiver = group.iter().any(|trial| !trial.receiver_was_calibration);
+        let successful_receivers = successful
+            .iter()
+            .map(|trial| trial.receiver_id.as_str())
+            .collect::<BTreeSet<_>>()
+            .len();
+        let successful_receiver_families = successful
+            .iter()
+            .map(|trial| trial.receiver_family_id.as_str())
+            .collect::<BTreeSet<_>>()
+            .len();
+        let successful_task_families = successful
+            .iter()
+            .map(|trial| trial.task_family_id.as_str())
+            .collect::<BTreeSet<_>>()
+            .len();
+        let successful_seeds = successful
+            .iter()
+            .map(|trial| trial.seed)
+            .collect::<BTreeSet<_>>()
+            .len();
+        let unseen_receiver_successes = successful
+            .iter()
+            .filter(|trial| !trial.receiver_was_calibration)
+            .count();
+        let lower = wilson_lower(successes, group.len(), protocol.confidence_z);
+        let receiver_lower =
+            minimum_group_wilson(&group, |trial| trial.receiver_id.as_str(), protocol);
+        let receiver_family_lower =
+            minimum_group_wilson(&group, |trial| trial.receiver_family_id.as_str(), protocol);
+        let task_family_lower =
+            minimum_group_wilson(&group, |trial| trial.task_family_id.as_str(), protocol);
+
         let admitted = successes > 0
-            && success_receivers >= protocol.minimum_receivers_per_capability
-            && success_families >= protocol.minimum_receiver_families_per_capability
-            && success_seeds >= protocol.minimum_seeds_per_capability
-            && (!protocol.require_unseen_receiver
-                || successful
-                    .iter()
-                    .any(|trial| !trial.receiver_was_calibration))
             && receivers >= protocol.minimum_receivers_per_capability
-            && families >= protocol.minimum_receiver_families_per_capability
+            && receiver_families >= protocol.minimum_receiver_families_per_capability
+            && task_families >= protocol.minimum_task_families_per_capability
             && seeds >= protocol.minimum_seeds_per_capability
-            && (!protocol.require_unseen_receiver || includes_unseen)
-            && lower >= protocol.minimum_success_probability;
+            && successful_receivers >= protocol.minimum_receivers_per_capability
+            && successful_receiver_families >= protocol.minimum_receiver_families_per_capability
+            && successful_task_families >= protocol.minimum_task_families_per_capability
+            && successful_seeds >= protocol.minimum_seeds_per_capability
+            && (!protocol.require_unseen_receiver || includes_unseen_receiver)
+            && (!protocol.require_unseen_receiver || unseen_receiver_successes > 0)
+            && lower >= protocol.minimum_success_probability
+            && receiver_lower >= protocol.minimum_success_probability
+            && receiver_family_lower >= protocol.minimum_success_probability
+            && task_family_lower >= protocol.minimum_success_probability;
+
         global_successes += successes;
         global_trials += group.len();
         capabilities.push(CapabilityUniversalityEvidence {
@@ -325,25 +412,38 @@ pub fn measure_universality_n(
             trials: group.len(),
             successes,
             receivers,
-            receiver_families: families,
+            receiver_families,
+            task_families,
             seeds,
-            includes_unseen_receiver: includes_unseen,
+            includes_unseen_receiver,
+            successful_receivers,
+            successful_receiver_families,
+            successful_task_families,
+            successful_seeds,
+            unseen_receiver_successes,
             success_rate: successes as f64 / group.len() as f64,
             wilson_lower_bound: lower,
+            minimum_receiver_wilson_lower_bound: receiver_lower,
+            minimum_receiver_family_wilson_lower_bound: receiver_family_lower,
+            minimum_task_family_wilson_lower_bound: task_family_lower,
             admitted,
         });
     }
-    let universality_n = capabilities.iter().filter(|c| c.admitted).count();
+
+    let universality_n = capabilities
+        .iter()
+        .filter(|capability| capability.admitted)
+        .count();
     let protocol_sha256 = Sha256Digest::digest_domain(
         b"CEREBRO:TIDEX:UNIVERSALITY-PROTOCOL:v1\0",
         &serde_json::to_vec(protocol)?,
     );
     let trials_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSALITY-TRIALS:v1\0",
+        b"CEREBRO:TIDEX:UNIVERSALITY-TRIALS:v2\0",
         &serde_json::to_vec(&(calibration_capabilities, trials))?,
     );
     let mut receipt = UniversalityEvidenceReceipt {
-        schema: "cerebro.tidex.universality_evidence_receipt/v1".into(),
+        schema: "cerebro.tidex.universality_evidence_receipt/v2".into(),
         protocol_sha256,
         trials_sha256,
         calibration_capability_count: calibration_capabilities.len(),
@@ -361,7 +461,7 @@ pub fn measure_universality_n(
     let mut unsigned = receipt.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     receipt.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSALITY-EVIDENCE-RECEIPT:v1\0",
+        b"CEREBRO:TIDEX:UNIVERSALITY-EVIDENCE-RECEIPT:v2\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(receipt)
@@ -370,26 +470,32 @@ pub fn measure_universality_n(
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn n_is_computed_only_from_held_out_zero_step_evidence() {
-        let protocol = UniversalityProtocol {
+
+    fn protocol() -> UniversalityProtocol {
+        UniversalityProtocol {
             schema: "cerebro.tidex.universality_protocol/v1".into(),
             minimum_calibration_capabilities: 1,
             minimum_held_out_capabilities: 1,
             minimum_receivers_per_capability: 2,
             minimum_receiver_families_per_capability: 2,
             minimum_seeds_per_capability: 2,
+            minimum_task_families_per_capability: 1,
+            scope: "held_out_capability_generalization".into(),
             require_unseen_receiver: true,
             minimum_target_score: 0.8,
             minimum_preservation_score: 0.9,
             minimum_identity_margin: 0.2,
             minimum_success_probability: 0.5,
             confidence_z: 1.0,
-        };
-        let trial = |id: &str, receiver: &str, family: &str, seed| UniversalityTrial {
+        }
+    }
+
+    fn trial(id: &str, receiver: &str, family: &str, seed: u64) -> UniversalityTrial {
+        UniversalityTrial {
             schema: "cerebro.tidex.universality_trial/v1".into(),
             trial_id: id.into(),
             capability_id: "held.out".into(),
+            task_family_id: "symbolic_transform".into(),
             receiver_id: receiver.into(),
             receiver_family_id: family.into(),
             seed,
@@ -401,11 +507,15 @@ mod tests {
             wrong_ir_score: 0.1,
             random_delta_score: 0.1,
             unmodified_receiver_score: 0.2,
-        };
-        let calibration_trial = UniversalityTrial {
+        }
+    }
+
+    fn calibration_trial() -> UniversalityTrial {
+        UniversalityTrial {
             schema: "cerebro.tidex.universality_trial/v1".into(),
             trial_id: "calibration-trial".into(),
             capability_id: "calibration".into(),
+            task_family_id: "calibration_family".into(),
             receiver_id: "seen".into(),
             receiver_family_id: "a".into(),
             seed: 0,
@@ -417,38 +527,66 @@ mod tests {
             wrong_ir_score: 0.0,
             random_delta_score: 0.0,
             unmodified_receiver_score: 0.0,
-        };
+        }
+    }
+
+    #[test]
+    fn n_is_computed_only_from_held_out_zero_step_balanced_evidence() {
         let calibration = BTreeSet::from(["calibration".into()]);
         let trials = vec![
-            calibration_trial,
+            calibration_trial(),
             trial("1", "seen", "a", 1),
             trial("2", "unseen", "b", 2),
             trial("3", "unseen", "b", 3),
         ];
-        let receipt = measure_universality_n(&calibration, &trials, &protocol).unwrap();
+        let receipt = measure_universality_n(&calibration, &trials, &protocol()).unwrap();
+        assert_eq!(
+            receipt.schema,
+            "cerebro.tidex.universality_evidence_receipt/v2"
+        );
         assert_eq!(receipt.universality_n, 1);
         let mut reversed = trials.clone();
         reversed.reverse();
         assert_eq!(
-            measure_universality_n(&calibration, &reversed, &protocol).unwrap(),
+            measure_universality_n(&calibration, &reversed, &protocol()).unwrap(),
             receipt
         );
-        let mut relabelled = trials.clone();
-        relabelled[2].receiver_id = "seen".into();
-        assert!(measure_universality_n(&calibration, &relabelled, &protocol).is_err());
-        let mut weak_protocol = protocol.clone();
-        weak_protocol.minimum_success_probability = 0.0;
-        let mut failed_unseen = trials.clone();
-        for trial in &mut failed_unseen {
-            if !trial.receiver_was_calibration {
-                trial.target_score = 0.0;
+    }
+
+    #[test]
+    fn one_failing_receiver_cannot_hide_behind_global_wilson_confidence() {
+        let mut policy = protocol();
+        policy.minimum_seeds_per_capability = 1;
+        policy.minimum_success_probability = 0.4;
+        let mut trials = vec![calibration_trial()];
+        for index in 0..100_u64 {
+            let mut good = trial(&format!("good-{index}"), "seen", "a", index + 1);
+            good.receiver_was_calibration = true;
+            trials.push(good);
+            let mut bad = trial(&format!("bad-{index}"), "unseen", "b", index + 10_000);
+            if index != 0 {
+                bad.target_score = 0.1;
             }
+            trials.push(bad);
         }
-        assert_eq!(
-            measure_universality_n(&calibration, &failed_unseen, &weak_protocol)
-                .unwrap()
-                .universality_n,
-            0
-        );
+        let receipt =
+            measure_universality_n(&BTreeSet::from(["calibration".into()]), &trials, &policy)
+                .unwrap();
+        assert!(receipt.global_wilson_lower_bound > policy.minimum_success_probability);
+        assert!(receipt.capabilities[0].minimum_receiver_wilson_lower_bound < 0.01);
+        assert_eq!(receipt.universality_n, 0);
+    }
+
+    #[test]
+    fn receiver_relabeling_and_zero_confidence_policy_fail_closed() {
+        let calibration = BTreeSet::from(["calibration".into()]);
+        let mut trials = vec![calibration_trial(), trial("1", "seen", "a", 1)];
+        let mut relabelled = trial("2", "seen", "b", 2);
+        relabelled.receiver_was_calibration = true;
+        trials.push(relabelled);
+        assert!(measure_universality_n(&calibration, &trials, &protocol()).is_err());
+        let mut invalid = protocol();
+        invalid.minimum_success_probability = 0.0;
+        assert!(invalid.validate().is_err());
     }
 }

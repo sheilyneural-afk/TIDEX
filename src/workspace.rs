@@ -3,6 +3,7 @@ use crate::authority::{
     read_existing_private_file_bounded, replace_private_file_atomic,
 };
 use crate::error::{BrainError, BrainResult};
+use crate::validation::{validate_http_endpoint, validate_identifier};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -42,10 +43,18 @@ pub struct ModelProfile {
     pub model: String,
 }
 
+fn default_tidex_home() -> BrainResult<PathBuf> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let future_root = manifest_dir
+        .parent()
+        .ok_or_else(|| BrainError::Invalid("future_root_unavailable".into()))?;
+    Ok(future_root.join("cerebro3-runtime/tidex"))
+}
+
 pub fn configured_tidex_home() -> BrainResult<PathBuf> {
     let home = std::env::var_os("TIDEX_HOME")
         .map(PathBuf::from)
-        .ok_or_else(|| BrainError::Invalid("tidex_home_not_configured".into()))?;
+        .unwrap_or(default_tidex_home()?);
     verify_private_directory(&home, "tidex_home")
 }
 
@@ -154,17 +163,7 @@ fn validate_model(profile: &ModelProfile) -> BrainResult<()> {
     {
         return Err(BrainError::Invalid("model_profile_invalid".into()));
     }
-    let endpoint = profile
-        .endpoint
-        .strip_prefix("http://")
-        .or_else(|| profile.endpoint.strip_prefix("https://"))
-        .ok_or_else(|| BrainError::Invalid("model_endpoint_scheme_invalid".into()))?;
-    if endpoint.is_empty()
-        || endpoint.contains(char::is_whitespace)
-        || profile.endpoint.len() > 4096
-    {
-        return Err(BrainError::Invalid("model_endpoint_invalid".into()));
-    }
+    validate_http_endpoint(&profile.endpoint, 4096)?;
     Ok(())
 }
 
@@ -198,17 +197,7 @@ fn verify_private_directory(path: &Path, label: &str) -> BrainResult<PathBuf> {
 }
 
 fn validate_name(name: &str, label: &str) -> BrainResult<()> {
-    if name.is_empty()
-        || name.len() > 128
-        || name == "."
-        || name == ".."
-        || name
-            .chars()
-            .any(|c| !(c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')))
-    {
-        return Err(BrainError::Invalid(format!("{label}_invalid")));
-    }
-    Ok(())
+    validate_identifier(name, label, 128)
 }
 
 fn create_canonical_json<T: Serialize>(home: &Path, path: &Path, value: &T) -> BrainResult<()> {
