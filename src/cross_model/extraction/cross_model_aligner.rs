@@ -7,7 +7,7 @@
 use crate::cross_model::models::{
     sha256_hex, AlignmentMethod, AlignmentResult, DType, Device, LLMModel, ModelAccess, Tensor,
 };
-use crate::linalg::{solve, Matrix};
+use crate::foundation::linalg::{solve, Matrix};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
@@ -325,13 +325,7 @@ fn predict(map: &FittedRidgeMap, source: &Tensor) -> Result<Tensor, String> {
             .map(|row| kernel[row] * map.coefficients[row][column])
             .sum();
     }
-    let result = Tensor::new(
-        target,
-        vec![target_dim],
-        Device::Cpu,
-        DType::F64,
-        map.target_layer,
-    );
+    let result = Tensor::new(target, vec![target_dim], Device::Cpu, DType::F64, map.target_layer);
     result.validate()?;
     Ok(result)
 }

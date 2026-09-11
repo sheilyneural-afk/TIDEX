@@ -1,6 +1,6 @@
 //! Real local Llama-family inference backed by Candle SafeTensors.
 //!
-//! The backend authenticates the exact checkpoint bytes against CEREBRO3's
+//! The backend authenticates the exact checkpoint bytes against TIDE-X's
 //! SafeTensors inventory, parses the tokenizer from those exact bytes, loads the
 //! model on CPU through Candle, and performs autoregressive generation with a
 //! real KV cache. Candle's public Llama API does not expose intermediate block
@@ -70,9 +70,7 @@ impl CandleLlamaModel {
         if ArchitectureFamily::from_runtime_architecture(&runtime_architecture)
             != ArchitectureFamily::Llama
         {
-            return Err(
-                format!("candle_llama_architecture_mismatch:{runtime_architecture}").into(),
-            );
+            return Err(format!("candle_llama_architecture_mismatch:{runtime_architecture}").into());
         }
         let config = local_model_config(
             &name,

@@ -6,15 +6,6 @@
 //! receiver compiler generated that delta. The scientific V67 experiment comes
 //! after this data-plane actuator equivalence gate passes.
 
-use cerebro_tidex::artifact::{sha256_file, ArtifactWriteAuthority, DeltaArtifactRef};
-use cerebro_tidex::block_tomography::ParameterBlockLayout;
-use cerebro_tidex::digest::Sha256Digest;
-use cerebro_tidex::error::{BrainError, BrainResult};
-use cerebro_tidex::identity::TensorId;
-use cerebro_tidex::weight_actuator::{
-    inspect_model_safetensors, materialize_dense_delta_checkpoint, parameter_layout_for_tensors,
-    read_model_tensors_f32, ModelTensorSpec, WeightMaterializationReceipt,
-};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,6 +13,15 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use tidex::analysis::block_tomography::ParameterBlockLayout;
+use tidex::foundation::artifact::{sha256_file, ArtifactWriteAuthority, DeltaArtifactRef};
+use tidex::foundation::digest::Sha256Digest;
+use tidex::foundation::error::{BrainError, BrainResult};
+use tidex::foundation::identity::TensorId;
+use tidex::receiver::weight_actuator::{
+    inspect_model_safetensors, materialize_dense_delta_checkpoint, parameter_layout_for_tensors,
+    read_model_tensors_f32, ModelTensorSpec, WeightMaterializationReceipt,
+};
 
 const SCHEMA: &str = "cerebro.tidex.v67_weight_actuator_smoke/v1";
 const V66_MANIFEST_SCHEMA: &str = "cerebro.tidex.v66_compiled_adapter_artifact/v1";
@@ -330,9 +330,7 @@ fn prepare_patches(
         if !(target.as_str().ends_with(".q_proj.weight")
             || target.as_str().ends_with(".v_proj.weight"))
         {
-            return Err(integrity(format!(
-                "v67_adapter_target_outside_qv_contract:{target}"
-            )));
+            return Err(integrity(format!("v67_adapter_target_outside_qv_contract:{target}")));
         }
         let target_spec = base_by_id
             .get(target)
@@ -352,9 +350,7 @@ fn prepare_patches(
             .get(b_id)
             .ok_or_else(|| integrity("v67_adapter_b_spec_missing"))?;
         if a_spec.shape != vec![rank, input_dim] || b_spec.shape != vec![output_dim, rank] {
-            return Err(integrity(format!(
-                "v67_lora_factor_shape_mismatch:{target}"
-            )));
+            return Err(integrity(format!("v67_lora_factor_shape_mismatch:{target}")));
         }
         let a = tensors
             .get(a_id)
@@ -384,10 +380,7 @@ fn run(args: &Args) -> BrainResult<V67WeightActuatorSmokeReceipt> {
         &args.delta_reference_output,
     ] {
         if !path.is_absolute() || fs::symlink_metadata(path).is_ok() {
-            return Err(invalid(format!(
-                "v67_output_not_new_absolute:{}",
-                path.display()
-            )));
+            return Err(invalid(format!("v67_output_not_new_absolute:{}", path.display())));
         }
     }
     let writer = ArtifactWriteAuthority::open(&args.private_root)?;
@@ -397,11 +390,7 @@ fn run(args: &Args) -> BrainResult<V67WeightActuatorSmokeReceipt> {
     if manifest.get("schema").and_then(Value::as_str) != Some(V66_MANIFEST_SCHEMA) {
         return Err(integrity("v67_v66_manifest_schema_invalid"));
     }
-    if path(
-        &manifest,
-        &["claim_boundary", "direct_weight_translation_established"],
-    )?
-    .as_bool()
+    if path(&manifest, &["claim_boundary", "direct_weight_translation_established"])?.as_bool()
         != Some(false)
     {
         return Err(integrity("v67_source_manifest_claim_boundary_changed"));
@@ -425,10 +414,8 @@ fn run(args: &Args) -> BrainResult<V67WeightActuatorSmokeReceipt> {
     }
 
     let base_inventory = inspect_model_safetensors(&args.base_model)?;
-    let expected_base_sha = Sha256Digest::parse(required_str(
-        &manifest,
-        &["receiver", "weight_file_sha256"],
-    )?)?;
+    let expected_base_sha =
+        Sha256Digest::parse(required_str(&manifest, &["receiver", "weight_file_sha256"])?)?;
     if base_inventory.model_sha256 != expected_base_sha {
         return Err(integrity("v67_base_model_digest_mismatch"));
     }

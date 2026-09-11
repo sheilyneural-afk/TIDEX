@@ -143,8 +143,8 @@ critical_line_floors = {
     "src/engine/transition.rs": 75.0,
     "src/engine/support.rs": 80.0,
     "src/engine/analysis.rs": 85.0,
-    "src/isolated_execution.rs": 85.0,
-    "src/digest.rs": 95.0,
+    "src/runtime/isolated_execution.rs": 85.0,
+    "src/foundation/digest.rs": 95.0,
 }
 files = data["files"]
 for suffix, required in critical_line_floors.items():
@@ -177,7 +177,7 @@ CARGO_TARGET_DIR="$QUALITY_TMP/target-clippy" \
 
 MIRIFLAGS='-Zmiri-strict-provenance -Zmiri-symbolic-alignment-check -Zmiri-isolation-error=abort -Zmiri-many-seeds=0..8'
 export MIRIFLAGS
-for module in low_rank_math linalg trust_region transport; do
+for module in foundation::low_rank_math foundation::linalg analysis::trust_region analysis::transport; do
     CARGO_TARGET_DIR="$QUALITY_TMP/target-miri" \
         cargo "+$QUALITY_NIGHTLY" miri test --lib "${module}::tests" -- --test-threads=1
     printf 'P2 Miri OK: %s\n' "$module"

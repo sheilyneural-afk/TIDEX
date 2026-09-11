@@ -1,8 +1,8 @@
-use cerebro_tidex::authority::read_untrusted_private_file_bounded;
-use cerebro_tidex::contracts::{BrainConfig, DeltaObservation};
-use cerebro_tidex::engine::BrainEngine;
-use cerebro_tidex::security::configured_private_root;
 use std::path::Path;
+use tidex::engine::BrainEngine;
+use tidex::foundation::authority::read_untrusted_private_file_bounded;
+use tidex::foundation::contracts::{BrainConfig, DeltaObservation};
+use tidex::foundation::security::configured_private_root;
 
 const MAX_ANALYZE_INPUT_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -83,8 +83,8 @@ fn load_analyze_observations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cerebro_tidex::security::{secure_dir, secure_file};
     use std::fs;
+    use tidex::foundation::security::{secure_dir, secure_file};
 
     fn private_root(name: &str) -> std::path::PathBuf {
         let root = std::env::temp_dir().join(format!(

@@ -1,10 +1,10 @@
-//! Bridge from CEREBRO3's canonical discovery report to cross-model metadata.
+//! Bridge from TIDE-X's canonical discovery report to cross-model metadata.
 
-use crate::capability_discovery::{
-    CapabilityDiscoveryDisposition, CapabilityDiscoveryReport, DiscoveredCapabilityEvidence,
-};
 use crate::cross_model::models::{
     sha256_hex, CapabilityEvidenceKind, CapabilityMetadata, LLMModel,
+};
+use crate::receiver::capability_discovery::{
+    CapabilityDiscoveryDisposition, CapabilityDiscoveryReport, DiscoveredCapabilityEvidence,
 };
 use std::collections::HashMap;
 

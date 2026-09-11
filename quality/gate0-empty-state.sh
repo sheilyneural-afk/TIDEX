@@ -2,7 +2,7 @@
 set -euo pipefail
 
 WORK_ROOT=${1:?"uso: gate0-empty-state.sh <directorio-de-trabajo-privado>"}
-PROBE_BINARY=${CARGO_TARGET_DIR:?"CARGO_TARGET_DIR no definido"}/debug/cerebro-tidex
+PROBE_BINARY=${CARGO_TARGET_DIR:?"CARGO_TARGET_DIR no definido"}/debug/tidex-engine
 
 cleanup() {
     case "$WORK_ROOT" in
@@ -24,12 +24,12 @@ for installation in installation-a installation-b; do
     install_dir="$WORK_ROOT/$installation"
     state_dir="$install_dir/private-state"
     install -d -m 700 "$install_dir" "$state_dir"
-    install -m 700 "$PROBE_BINARY" "$install_dir/cerebro-tidex"
+    install -m 700 "$PROBE_BINARY" "$install_dir/tidex-engine"
 
     set +e
     (
         cd "$install_dir"
-        TIDEX_PRIVATE_ROOT="$state_dir" ./cerebro-tidex status \
+        TIDEX_PRIVATE_ROOT="$state_dir" ./tidex-engine status \
             >stdout 2>stderr
     )
     code=$?

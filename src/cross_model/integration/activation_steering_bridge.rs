@@ -1,14 +1,14 @@
 //! Thin adapter to the canonical activation-steering materializer.
 
-use crate::activation_steering_materializer::{
+use crate::foundation::error::BrainResult;
+use crate::materialization::activation_steering_materializer::{
     materialize_replayed_activation_steering_shadow, ActivationSteeringLayout,
     ActivationSteeringPolicy, ShadowActivationSteeringCandidate,
 };
-use crate::error::BrainResult;
-use crate::receiver_layout::ReceiverMaterializationLayout;
-use crate::universal_capability_compiler::{
+use crate::materialization::universal_capability_compiler::{
     UniversalCapabilityPlanningRequest, UniversalCapabilityShadowPlanReceipt,
 };
+use crate::receiver::receiver_layout::ReceiverMaterializationLayout;
 
 #[derive(Debug, Clone, Default)]
 pub struct ActivationSteeringBridgeConfig;

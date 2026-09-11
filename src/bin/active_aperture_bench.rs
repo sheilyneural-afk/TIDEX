@@ -1,11 +1,11 @@
-use cerebro_tidex::active::plan_active_apertures;
-use cerebro_tidex::contracts::ApertureCandidate;
-use cerebro_tidex::engine::ReconstructionReport;
-use cerebro_tidex::identity::ApertureId;
-use cerebro_tidex::linalg::{normalize, Matrix};
 use serde_json::json;
 use std::fs;
 use std::path::Path;
+use tidex::analysis::active::plan_active_apertures;
+use tidex::engine::ReconstructionReport;
+use tidex::foundation::contracts::ApertureCandidate;
+use tidex::foundation::identity::ApertureId;
+use tidex::foundation::linalg::{normalize, Matrix};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = std::env::args()

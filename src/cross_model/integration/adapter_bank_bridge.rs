@@ -1,13 +1,13 @@
 //! Thin adapter to the canonical governed adapter bank.
 
-use crate::adapter_bank::{
+use crate::foundation::authority::PrivateFileReference;
+use crate::foundation::error::BrainResult;
+use crate::governance::adapter_bank::{
     AdapterActivationRequest, AdapterBank, AdapterBankCommit, AdapterBankHistoryStatus,
     AdapterBankQuery, AdapterBankReport, AdapterCandidateMaterializationRequest,
     AdapterCompositionRequest, AdapterImportRequest, AdapterRevocationRequest,
     AdapterRollbackRequest,
 };
-use crate::authority::PrivateFileReference;
-use crate::error::BrainResult;
 use std::path::Path;
 
 #[derive(Debug, Clone, Default)]

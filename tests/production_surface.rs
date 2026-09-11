@@ -5,21 +5,12 @@ use std::process::Command;
 
 fn write_minimal_receiver_checkpoint(path: &Path) {
     let tensors = [
-        (
-            "model.layers.0.self_attn.q_proj.weight",
-            [1.0_f32, 2.0, 3.0, 4.0],
-        ),
-        (
-            "model.layers.0.self_attn.v_proj.weight",
-            [-1.0_f32, -2.0, -3.0, -4.0],
-        ),
+        ("model.layers.0.self_attn.q_proj.weight", [1.0_f32, 2.0, 3.0, 4.0]),
+        ("model.layers.0.self_attn.v_proj.weight", [-1.0_f32, -2.0, -3.0, -4.0]),
     ];
     let mut data = Vec::new();
     let mut header = serde_json::Map::new();
-    header.insert(
-        "__metadata__".to_string(),
-        serde_json::json!({"format":"pt"}),
-    );
+    header.insert("__metadata__".to_string(), serde_json::json!({"format":"pt"}));
     for (name, values) in tensors {
         let start = data.len();
         for value in values {
@@ -48,7 +39,7 @@ fn write_minimal_receiver_checkpoint(path: &Path) {
 
 #[test]
 fn primary_cli_rejects_unguarded_mutation_commands_before_opening_state() {
-    let executable = env!("CARGO_BIN_EXE_cerebro-tidex");
+    let executable = env!("CARGO_BIN_EXE_tidex-engine");
     for (command, expected) in [
         (
             "commit",
@@ -69,11 +60,7 @@ fn primary_cli_rejects_unguarded_mutation_commands_before_opening_state() {
             .expect("retired command should execute the primary binary");
         assert_eq!(output.status.code(), Some(2), "command={command}");
         assert_eq!(String::from_utf8(output.stdout).unwrap(), "");
-        assert_eq!(
-            String::from_utf8(output.stderr).unwrap().trim(),
-            expected,
-            "command={command}"
-        );
+        assert_eq!(String::from_utf8(output.stderr).unwrap().trim(), expected, "command={command}");
     }
 }
 
@@ -101,10 +88,7 @@ fn tidex_invalid_guarded_routes_fail_before_opening_private_state() {
         assert_eq!(output.status.code(), Some(2), "route={route:?}");
         assert!(output.stdout.is_empty(), "route={route:?}");
         let stderr = String::from_utf8(output.stderr).unwrap();
-        assert!(
-            stderr.contains("usage:"),
-            "route={route:?}, stderr={stderr}"
-        );
+        assert!(stderr.contains("usage:"), "route={route:?}, stderr={stderr}");
         for command in [
             "receiver verify-profile",
             "receiver verify-live-profile",
@@ -112,13 +96,49 @@ fn tidex_invalid_guarded_routes_fail_before_opening_private_state() {
             "adapter-bank verify-materialization",
             "adapter-bank verify-resolution",
         ] {
-            assert!(
-                stderr.contains(command),
-                "command={command}, stderr={stderr}"
-            );
+            assert!(stderr.contains(command), "command={command}, stderr={stderr}");
         }
         assert!(!stderr.contains("private_root"), "route={route:?}");
     }
+}
+
+#[test]
+fn tidex_graph_emits_a_closed_operator_graph_receipt() {
+    let executable = env!("CARGO_BIN_EXE_tidex");
+    let output = Command::new(executable).args(["graph"]).output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(receipt["schema"], "cerebro.tidex.operator_graph/v1");
+    assert_eq!(receipt["passed"], true);
+    assert_eq!(receipt["findings"].as_array().map(Vec::len), Some(0));
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn tidex_staircase_emits_the_operator_living_staircase_receipt() {
+    let executable = env!("CARGO_BIN_EXE_tidex");
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let home = std::env::temp_dir().join(format!("test-tidex-staircase-{unique}"));
+    std::fs::create_dir_all(&home).unwrap();
+    std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+    let output = Command::new(executable)
+        .args(["staircase"])
+        .env("TIDEX_HOME", &home)
+        .env_remove("TIDEX_PRIVATE_ROOT")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(receipt["schema"], "cerebro.tidex.operator_living_staircase/v1");
+    assert_eq!(receipt["authorizes_production"], false);
+    assert_eq!(receipt["knowledge_live"], false);
+    assert_eq!(receipt["discovery"]["present"], false);
+    assert!(receipt["staircase_sha256"].as_str().unwrap().len() == 64);
+    let _ = std::fs::remove_dir_all(home);
 }
 
 #[test]
@@ -138,12 +158,7 @@ fn tidex_adapter_bank_status_is_valid_on_an_empty_private_authority() {
         .env_remove("TIDEX_HOME")
         .output()
         .unwrap();
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
     let status: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(status["revision"], 0);
     assert_eq!(status["verified_revision_count"], 0);
@@ -213,22 +228,10 @@ fn tidex_profiles_and_reauthenticates_a_physical_receiver_through_the_cli() {
         .env("TIDEX_PRIVATE_ROOT", &root)
         .output()
         .unwrap();
-    assert_eq!(
-        profiled.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&profiled.stderr)
-    );
+    assert_eq!(profiled.status.code(), Some(0), "{}", String::from_utf8_lossy(&profiled.stderr));
     let receipt: serde_json::Value = serde_json::from_slice(&profiled.stdout).unwrap();
-    assert_eq!(
-        receipt["schema"],
-        "cerebro.tidex.receiver_model_profile_receipt/v1"
-    );
-    std::fs::write(
-        &reference,
-        serde_json::to_vec(&receipt["profile_reference"]).unwrap(),
-    )
-    .unwrap();
+    assert_eq!(receipt["schema"], "cerebro.tidex.receiver_model_profile_receipt/v1");
+    std::fs::write(&reference, serde_json::to_vec(&receipt["profile_reference"]).unwrap()).unwrap();
 
     for command in ["verify-profile", "verify-live-profile"] {
         let verified = Command::new(executable)
@@ -288,23 +291,13 @@ fn tidex_capabilities_identify_receiver_profile_and_adapter_bank_engines() {
         .env("TIDEX_HOME", &home)
         .output()
         .unwrap();
-    assert_eq!(
-        create.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&create.stderr)
-    );
+    assert_eq!(create.status.code(), Some(0), "{}", String::from_utf8_lossy(&create.stderr));
     let select = Command::new(executable)
         .args(["workspace", "use", "bank-test"])
         .env("TIDEX_HOME", &home)
         .output()
         .unwrap();
-    assert_eq!(
-        select.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&select.stderr)
-    );
+    assert_eq!(select.status.code(), Some(0), "{}", String::from_utf8_lossy(&select.stderr));
 
     let output = Command::new(executable)
         .arg("capabilities")
@@ -312,12 +305,7 @@ fn tidex_capabilities_identify_receiver_profile_and_adapter_bank_engines() {
         .env_remove("TIDEX_PRIVATE_ROOT")
         .output()
         .unwrap();
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["schema"], "cerebro.tidex.capabilities/v1");
     let capabilities = report["capabilities"].as_array().unwrap();
@@ -394,11 +382,7 @@ fn tidex_operator_acquires_the_selected_external_workspace_target() {
     std::fs::create_dir_all(&home).unwrap();
     std::fs::create_dir_all(target.join("src")).unwrap();
     std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700)).unwrap();
-    std::fs::write(
-        target.join("src/lib.rs"),
-        b"pub fn external_capability() {}\n",
-    )
-    .unwrap();
+    std::fs::write(target.join("src/lib.rs"), b"pub fn external_capability() {}\n").unwrap();
 
     let create = Command::new(executable)
         .args(["workspace", "create", "external", "--target"])
@@ -406,12 +390,7 @@ fn tidex_operator_acquires_the_selected_external_workspace_target() {
         .env("TIDEX_HOME", &home)
         .output()
         .unwrap();
-    assert_eq!(
-        create.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&create.stderr)
-    );
+    assert_eq!(create.status.code(), Some(0), "{}", String::from_utf8_lossy(&create.stderr));
     let selected = Command::new(executable)
         .args(["workspace", "use", "external"])
         .env("TIDEX_HOME", &home)
@@ -425,12 +404,7 @@ fn tidex_operator_acquires_the_selected_external_workspace_target() {
         .env_remove("TIDEX_PRIVATE_ROOT")
         .output()
         .unwrap();
-    assert_eq!(
-        acquired.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&acquired.stderr)
-    );
+    assert_eq!(acquired.status.code(), Some(0), "{}", String::from_utf8_lossy(&acquired.stderr));
     let value: serde_json::Value = serde_json::from_slice(&acquired.stdout).unwrap();
     assert_eq!(value["schema"], "cerebro.tidex.workspace_acquisition/v1");
     assert_eq!(value["workspace"], "external");
@@ -445,12 +419,7 @@ fn tidex_operator_acquires_the_selected_external_workspace_target() {
         .env("TIDEX_HOME", &home)
         .output()
         .unwrap();
-    assert_eq!(
-        scoped.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&scoped.stderr)
-    );
+    assert_eq!(scoped.status.code(), Some(0), "{}", String::from_utf8_lossy(&scoped.stderr));
     let scoped_value: serde_json::Value = serde_json::from_slice(&scoped.stdout).unwrap();
     assert_eq!(scoped_value["completeness"], "declared_scope_only");
 
@@ -511,10 +480,7 @@ fn tidex_portability_benchmark_is_workspace_independent_and_leave_one_out() {
         String::from_utf8_lossy(&output.stderr)
     );
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(
-        report["schema"],
-        "cerebro.tidex.receiver_portability_benchmark/v1"
-    );
+    assert_eq!(report["schema"], "cerebro.tidex.receiver_portability_benchmark/v1");
     assert_eq!(report["case_count"], 6);
     assert_eq!(report["all_resolved"], true);
 }
@@ -553,11 +519,7 @@ fn autonomous_learning_plan_cli_lifecycle() {
         "cost_weight": 0.0,
         "risk_weight": 0.0
     });
-    std::fs::write(
-        &temp_target,
-        serde_json::to_vec_pretty(&target_json).unwrap(),
-    )
-    .unwrap();
+    std::fs::write(&temp_target, serde_json::to_vec_pretty(&target_json).unwrap()).unwrap();
 
     let output = Command::new(executable)
         .arg(&temp_target)
@@ -592,7 +554,7 @@ fn ledger_diagnose_cli_lifecycle() {
         .as_nanos();
     let temp_root = std::env::temp_dir().join(format!("test-ledger-diag-{unique}"));
     std::fs::create_dir_all(&temp_root).unwrap();
-    cerebro_tidex::security::secure_dir(&temp_root).unwrap();
+    tidex::foundation::security::secure_dir(&temp_root).unwrap();
 
     let output = Command::new(executable)
         .env("TIDEX_PRIVATE_ROOT", &temp_root)
@@ -621,7 +583,7 @@ fn adaptive_learning_cycle_cli_routes_fail_closed_on_missing_authority_inputs() 
         .as_nanos();
     let root = std::env::temp_dir().join(format!("test-adaptive-cli-{unique}"));
     std::fs::create_dir_all(&root).unwrap();
-    cerebro_tidex::security::secure_dir(&root).unwrap();
+    tidex::foundation::security::secure_dir(&root).unwrap();
 
     let no_args = Command::new(executable).output().unwrap();
     assert_eq!(no_args.status.code(), Some(2));
@@ -748,7 +710,7 @@ fn tidex_finalize_cli_lifecycle() {
         .as_nanos();
     let root = std::env::temp_dir().join(format!("test-finalize-cli-{unique}"));
     std::fs::create_dir_all(&root).unwrap();
-    cerebro_tidex::security::secure_dir(&root).unwrap();
+    tidex::foundation::security::secure_dir(&root).unwrap();
     let missing = root.join("missing-receipt.json");
     let output = Command::new(executable)
         .args(["session-1", missing.to_str().unwrap()])

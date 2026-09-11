@@ -165,49 +165,34 @@ def reference_file(root: Path, name: str, reference: dict[str, str]) -> Path:
     return path
 
 
-def load_unique_reference_alias(root: Path, names: tuple[str, ...]) -> tuple[Path, dict[str, str]]:
-    """Resolve one explicitly versioned compatibility alias, never first-match fallback."""
-    candidates = [root / "references" / name for name in names]
-    present = [path for path in candidates if path.exists()]
-    if len(present) != 1:
-        raise RuntimeError(
-            "expected exactly one receiver request reference alias: "
-            + ",".join(str(path) for path in candidates)
-        )
-    path = present[0]
+def load_reference_file(root: Path, name: str) -> tuple[Path, dict[str, str]]:
+    path = root / "references" / name
     if path.is_symlink() or not path.is_file():
-        raise RuntimeError("receiver request reference alias is not a regular file")
+        raise RuntimeError("receiver request reference is not a regular file")
     value = json.loads(path.read_bytes())
     if not isinstance(value, dict) or set(value) != {"path", "sha256"}:
-        raise RuntimeError("receiver request reference alias payload invalid")
+        raise RuntimeError("receiver request reference payload invalid")
     read_reference(value)
     return path, value
 
 
 def verify_original_implementation_binding(root: Path, precommit: dict[str, Any]) -> None:
     bundle_reference = precommit.get("reproducibility_bundle")
-    if isinstance(bundle_reference, dict):
-        manifest = read_reference(bundle_reference)
-        if manifest.get("schema") != "cerebro.tidex.experiment_reproducibility_bundle/v1":
-            raise RuntimeError("original reproducibility manifest schema mismatch")
-        relative_collector = str(SOURCE.relative_to(REPO))
-        if manifest.get("collector_sha256") != precommit["collector_sha256"]:
-            raise RuntimeError("original collector digest not bound by reproducibility bundle")
-        if manifest.get("source_sha256", {}).get(relative_collector) != precommit["collector_sha256"]:
-            raise RuntimeError("original collector source missing from reproducibility bundle")
-        bundle_root = Path(bundle_reference["path"]).parent
-        if sha_file(bundle_root / "source" / relative_collector) != precommit["collector_sha256"]:
-            raise RuntimeError("original frozen collector changed")
-        if sha_file(bundle_root / "bin" / "tidex") != precommit["tidex_binary_sha256"]:
-            raise RuntimeError("original frozen compiler changed")
-        return
-    # Explicit v1 compatibility for the already preserved rejected V68 round.
-    collector = root / "rejected-round-source/collector.py"
-    compiler = root / "rejected-round-source/tidex"
-    if sha_file(collector) != precommit["collector_sha256"]:
-        raise RuntimeError("legacy original measurement collector not preserved")
-    if sha_file(compiler) != precommit["tidex_binary_sha256"]:
-        raise RuntimeError("legacy original rejected compiler not preserved")
+    if not isinstance(bundle_reference, dict):
+        raise RuntimeError("reproducibility bundle is required")
+    manifest = read_reference(bundle_reference)
+    if manifest.get("schema") != "cerebro.tidex.experiment_reproducibility_bundle/v1":
+        raise RuntimeError("original reproducibility manifest schema mismatch")
+    relative_collector = str(SOURCE.relative_to(REPO))
+    if manifest.get("collector_sha256") != precommit["collector_sha256"]:
+        raise RuntimeError("original collector digest not bound by reproducibility bundle")
+    if manifest.get("source_sha256", {}).get(relative_collector) != precommit["collector_sha256"]:
+        raise RuntimeError("original collector source missing from reproducibility bundle")
+    bundle_root = Path(bundle_reference["path"]).parent
+    if sha_file(bundle_root / "source" / relative_collector) != precommit["collector_sha256"]:
+        raise RuntimeError("original frozen collector changed")
+    if sha_file(bundle_root / "bin" / "tidex") != precommit["tidex_binary_sha256"]:
+        raise RuntimeError("original frozen compiler changed")
 
 
 def load_model(path: Path, threads: int) -> tuple[Any, Any]:
@@ -506,9 +491,9 @@ def reuse_calibration(base_dir: Path, binary: Path, root: Path, threads: int, ro
     if round_dir.exists():
         raise RuntimeError("method revision already exists; refusing to rerun it")
     old_precommit = json.loads((root / "precommit.json").read_bytes())
-    original_request_path, original_request_ref = load_unique_reference_alias(
+    original_request_path, original_request_ref = load_reference_file(
         root,
-        ("initial-request-correct.json", "request-correct.json"),
+        "initial-request-correct.json",
     )
     request = read_reference(original_request_ref)
     protocol = read_reference(request["protocol"])

@@ -1,17 +1,17 @@
-use cerebro_tidex::artifact::{read_dvec_f32, DeltaArtifactRef};
-use cerebro_tidex::authority::{
-    ensure_private_parent, existing_regular_file_under_root, root_relative_path,
-    write_or_verify_immutable,
-};
-use cerebro_tidex::identity::ProbeId;
-use cerebro_tidex::protected_map::{
-    build_protected_cortex_map, load_protected_cortex, persist_protected_map, SensitivityEvidence,
-};
-use cerebro_tidex::security::configured_private_root;
 use serde::Deserialize;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
+use tidex::analysis::protected_map::{
+    build_protected_cortex_map, load_protected_cortex, persist_protected_map, SensitivityEvidence,
+};
+use tidex::foundation::artifact::{read_dvec_f32, DeltaArtifactRef};
+use tidex::foundation::authority::{
+    ensure_private_parent, existing_regular_file_under_root, root_relative_path,
+    write_or_verify_immutable,
+};
+use tidex::foundation::identity::ProbeId;
+use tidex::foundation::security::configured_private_root;
 
 #[derive(Debug, Deserialize)]
 struct EvidenceRow {
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("usage: protected_map_bench <evidence.json> <output.json>")?;
     let output_path = Path::new(output_path);
     // Validate lexical confinement before creating a single parent directory.
-    // This benchmark may emit evidence, but it never writes outside CEREBRO's
+    // This benchmark may emit evidence, but it never writes outside TIDE-X's
     // authenticated private root.
     root_relative_path(&root, output_path)?;
     ensure_private_parent(&root, output_path)?;
@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 causal_damage: Some(row.causal_damage_per_parameter_norm),
             })
         })
-        .collect::<cerebro_tidex::BrainResult<Vec<_>>>()?;
+        .collect::<tidex::foundation::error::BrainResult<Vec<_>>>()?;
     let dense = build_protected_cortex_map(&evidence, 0.92, 1.0)?;
     let stored = persist_protected_map(&root, &dense)?;
     let loaded = load_protected_cortex(&root, &stored)?;

@@ -1,7 +1,7 @@
 //! Deterministic readiness gates over measured evidence.
 //!
 //! These gates do not authorize production activation. They only decide whether
-//! a cross-model candidate has enough evidence to be handed to CEREBRO3's core
+//! a cross-model candidate has enough evidence to be handed to TIDE-X's core
 //! promotion authority.
 
 use super::{DomainFitnessResult, EvidenceType, ValidationResult};

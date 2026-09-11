@@ -39,7 +39,7 @@ resolve_release_container() {
 resolve_release_dir() {
     local container=$1
     local -a matches=()
-    mapfile -t matches < <(find "$container" -mindepth 1 -maxdepth 1 -type d -name 'cerebro-tidex-*' -print | LC_ALL=C sort)
+    mapfile -t matches < <(find "$container" -mindepth 1 -maxdepth 1 -type d -name 'tidex-*' -print | LC_ALL=C sort)
     [[ ${#matches[@]} -eq 1 ]] || fail "release_directory_count:${#matches[@]}:$container"
     printf '%s\n' "${matches[0]}"
 }
@@ -251,7 +251,7 @@ REVISION_AFTER_RECOVERY=$(python3 -c 'import json,sys; print(json.load(open(sys.
 
 # The installed current binary is real and preserves the fail-closed empty-engine contract.
 set +e
-TIDEX_PRIVATE_ROOT="$STATE_ROOT" "$INSTALL_ROOT/current/bin/cerebro-tidex" status \
+TIDEX_PRIVATE_ROOT="$STATE_ROOT" "$INSTALL_ROOT/current/bin/tidex-engine" status \
     > "$QUALITY_TMP/runtime.out" 2> "$QUALITY_TMP/runtime.err"
 RUNTIME_CODE=$?
 set -e

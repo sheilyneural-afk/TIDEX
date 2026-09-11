@@ -201,8 +201,12 @@ run_check 'Clippy de todos los objetivos sin advertencias' \
     cargo clippy --all-targets --offline --locked -- -D warnings
 run_check 'pruebas de todos los objetivos' \
     cargo test --all-targets --offline --locked
+run_check 'contratos de configuración productiva con todas las features' \
+    cargo test --all-features --offline --locked --test configuration_contracts
+run_check 'compilación de todos los arneses de fuzzing' \
+    cargo check --manifest-path fuzz/Cargo.toml --all-targets --offline --locked
 run_check 'binario primario para prueba aislada de arranque' \
-    cargo build --bin cerebro-tidex --offline --locked
+    cargo build --bin tidex-engine --offline --locked
 run_check 'auditoría de vulnerabilidades raíz sin actualizar la base local' \
     cargo audit --no-fetch --deny warnings
 run_check 'auditoría de vulnerabilidades fuzz sin actualizar la base local' \

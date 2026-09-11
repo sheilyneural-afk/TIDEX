@@ -1,6 +1,6 @@
 //! Executed counterfactual analysis.
 //!
-//! The caller supplies the intervention and verifier. CEREBRO executes both
+//! The caller supplies the intervention and verifier. TIDE-X executes both
 //! prompts on the same runtime and measures the change; it never invents model
 //! output or semantic perturbations.
 

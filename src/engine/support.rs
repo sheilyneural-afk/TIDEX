@@ -50,9 +50,7 @@ pub(super) fn private_file_digest_matches(root: &Path, path: &Path, expected_sha
 pub(super) fn write_new_private(root: &Path, path: &Path, bytes: &[u8]) -> BrainResult<()> {
     let expected = Sha256Digest::digest_bytes(bytes);
     if write_or_verify_immutable(root, path, bytes)? != expected {
-        return Err(BrainError::Integrity(
-            "private_immutable_write_digest_mismatch".into(),
-        ));
+        return Err(BrainError::Integrity("private_immutable_write_digest_mismatch".into()));
     }
     Ok(())
 }
@@ -64,9 +62,7 @@ pub(super) fn write_immutable_exact(
     expected_sha256: &str,
 ) -> BrainResult<()> {
     if sha256_bytes(bytes) != expected_sha256 {
-        return Err(BrainError::Integrity(
-            "private_immutable_expected_digest_mismatch".into(),
-        ));
+        return Err(BrainError::Integrity("private_immutable_expected_digest_mismatch".into()));
     }
     write_new_private(root, path, bytes)
 }
@@ -88,16 +84,12 @@ pub(super) fn replace_private_pointer_exact(
         Path::new("state/sleep_state.json"),
     ];
     if !permitted.contains(&relative.as_path()) {
-        return Err(BrainError::Integrity(
-            "transaction_pointer_target_not_allowlisted".into(),
-        ));
+        return Err(BrainError::Integrity("transaction_pointer_target_not_allowlisted".into()));
     }
     let expected = Sha256Digest::parse(expected_sha)?;
     let installed = replace_private_file_atomic(root, path, bytes, Some(&expected))?;
     if installed != expected {
-        return Err(BrainError::Integrity(
-            "transaction_installed_digest_mismatch".into(),
-        ));
+        return Err(BrainError::Integrity("transaction_installed_digest_mismatch".into()));
     }
     Ok(())
 }
@@ -133,9 +125,7 @@ impl ControllerInvocation {
             || self.state_before.is_empty()
             || self.state_before.iter().any(|value| !value.is_finite())
         {
-            return Err(BrainError::Invalid(
-                "controller_invocation_contract_invalid".into(),
-            ));
+            return Err(BrainError::Invalid("controller_invocation_contract_invalid".into()));
         }
         Ok(())
     }
@@ -290,9 +280,7 @@ pub(super) fn verify_controller_execution_receipt(
         || recorded.receipt.promoted_observation_semantic_sha256
             != invocation.promoted_observation_semantic_sha256
     {
-        return Err(BrainError::Integrity(
-            "controller_execution_receipt_contract_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("controller_execution_receipt_contract_invalid".into()));
     }
     let receipt_path = controller_execution_receipt_path(root, &recorded.receipt_sha256);
     let receipt_bytes =
@@ -301,25 +289,18 @@ pub(super) fn verify_controller_execution_receipt(
     if sha256_bytes(&receipt_bytes) != recorded.receipt_sha256
         || serde_json::from_slice::<ControllerExecutionReceipt>(&receipt_bytes)? != recorded.receipt
     {
-        return Err(BrainError::Integrity(
-            "controller_execution_receipt_bytes_mismatch".into(),
-        ));
+        return Err(BrainError::Integrity("controller_execution_receipt_bytes_mismatch".into()));
     }
     let current_controller =
         load_persisted_runtime_learned_controller(root, invocation.session_id.as_str())?;
     if current_controller.receipt_sha256.as_str()
         != recorded.receipt.controller_receipt_sha256.as_str()
     {
-        return Err(BrainError::Integrity(
-            "controller_execution_controller_receipt_stale".into(),
-        ));
+        return Err(BrainError::Integrity("controller_execution_controller_receipt_stale".into()));
     }
     let governed_path = root
         .join("state/governed_compositions/by-sha")
-        .join(format!(
-            "{}.json",
-            recorded.receipt.governed_composition_receipt_sha256
-        ));
+        .join(format!("{}.json", recorded.receipt.governed_composition_receipt_sha256));
     let governed = load_verified_governed_composition_receipt(
         root,
         &governed_path,
@@ -376,9 +357,7 @@ pub(super) fn observation_set_digest(
         .collect::<BrainResult<Vec<_>>>()?;
     digests.sort();
     digests.dedup();
-    Ok(CorpusDigest::from(Sha256Digest::parse(digest_json(
-        &digests,
-    )?)?))
+    Ok(CorpusDigest::from(Sha256Digest::parse(digest_json(&digests)?)?))
 }
 
 pub(super) fn attach_evidence_support(
@@ -387,9 +366,7 @@ pub(super) fn attach_evidence_support(
     observations: &[DeltaObservation],
 ) -> BrainResult<()> {
     if fields.len() != source_mixtures.len() {
-        return Err(BrainError::Integrity(
-            "field_evidence_support_count_mismatch".into(),
-        ));
+        return Err(BrainError::Integrity("field_evidence_support_count_mismatch".into()));
     }
     for (field, mixture) in fields.iter_mut().zip(source_mixtures) {
         if mixture.len() != observations.len() {
@@ -540,9 +517,7 @@ pub(super) fn verify_commit_transaction_ledger_binding(
     report: &ReconstructionReport,
 ) -> BrainResult<()> {
     if event.payload()? != commit_transaction_payload(intent, observation_count, report) {
-        return Err(BrainError::Integrity(
-            "commit_transaction_ledger_payload_mismatch".into(),
-        ));
+        return Err(BrainError::Integrity("commit_transaction_ledger_payload_mismatch".into()));
     }
     Ok(())
 }
@@ -598,9 +573,7 @@ pub(super) fn verify_sleep_receipt_ledger_binding(
         || required_sleep_state_string(state, "memory_digest")? != receipt.memory_sha256.as_str()
         || current_state_sha256 != receipt.sleep_state_sha256
     {
-        return Err(BrainError::Integrity(
-            "sleep_receipt_state_binding_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("sleep_receipt_state_binding_invalid".into()));
     }
     for field in [
         "corpus_digest",
@@ -615,9 +588,7 @@ pub(super) fn verify_sleep_receipt_ledger_binding(
     if state.get("active_bank_sha256") != Some(&expected_bank)
         || state.get("evidence_bundle_sha256") != Some(&expected_evidence)
     {
-        return Err(BrainError::Integrity(
-            "sleep_receipt_optional_state_binding_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("sleep_receipt_optional_state_binding_invalid".into()));
     }
     let certification_status =
         CertificationStatus::parse(required_sleep_state_string(state, "certification_status")?)
@@ -640,9 +611,7 @@ pub(super) fn verify_sleep_receipt_ledger_binding(
         receipt.active_bank_sha256.as_deref(),
     );
     if receipt.operation_key != expected_operation_key {
-        return Err(BrainError::Integrity(
-            "sleep_receipt_operation_key_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("sleep_receipt_operation_key_invalid".into()));
     }
     let event = ledger::find_v2_event_by_payload_string(
         root,
@@ -672,15 +641,11 @@ pub(super) fn verify_sleep_receipt_ledger_binding(
             != Some(certification_status.as_str())
         || payload.get("promoted").and_then(Value::as_bool) != Some(promoted)
     {
-        return Err(BrainError::Integrity(
-            "sleep_receipt_ledger_payload_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("sleep_receipt_ledger_payload_invalid".into()));
     }
     for field in ["corpus_digest", "analysis_version_digest", "config_digest"] {
         if payload.get(field) != state.get(field) {
-            return Err(BrainError::Integrity(format!(
-                "sleep_receipt_ledger_{field}_mismatch"
-            )));
+            return Err(BrainError::Integrity(format!("sleep_receipt_ledger_{field}_mismatch")));
         }
     }
     Ok(())
@@ -711,9 +676,7 @@ pub(super) fn verify_sleep_transaction_ledger_binding(
         "promoted":intent.promoted,
     });
     if event.payload()? != expected {
-        return Err(BrainError::Integrity(
-            "sleep_transaction_ledger_payload_mismatch".into(),
-        ));
+        return Err(BrainError::Integrity("sleep_transaction_ledger_payload_mismatch".into()));
     }
     Ok(())
 }
@@ -815,7 +778,7 @@ pub(super) fn archive_private_state_file(
     }
     match fs::symlink_metadata(source) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound && expected_sha256.is_none() => {
-            return Ok(())
+            return Ok(());
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             if let Some(expected) = expected_sha256 {
@@ -854,7 +817,7 @@ pub(super) fn load_observations_from_private_directory(
 ) -> BrainResult<Vec<DeltaObservation>> {
     match fs::symlink_metadata(directory) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound && missing_is_empty => {
-            return Ok(Vec::new())
+            return Ok(Vec::new());
         }
         Err(error) => return Err(error.into()),
         Ok(_) => {}
@@ -863,9 +826,7 @@ pub(super) fn load_observations_from_private_directory(
     let mut paths = Vec::new();
     for path in list_existing_private_directory(root, &directory)? {
         if path.extension().and_then(|value| value.to_str()) != Some("json") {
-            return Err(BrainError::Integrity(
-                "persisted_observations_entry_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("persisted_observations_entry_invalid".into()));
         }
         paths.push(existing_regular_file_under_root(root, &path)?);
     }
@@ -882,9 +843,7 @@ pub(super) fn load_observations_from_private_directory(
             || !ids.insert(observation.observation_id.clone())
             || !digests.insert(digest)
         {
-            return Err(BrainError::Integrity(
-                "persisted_observation_identity_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("persisted_observation_identity_invalid".into()));
         }
         out.push(observation);
     }
@@ -931,17 +890,10 @@ pub(super) fn verify_learning_finalization_commit_binding(
     )?;
     let memory_sha = Sha256Digest::digest_bytes(&serialize_pretty_line(&memory)?);
     let mut shadow_bank = SkillBank::default();
-    assimilate_bank(
-        &mut shadow_bank,
-        &report.fields,
-        BrainConfig::default().skill_match_cosine,
-    )?;
+    assimilate_bank(&mut shadow_bank, &report.fields, BrainConfig::default().skill_match_cosine)?;
     let shadow_bank_sha = Sha256Digest::digest_bytes(&serialize_pretty_line(&shadow_bank)?);
-    let expected_operation_key = commit_operation_key(
-        &expected_batch_digest,
-        report,
-        receipt.report_sha256.as_str(),
-    );
+    let expected_operation_key =
+        commit_operation_key(&expected_batch_digest, report, receipt.report_sha256.as_str());
     if expected_batch_digest != receipt.new_corpus_digest.as_str()
         || commit.schema != "cerebro.tidex.commit_receipt/v2"
         || commit.legacy_recovery
@@ -956,11 +908,8 @@ pub(super) fn verify_learning_finalization_commit_binding(
             "learning_finalization_commit_receipt_contract_invalid".into(),
         ));
     }
-    PrivateFileReference::new(
-        memory_artifact_path(root, &commit.memory_sha256),
-        memory_sha,
-    )
-    .verify(root)?;
+    PrivateFileReference::new(memory_artifact_path(root, &commit.memory_sha256), memory_sha)
+        .verify(root)?;
     PrivateFileReference::new(
         root.join("state/skill_banks/by-sha")
             .join(format!("{shadow_bank_sha}.json")),
@@ -1261,17 +1210,13 @@ pub fn load_verified_governed_composition_receipt(
 ) -> BrainResult<GovernedCompositionReceipt> {
     let root = verify_internal_private_root(root.as_ref())?;
     if !valid_digest(receipt_sha256) {
-        return Err(BrainError::Integrity(
-            "governed_composition_receipt_digest_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("governed_composition_receipt_digest_invalid".into()));
     }
     let expected_receipt_path = root
         .join("state/governed_compositions/by-sha")
         .join(format!("{}.json", receipt_sha256.to_ascii_lowercase()));
     if receipt_path.as_ref() != expected_receipt_path {
-        return Err(BrainError::Integrity(
-            "governed_composition_receipt_identity_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("governed_composition_receipt_identity_invalid".into()));
     }
     let receipt_reference =
         PrivateFileReference::new(expected_receipt_path, Sha256Digest::parse(receipt_sha256)?);
@@ -1329,19 +1274,16 @@ pub fn load_verified_governed_composition_receipt(
         || !receipt.protection.max_weighted_residual.is_finite()
         || !valid_digest(&receipt.source_observation_sha256)
     {
-        return Err(BrainError::Integrity(
-            "governed_composition_receipt_contract_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("governed_composition_receipt_contract_invalid".into()));
     }
     ParameterLayoutAuthority::open(&root)?.authenticate_canonical_binding(
         receipt.parameter_layout_artifact.clone(),
         &receipt.parameter_layout_sha256,
         receipt.projected_delta.parameter_count,
     )?;
-    let expected_projected_path = root.join("artifacts/deltas/by-sha").join(format!(
-        "{}.dvec",
-        receipt.projected_delta.sha256.to_ascii_lowercase()
-    ));
+    let expected_projected_path = root
+        .join("artifacts/deltas/by-sha")
+        .join(format!("{}.dvec", receipt.projected_delta.sha256.to_ascii_lowercase()));
     if receipt.projected_delta.path != expected_projected_path {
         return Err(BrainError::Integrity(
             "governed_composition_projected_delta_path_invalid".into(),
@@ -1470,7 +1412,7 @@ pub fn load_verified_governed_composition_receipt(
     }
 
     // A receipt is evidence of a prior decision, not authority by itself.
-    // Reconstruct the decision under the *current* certified CEREBRO state and
+    // Reconstruct the decision under the *current* certified TIDE-X state and
     // compare every executable output before a controller may use it.
     let engine = BrainEngine::open(&root, BrainConfig::default())?;
     engine.require_no_incomplete_corpus_transition()?;
@@ -1563,9 +1505,7 @@ pub(super) fn load_verified_learning_finalization_receipt_under_root(
         || receipt.schema != "cerebro.tidex.learning_finalization_receipt/v1"
         || receipt.representation_observation_bindings.is_empty()
     {
-        return Err(BrainError::Integrity(
-            "learning_finalization_receipt_contract_invalid".into(),
-        ));
+        return Err(BrainError::Integrity("learning_finalization_receipt_contract_invalid".into()));
     }
 
     let input = prepare_learning_finalization(
@@ -1620,7 +1560,7 @@ pub(super) fn load_verified_learning_finalization_receipt_under_root(
         Some(_) => {
             return Err(BrainError::Integrity(
                 "learning_finalization_recovery_operation_mismatch".into(),
-            ))
+            ));
         }
     }
     let current = canonical_observations(&engine.load_persisted_observations()?);

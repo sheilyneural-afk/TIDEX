@@ -241,12 +241,8 @@ impl RoutingPlasticity {
             })
             .ok_or("no_routing_candidate_passed_policy")?;
         let evidence_sha256 = sha256_hex(
-            &serde_json::to_vec(&(
-                capability,
-                observations,
-                selected.0.evidence_sha256.as_str(),
-            ))
-            .map_err(|error| format!("routing_serialize:{error}"))?,
+            &serde_json::to_vec(&(capability, observations, selected.0.evidence_sha256.as_str()))
+                .map_err(|error| format!("routing_serialize:{error}"))?,
         );
         let decision = RoutingDecision {
             target_model: selected.0.model.clone(),

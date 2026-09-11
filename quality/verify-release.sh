@@ -7,7 +7,7 @@ EXPECTED_BINARIES=(
     acquire-system
     adaptive-learning-cycle
     autonomous-learning-plan
-    cerebro-tidex
+    tidex-engine
     ledger-diagnose
     pure-linear-runner
     record-representation-evidence
@@ -63,7 +63,7 @@ if manifest.get('schema')!='cerebro.tidex.release_manifest/v1':
     print('release verification rejected: release_manifest_schema_invalid',file=sys.stderr); raise SystemExit(2)
 if manifest.get('release_id')!=root.name:
     print('release verification rejected: release_manifest_id_mismatch',file=sys.stderr); raise SystemExit(2)
-if manifest.get('package')!='cerebro-tidex':
+if manifest.get('package')!='tidex':
     print('release verification rejected: release_manifest_package_invalid',file=sys.stderr); raise SystemExit(2)
 if not isinstance(manifest.get('target'),str) or not manifest['target']:
     print('release verification rejected: release_manifest_target_invalid',file=sys.stderr); raise SystemExit(2)

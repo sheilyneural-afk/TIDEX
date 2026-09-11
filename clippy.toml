@@ -1,18 +1,5 @@
-# Quality baseline for clippy. The project is strict about evidence, but it keeps
-# the signal focused on correctness and API hygiene rather than formatting-only noise.
-warn = [
-  "clippy::all",
-  "clippy::pedantic",
-  "clippy::nursery",
-]
-allow = [
-  "clippy::module_name_repetitions",
-  "clippy::missing_errors_doc",
-  "clippy::must_use_candidate",
-  "clippy::similar_names",
-]
-deny = [
-  "clippy::unwrap_used",
-  "clippy::panic",
-  "clippy::expect_used",
-]
+# Clippy configuration values only. Lint levels belong in Cargo.toml or the
+# command line; putting warn/allow/deny arrays here makes Clippy reject the file.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

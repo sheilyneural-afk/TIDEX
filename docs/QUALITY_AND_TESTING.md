@@ -1,4 +1,4 @@
-# Calidad y validación de CEREBRO3
+# Calidad y validación de TIDE-X
 
 Este repositorio no sigue una política de "tests que pasan por casualidad". La calidad se define con tres capas:
 
@@ -19,10 +19,15 @@ Se recomienda seguir este orden:
 
 ```bash
 cargo fmt --all -- --check
-cargo check --all-targets
-cargo test --lib
-cargo test --test brain --test production_surface --test quality_properties --test convergence_pipeline
+cargo clippy --all-targets --all-features --offline --locked -- -D warnings
+cargo check --all-targets --all-features --locked
+cargo test --lib --all-features --locked
+cargo test --all-features --locked --test production_surface --test quality_properties --test convergence_pipeline
+cargo test --locked --all-features --test configuration_contracts
+cargo check --locked --manifest-path fuzz/Cargo.toml --all-targets
 ```
+
+**Importante:** no lanzar varios `cargo test` o `cargo build` en paralelo sobre el mismo checkout. `TIDEX_SOURCE_TREE_DIGEST` se congela en compile time (`env!()` en `receiver_compiler.rs`); builds concurrentes pueden desalinear binarios y artefactos congelados y provocar `frozen_receiver_compiler_source_mismatch` en `convergence_pipeline`. Usar un solo proceso de Cargo a la vez, o el target `make integration` que agrupa los tests de integración en una invocación.
 
 ## 3. Estructura de pruebas real
 
@@ -31,14 +36,18 @@ El proyecto no depende de una única suite global; su catálogo de pruebas está
 Comandos útiles:
 
 ```bash
-cargo test --lib
-cargo test --test brain
-cargo test --test production_surface
-cargo test --test quality_properties
-cargo test --test convergence_pipeline
+cargo test --lib --all-features
+cargo test --all-features --test production_surface
+cargo test --all-features --test quality_properties
+cargo test --all-features --test convergence_pipeline
+cargo test --all-features --test configuration_contracts
 ```
 
 La clave es ser explícito: cuando se llama a `cargo test` con un filtro, la salida puede mostrar 0 tests para otros targets. Eso no indica fallo; indica que el filtro no coincide con ese conjunto.
+
+`Cargo.toml` tiene `autotests = false`. Sólo se conservan tests externos registrados explícitamente; los antiguos tests huérfanos se retiraron o consolidaron en la autoridad canónica correspondiente.
+
+GitHub Actions replica este pipeline, ejecuta Clippy con `-D warnings` y usa Rust 1.96.0, igual que `rust-toolchain.toml`. Las puertas de `quality/` añaden audit, fuzzing, sanitizadores y destinos temporales.
 
 ## 4. Criterio de calidad
 

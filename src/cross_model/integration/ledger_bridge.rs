@@ -1,8 +1,8 @@
 //! Thin adapter to the canonical hash-chained ledger.
 
 use crate::cross_model::models::CapabilityMetadata;
-use crate::error::BrainResult;
-use crate::ledger::{append, verify, LedgerEvent, LedgerStatus};
+use crate::foundation::error::BrainResult;
+use crate::foundation::ledger::{append, verify, LedgerEvent, LedgerStatus};
 use serde_json::{json, Value};
 use std::path::Path;
 
@@ -24,12 +24,8 @@ impl LedgerBridge {
     ) -> BrainResult<LedgerEvent> {
         capability
             .validate()
-            .map_err(crate::error::BrainError::Invalid)?;
-        append(
-            root,
-            "cross_model.discovery",
-            serde_json::to_value(capability)?,
-        )
+            .map_err(crate::foundation::error::BrainError::Invalid)?;
+        append(root, "cross_model.discovery", serde_json::to_value(capability)?)
     }
 
     pub fn log_transfer(
@@ -41,9 +37,9 @@ impl LedgerBridge {
     ) -> BrainResult<LedgerEvent> {
         capability
             .validate()
-            .map_err(crate::error::BrainError::Invalid)?;
+            .map_err(crate::foundation::error::BrainError::Invalid)?;
         if target_model.trim().is_empty() {
-            return Err(crate::error::BrainError::Invalid(
+            return Err(crate::foundation::error::BrainError::Invalid(
                 "cross_model_ledger_target_invalid".into(),
             ));
         }

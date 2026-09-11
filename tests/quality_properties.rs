@@ -1,4 +1,4 @@
-use cerebro_tidex::low_rank_math::{
+use tidex::foundation::low_rank_math::{
     solve_regularized_multi_case_low_rank, MultiCaseLowRankSolution,
 };
 

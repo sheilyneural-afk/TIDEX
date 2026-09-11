@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TIDE-X | Interfaz</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">T</div>
+          <div>
+            <h1>TIDE-X</h1>
+            <small>Interfaz del cerebro</small>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-item active" data-panel="overview">Resumen</button>
+          <button class="nav-item" data-panel="pipeline">Orquestación</button>
+          <button class="nav-item" data-panel="plasticity">Plasticidad</button>
+          <button class="nav-item" data-panel="modules">Autoridades</button>
+          <button class="nav-item" data-panel="evidence">Evidencia</button>
+        </nav>
+
+        <div class="mini-panel status-panel">
+          <div class="status-row">
+            <span class="status-dot" id="statusDot"></span>
+            <span>Estado de TIDE-X</span>
+          </div>
+          <strong id="systemStatus">Sin conexión</strong>
+          <div id="runtimeBadge" class="runtime-badge">buscando API</div>
+          <a class="operator-link" href="/operator">Catálogo / recetas</a>
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">INTERFAZ DE EJECUCIÓN</p>
+            <h2>Control de TIDE-X</h2>
+          </div>
+          <div class="header-actions">
+            <button id="scanBtn" class="secondary">Escanear modelos</button>
+            <button id="refreshBtn" class="secondary">Actualizar</button>
+            <button id="resetBtn" class="secondary">Reiniciar</button>
+          </div>
+        </header>
+
+        <section id="overview" class="panel active">
+          <div class="metrics">
+            <article class="metric-card ok">
+              <span class="label">API</span>
+              <strong id="metricAuthority">—</strong>
+            </article>
+            <article class="metric-card warn">
+              <span class="label">Jobs con receipt</span>
+              <strong id="metricEvidence">0/0</strong>
+            </article>
+            <article class="metric-card info">
+              <span class="label">Modelos</span>
+              <strong id="metricCapacity">0</strong>
+            </article>
+            <article class="metric-card accent">
+              <span class="label">Motor</span>
+              <strong id="metricRuntime">—</strong>
+            </article>
+          </div>
+
+          <div class="grid two-columns">
+            <div class="card">
+              <div class="card-head">
+                <h3>Conexión</h3>
+                <span class="pill" id="phasePill">OFFLINE</span>
+              </div>
+              <ul class="timeline" id="timelineList">
+                <li>Conectar a /api/info</li>
+                <li>Catalogar modelos</li>
+                <li>Elegir workflow real</li>
+                <li>Persistir job y receipt</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <h3>Resumen operativo</h3>
+              </div>
+              <div id="summaryBox" class="summary-box">
+                Esta es la interfaz de TIDE-X. Habla con el runtime local. No inventa autoridad ni receipts.
+              </div>
+            </div>
+          </div>
+
+          <div class="card full">
+            <div class="card-head">
+              <h3>Eventos</h3>
+            </div>
+            <div id="eventLog" class="event-log"></div>
+          </div>
+        </section>
+
+        <section id="pipeline" class="panel">
+          <div class="card full">
+            <div class="card-head">
+              <h3>Asistente operativo TIDE-X</h3>
+            </div>
+
+            <div class="goal-editor">
+              <label>
+                Nota (no es un parámetro reservado del runtime)
+                <textarea id="goalInput" rows="3">Comprobar modelos locales y lanzar solo un workflow que TIDE-X acepte.</textarea>
+              </label>
+              <div class="goal-actions">
+                <button class="secondary" id="buildPipelineBtn">Revisar plan</button>
+                <button class="primary" id="runCycleBtn">Ejecutar workflow</button>
+              </div>
+            </div>
+
+            <div class="workflow-wizard">
+              <details class="wizard-step accordion-panel" open>
+                <summary>
+                  <span class="step-index">1</span>
+                  <span>Modelos catalogados</span>
+                </summary>
+                <div class="accordion-content">
+                  <div id="modelSelector" class="selection-list"></div>
+                </div>
+              </details>
+
+              <details class="wizard-step accordion-panel" open>
+                <summary>
+                  <span class="step-index">2</span>
+                  <span>Dataset / benchmark</span>
+                </summary>
+                <div class="accordion-content">
+                  <div id="datasetSelector" class="selection-list dataset-list"></div>
+                  <label class="upload-field">
+                    <span>Cargar JSON, JSONL, CSV o texto</span>
+                    <input id="datasetUpload" type="file" accept=".json,.jsonl,.csv,.txt" />
+                  </label>
+                  <div id="datasetValidation" class="validation-box neutral">
+                    El descubrimiento conductual exige un JSON con schema cerebro.cross_model.behavioral_benchmark/v1.
+                  </div>
+                </div>
+              </details>
+
+              <details class="wizard-step accordion-panel" open>
+                <summary>
+                  <span class="step-index">3</span>
+                  <span>Operación</span>
+                </summary>
+                <div class="accordion-content">
+                  <div id="workflowSelector" class="workflow-list"></div>
+                </div>
+              </details>
+
+              <details class="wizard-step summary-step accordion-panel" open>
+                <summary>
+                  <span class="step-index">4</span>
+                  <span>Plan y lanzamiento</span>
+                </summary>
+                <div class="accordion-content">
+                  <div id="executionSummary" class="summary-box"></div>
+                  <div class="goal-actions compact-actions">
+                    <button class="primary" id="runSelectedWorkflowBtn">Lanzar job</button>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div id="pipelineOverview" class="pipeline-overview"></div>
+          </div>
+        </section>
+
+        <section id="plasticity" class="panel">
+          <div class="card full">
+            <div class="card-head">
+              <h3>Plasticidad y routing</h3>
+            </div>
+            <div class="plasticity-tabs" id="plasticityTabs">
+              <button class="tab-btn active" data-tab="state">Estado</button>
+              <button class="tab-btn" data-tab="experiments">Experimentos</button>
+              <button class="tab-btn" data-tab="elo">ELO</button>
+              <button class="tab-btn" data-tab="routes">Rutas</button>
+              <button class="tab-btn" data-tab="learning">Aprendizaje</button>
+            </div>
+            <div id="plasticityPanel" class="plasticity-panel"></div>
+          </div>
+        </section>
+
+        <section id="modules" class="panel">
+          <div class="card full">
+            <div class="card-head">
+              <h3>Autoridades y áreas de TIDE-X</h3>
+            </div>
+            <div id="moduleGrid" class="module-grid"></div>
+          </div>
+        </section>
+
+        <section id="evidence" class="panel">
+          <div class="card full">
+            <div class="card-head">
+              <h3>Traza de evidencia</h3>
+            </div>
+            <div id="evidenceLog" class="evidence-log"></div>
+          </div>
+
+          <div class="card full">
+            <div class="card-head">
+              <h3>Jobs y receipts</h3>
+            </div>
+            <div id="receiptList" class="receipt-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

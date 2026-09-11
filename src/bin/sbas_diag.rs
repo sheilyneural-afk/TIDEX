@@ -1,9 +1,9 @@
-use cerebro_tidex::contracts::DeltaObservation;
-use cerebro_tidex::linalg::{norm, sub};
-use cerebro_tidex::sbas::reconstruct_trajectory;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
+use tidex::analysis::sbas::reconstruct_trajectory;
+use tidex::foundation::contracts::DeltaObservation;
+use tidex::foundation::linalg::{norm, sub};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = std::env::args()

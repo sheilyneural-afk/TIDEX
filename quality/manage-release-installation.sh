@@ -204,7 +204,7 @@ write_activation(){
     write_json_atomic "$root/activation.json" "$payload"
 }
 
-validate_release_id(){ [[ "$1" =~ ^cerebro-tidex-[A-Za-z0-9._+-]+-[A-Za-z0-9_.-]+-[0-9a-f]{12}$ ]] || fail 'release_id_invalid'; }
+validate_release_id(){ [[ "$1" =~ ^tidex-[A-Za-z0-9._+-]+-[A-Za-z0-9_.-]+-[0-9a-f]{12}$ ]] || fail 'release_id_invalid'; }
 
 check_release_dir(){
     local root=$1

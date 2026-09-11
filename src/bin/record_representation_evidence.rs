@@ -1,6 +1,6 @@
-use cerebro_tidex::representation_evidence::record_representation_evidence;
-use cerebro_tidex::security::configured_private_root;
 use std::path::Path;
+use tidex::foundation::security::configured_private_root;
+use tidex::learning::representation_evidence::record_representation_evidence;
 
 fn main() {
     if let Err(error) = run() {
@@ -35,9 +35,6 @@ mod tests {
         assert!(parse_arguments(&["".into()]).is_err());
         assert!(parse_arguments(&["   ".into()]).is_err());
         assert!(parse_arguments(&["a.json".into(), "b.json".into()]).is_err());
-        assert_eq!(
-            parse_arguments(&["payload.json".into()]).unwrap(),
-            "payload.json"
-        );
+        assert_eq!(parse_arguments(&["payload.json".into()]).unwrap(), "payload.json");
     }
 }

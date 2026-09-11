@@ -73,10 +73,8 @@ impl PIController {
             return Err("pi_controller_input_invalid".into());
         }
         let error = setpoint - measurement;
-        let candidate_integral = (self.state.integral + error * dt).clamp(
-            -self.config.integral_windup_limit,
-            self.config.integral_windup_limit,
-        );
+        let candidate_integral = (self.state.integral + error * dt)
+            .clamp(-self.config.integral_windup_limit, self.config.integral_windup_limit);
         let raw =
             self.config.proportional_gain * error + self.config.integral_gain * candidate_integral;
         let output = raw.clamp(self.config.output_min, self.config.output_max);

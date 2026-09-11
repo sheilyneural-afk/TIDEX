@@ -3,9 +3,7 @@ use super::*;
 impl BrainEngine {
     pub(super) fn verify_runtime_composition_bank(&self, bank: &SkillBank) -> BrainResult<()> {
         if bank.fields.is_empty() {
-            return Err(BrainError::Integrity(
-                "runtime_composition_bank_empty".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_composition_bank_empty".into()));
         }
         let layout_ids = bank
             .fields
@@ -552,9 +550,7 @@ impl BrainEngine {
             .map(|field| field.skill_id.clone())
             .collect::<Vec<_>>();
         if bank_ids != bundle.field_ids {
-            return Err(BrainError::Integrity(
-                "runtime_evidence_bank_identity_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_evidence_bank_identity_mismatch".into()));
         }
 
         let protected_bytes = self.canonical_evidence_bytes(
@@ -571,9 +567,7 @@ impl BrainEngine {
                 .and_then(serde_json::Value::as_bool)
                 != Some(false)
         {
-            return Err(BrainError::Integrity(
-                "runtime_protected_map_contract_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_protected_map_contract_invalid".into()));
         }
         let protected_map: ProtectedMapArtifactReport = serde_json::from_value(
             protected_wrapper
@@ -593,9 +587,7 @@ impl BrainEngine {
             .and_then(serde_json::Value::as_str)
             != Some("cerebro.tidex.trust_region_benchmark/v3")
         {
-            return Err(BrainError::Integrity(
-                "runtime_interaction_contract_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_interaction_contract_invalid".into()));
         }
         let interaction_ids = interaction_payload
             .get("field_ids")
@@ -611,9 +603,7 @@ impl BrainEngine {
             })
             .collect::<BrainResult<Vec<_>>>()?;
         if interaction_ids != bank_ids {
-            return Err(BrainError::Integrity(
-                "runtime_interaction_bank_identity_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_interaction_bank_identity_mismatch".into()));
         }
         let interaction_rows = interaction_payload
             .get("interaction_matrix")
@@ -634,9 +624,7 @@ impl BrainEngine {
             .collect::<BrainResult<Vec<_>>>()?;
         let interaction = Matrix::from_rows(&interaction_rows)?;
         if interaction.rows != bank.fields.len() || interaction.cols != bank.fields.len() {
-            return Err(BrainError::Integrity(
-                "runtime_interaction_shape_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_interaction_shape_mismatch".into()));
         }
         let max_quadratic_cost = interaction_payload
             .get("diagonal_budget")
@@ -649,9 +637,7 @@ impl BrainEngine {
             .filter(|value| valid_digest(value))
             .ok_or_else(|| BrainError::Integrity("runtime_trust_causal_digest_missing".into()))?;
         if trust_causal_credit_sha256 != bundle.causal_credit.credit_source_sha256.as_str() {
-            return Err(BrainError::Integrity(
-                "runtime_trust_causal_digest_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_trust_causal_digest_mismatch".into()));
         }
         let trust_payload = interaction_payload
             .get("trust_region")
@@ -661,9 +647,7 @@ impl BrainEngine {
             .and_then(serde_json::Value::as_str)
             != Some("causal_priority_contraction/v1")
         {
-            return Err(BrainError::Integrity(
-                "runtime_trust_policy_not_causal".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_trust_policy_not_causal".into()));
         }
         let stored_causal_priority_weights = trust_payload
             .get("causal_priority_weights")
@@ -693,9 +677,7 @@ impl BrainEngine {
                     .is_none_or(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
             })
         {
-            return Err(BrainError::Integrity(
-                "runtime_trust_causal_contract_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_trust_causal_contract_invalid".into()));
         }
 
         let causal_bytes = self.canonical_evidence_bytes(
@@ -712,9 +694,7 @@ impl BrainEngine {
                 .and_then(serde_json::Value::as_bool)
                 != Some(false)
         {
-            return Err(BrainError::Integrity(
-                "runtime_causal_credit_contract_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_causal_credit_contract_invalid".into()));
         }
         let causal: CausalCreditReport = serde_json::from_value(
             causal_wrapper
@@ -729,9 +709,7 @@ impl BrainEngine {
             .collect::<BTreeSet<_>>();
         let bank_id_set = bank_ids.iter().cloned().collect::<BTreeSet<_>>();
         if causal_ids != bank_id_set || !causal.unresolved_fields.is_empty() {
-            return Err(BrainError::Integrity(
-                "runtime_causal_credit_identity_unresolved".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_causal_credit_identity_unresolved".into()));
         }
         let expected_causal_priority_weights =
             certified_causal_priority_weights(&causal, &bank_ids)?;
@@ -743,9 +721,7 @@ impl BrainEngine {
                 (stored - expected).abs() > causal_tolerance * (1.0 + expected.abs())
             })
         {
-            return Err(BrainError::Integrity(
-                "runtime_trust_causal_weight_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_trust_causal_weight_mismatch".into()));
         }
         Ok((protected, interaction, max_quadratic_cost, causal))
     }
@@ -809,9 +785,7 @@ impl BrainEngine {
         })?;
         let layout = self.load_parameter_layout(layout_sha.as_str())?;
         if protected.parameter_importance.len() != layout.total_parameter_count as usize {
-            return Err(BrainError::Invalid(
-                "protected_cortex_parameter_space_mismatch".into(),
-            ));
+            return Err(BrainError::Invalid("protected_cortex_parameter_space_mismatch".into()));
         }
         let mut delta = vec![0.0f64; layout.total_parameter_count as usize];
         for (field, coefficient) in bank.fields.iter().zip(&trust.accepted_coefficients) {
@@ -992,16 +966,12 @@ impl BrainEngine {
             .and_then(serde_json::Value::as_str)
             != Some(active_bank_sha256.as_str())
         {
-            return Err(BrainError::Integrity(
-                "governed_composition_sleep_bank_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("governed_composition_sleep_bank_mismatch".into()));
         }
         let evidence = load_sleep_evidence(&self.root)?;
         let causal_credit_sha256 = evidence.causal_credit.credit_source_sha256.clone();
         if !valid_digest(&causal_credit_sha256) {
-            return Err(BrainError::Integrity(
-                "governed_composition_causal_digest_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("governed_composition_causal_digest_invalid".into()));
         }
         let layout_ids = bank
             .fields
@@ -1141,9 +1111,7 @@ impl BrainEngine {
         let receipt_bytes = serialize_pretty_line(&receipt)?;
         let stable_receipt: GovernedCompositionReceipt = serde_json::from_slice(&receipt_bytes)?;
         if stable_receipt != receipt {
-            return Err(BrainError::Integrity(
-                "governed_composition_receipt_wire_unstable".into(),
-            ));
+            return Err(BrainError::Integrity("governed_composition_receipt_wire_unstable".into()));
         }
         let receipt_sha256 = sha256_bytes(&receipt_bytes);
         let receipt_path = by_sha.join(format!("{receipt_sha256}.json"));
@@ -1294,9 +1262,7 @@ impl BrainEngine {
                 .iter()
                 .any(|value| !value.is_finite() || *value < 0.0)
         {
-            return Err(BrainError::Invalid(
-                "cognitive_route_contract_invalid".into(),
-            ));
+            return Err(BrainError::Invalid("cognitive_route_contract_invalid".into()));
         }
         let unique_ids = route.field_ids.iter().collect::<BTreeSet<_>>();
         let selected = route.selected_field_ids.iter().collect::<BTreeSet<_>>();
@@ -1304,9 +1270,7 @@ impl BrainEngine {
             || selected.len() != route.selected_field_ids.len()
             || selected.iter().any(|id| !unique_ids.contains(id))
         {
-            return Err(BrainError::Invalid(
-                "cognitive_route_identity_invalid".into(),
-            ));
+            return Err(BrainError::Invalid("cognitive_route_identity_invalid".into()));
         }
         let activation = route
             .field_ids
@@ -1320,9 +1284,7 @@ impl BrainEngine {
             || selected.len() != activated_ids.len()
             || selected.iter().any(|id| !activated_ids.contains(id))
         {
-            return Err(BrainError::Invalid(
-                "cognitive_route_selection_mismatch".into(),
-            ));
+            return Err(BrainError::Invalid("cognitive_route_selection_mismatch".into()));
         }
         Ok(activation)
     }
@@ -1370,9 +1332,7 @@ impl BrainEngine {
             .map(|(id, coefficient)| (id.clone(), *coefficient))
             .collect::<BTreeMap<_, _>>();
         if activation.is_empty() {
-            return Err(BrainError::Invalid(
-                "runtime_learned_controller_zero_activation".into(),
-            ));
+            return Err(BrainError::Invalid("runtime_learned_controller_zero_activation".into()));
         }
         Ok(activation)
     }
@@ -1408,10 +1368,8 @@ impl BrainEngine {
             &invocation.state_before,
             &source.functional_response,
         )?;
-        let composition = self.compose_and_record(
-            &activation,
-            &invocation.promoted_observation_semantic_sha256,
-        )?;
+        let composition =
+            self.compose_and_record(&activation, &invocation.promoted_observation_semantic_sha256)?;
         let after =
             load_persisted_runtime_learned_controller(&self.root, invocation.session_id.as_str())?;
         if before.receipt_sha256 != after.receipt_sha256 {
@@ -1472,9 +1430,7 @@ impl BrainEngine {
         )?;
         let state = model.evolve(initial, drive)?;
         if !state.converged {
-            return Err(BrainError::Numerical(
-                "runtime_cognitive_field_not_converged".into(),
-            ));
+            return Err(BrainError::Numerical("runtime_cognitive_field_not_converged".into()));
         }
         let route = model.route_top_k(&state, top_k, minimum_activation)?;
         Ok((state, route))
@@ -1533,9 +1489,7 @@ impl BrainEngine {
             || query.iter().any(|value| !value.is_finite())
             || limit > MAX_ENGINE_SKILL_FIELDS
         {
-            return Err(BrainError::Invalid(
-                "functional_search_request_invalid".into(),
-            ));
+            return Err(BrainError::Invalid("functional_search_request_invalid".into()));
         }
         let bank = self.load_bank()?;
         self.require_current_certification()?;
@@ -1584,7 +1538,7 @@ impl BrainEngine {
             let truth_norm = norm(truth_direction)?.max(1e-15);
             let mut projected_terms = Vec::with_capacity(fields.len());
             for field in fields {
-                let value = crate::linalg::dot(truth_direction, &field.direction)?;
+                let value = crate::foundation::linalg::dot(truth_direction, &field.direction)?;
                 let squared = value.abs() * value.abs();
                 if !squared.is_finite() {
                     return Err(BrainError::Numerical(
@@ -1601,18 +1555,14 @@ impl BrainEngine {
             }
             let ratio = projected.sqrt() / truth_norm;
             if !ratio.is_finite() {
-                return Err(BrainError::Numerical(
-                    "skill_subspace_overlap_ratio_overflow".into(),
-                ));
+                return Err(BrainError::Numerical("skill_subspace_overlap_ratio_overflow".into()));
             }
             contributions.push(ratio);
         }
         let total = compensated_sum(contributions)?;
         let overlap = total / truth.len() as f64;
         if !overlap.is_finite() {
-            return Err(BrainError::Numerical(
-                "skill_subspace_overlap_nonfinite".into(),
-            ));
+            return Err(BrainError::Numerical("skill_subspace_overlap_nonfinite".into()));
         }
         Ok(overlap)
     }

@@ -97,10 +97,7 @@ fn canonical_relative_path(path: &Path) -> String {
         .map(|component| match component {
             Component::Normal(segment) => {
                 let segment = segment.to_str().unwrap_or_else(|| {
-                    panic!(
-                        "canonical input path is not valid UTF-8: {}",
-                        path.display()
-                    )
+                    panic!("canonical input path is not valid UTF-8: {}", path.display())
                 });
                 assert!(
                     !segment.contains('\\'),
@@ -117,10 +114,7 @@ fn canonical_relative_path(path: &Path) -> String {
             }
         })
         .collect::<Vec<_>>();
-    assert!(
-        !components.is_empty(),
-        "canonical input path must not be empty"
-    );
+    assert!(!components.is_empty(), "canonical input path must not be empty");
     components.join("/")
 }
 
@@ -147,10 +141,7 @@ fn collect_regular_files(directory: &Path, role: &str, out: &mut Vec<(String, St
     for entry in entries {
         let path = entry.path();
         let metadata = fs::symlink_metadata(&path).unwrap_or_else(|error| {
-            panic!(
-                "canonical {role} entry metadata is unreadable: {}: {error}",
-                path.display()
-            )
+            panic!("canonical {role} entry metadata is unreadable: {}: {error}", path.display())
         });
         assert!(
             !metadata.file_type().is_symlink(),
@@ -340,10 +331,7 @@ fn hash_regular_file(hasher: &mut Sha256, path: &str, role: &str) {
     let filesystem_path = Path::new(path);
     require_regular_file(filesystem_path, role);
     let bytes = fs::read(filesystem_path).unwrap_or_else(|error| {
-        panic!(
-            "canonical {role} input cannot be read: {}: {error}",
-            filesystem_path.display()
-        )
+        panic!("canonical {role} input cannot be read: {}: {error}", filesystem_path.display())
     });
 
     // Every record is length framed and has an explicit type, role, relative
@@ -356,15 +344,130 @@ fn hash_regular_file(hasher: &mut Sha256, path: &str, role: &str) {
     update_field(hasher, &bytes);
 }
 
+const ARCHITECTURE_DOMAINS: &[&str] = &[
+    "foundation",
+    "analysis",
+    "capability",
+    "learning",
+    "runtime",
+    "receiver",
+    "materialization",
+    "knowledge",
+    "governance",
+    "engine",
+    "cross_model",
+    "operator",
+];
+
+fn allowed_domain_dependencies(domain: &str) -> &'static [&'static str] {
+    match domain {
+        "foundation" => &[],
+        "analysis" => &["foundation"],
+        "capability" => &["foundation"],
+        "learning" => &["analysis", "foundation"],
+        "runtime" => &["capability", "foundation"],
+        "receiver" => &["analysis", "capability", "foundation", "runtime"],
+        "materialization" => &[
+            "analysis",
+            "capability",
+            "foundation",
+            "learning",
+            "receiver",
+            "runtime",
+        ],
+        "knowledge" => &["capability", "foundation"],
+        "governance" => &[
+            "analysis",
+            "capability",
+            "foundation",
+            "knowledge",
+            "learning",
+            "materialization",
+            "receiver",
+        ],
+        "engine" => &["analysis", "foundation", "learning"],
+        "cross_model" => &[
+            "analysis",
+            "foundation",
+            "governance",
+            "learning",
+            "materialization",
+            "receiver",
+            "runtime",
+        ],
+        "operator" => &["cross_model", "foundation"],
+        other => panic!("unknown architecture domain: {other}"),
+    }
+}
+
+fn production_source_prefix(source: &str) -> &str {
+    source
+        .split_once("#[cfg(test)]\nmod tests")
+        .map(|(production, _)| production)
+        .unwrap_or(source)
+}
+
+fn validate_architecture_file(domain: &str, path: &Path) {
+    let source = fs::read_to_string(path).unwrap_or_else(|error| {
+        panic!("cannot read architecture source {}: {error}", path.display())
+    });
+    let production = production_source_prefix(&source);
+    let allowed = allowed_domain_dependencies(domain);
+    for dependency in ARCHITECTURE_DOMAINS {
+        if *dependency == domain {
+            continue;
+        }
+        let needle = format!("crate::{dependency}::");
+        if production.contains(&needle) && !allowed.contains(dependency) {
+            panic!(
+                "forbidden architecture dependency: domain {domain} source {} depends on {dependency}",
+                path.display()
+            );
+        }
+    }
+}
+
+fn validate_architecture_directory(domain: &str, directory: &Path) {
+    require_directory(directory, "architecture domain");
+    let mut entries = fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("cannot enumerate architecture domain {domain}: {error}"))
+        .map(|entry| {
+            entry.unwrap_or_else(|error| panic!("cannot read architecture entry: {error}"))
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path).unwrap_or_else(|error| {
+            panic!("cannot inspect architecture source {}: {error}", path.display())
+        });
+        assert!(
+            !metadata.file_type().is_symlink(),
+            "architecture source tree must not contain symlinks: {}",
+            path.display()
+        );
+        if metadata.is_dir() {
+            validate_architecture_directory(domain, &path);
+        } else if metadata.is_file() && path.extension().is_some_and(|extension| extension == "rs")
+        {
+            validate_architecture_file(domain, &path);
+        }
+    }
+}
+
+fn validate_architecture_boundaries() {
+    for domain in ARCHITECTURE_DOMAINS {
+        validate_architecture_directory(domain, &Path::new("src").join(domain));
+    }
+}
+
 fn main() {
+    validate_architecture_boundaries();
     // Cargo recognizes these legacy alternatives. Rejecting them prevents an
     // undeclared file from influencing the compiler/toolchain while escaping
     // the declared canonical identity.
     reject_competing_input(Path::new("rust-toolchain"), "legacy rust-toolchain file");
-    reject_competing_input(
-        Path::new(".cargo/config"),
-        "legacy Cargo configuration file",
-    );
+    reject_competing_input(Path::new(".cargo/config"), "legacy Cargo configuration file");
     require_directory(Path::new(".cargo"), "Cargo configuration root");
 
     let mut files = Vec::new();

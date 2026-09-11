@@ -1,0 +1,318 @@
+use crate::foundation::authority::{
+    create_private_immutable, ensure_private_directory, existing_directory_under_root,
+    read_existing_private_file_bounded, replace_private_file_atomic,
+};
+use crate::foundation::error::{BrainError, BrainResult};
+use crate::foundation::validation::{validate_http_endpoint, validate_identifier};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+
+const WORKSPACE_SCHEMA: &str = "cerebro.tidex.workspace/v1";
+const MODEL_SCHEMA: &str = "cerebro.tidex.model_profile/v1";
+const MAX_RECORD_BYTES: u64 = 16 * 1024;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceManifest {
+    pub schema: String,
+    pub name: String,
+    pub target: PathBuf,
+}
+
+impl WorkspaceManifest {
+    pub fn private_root(&self, home: &Path) -> PathBuf {
+        home.join("workspaces").join(&self.name).join("state")
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelProvider {
+    OpenAiCompatible,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ModelProfile {
+    pub schema: String,
+    pub name: String,
+    pub provider: ModelProvider,
+    pub endpoint: String,
+    pub model: String,
+}
+
+fn default_tidex_home() -> BrainResult<PathBuf> {
+    Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/tidex"))
+}
+
+pub fn configured_tidex_home() -> BrainResult<PathBuf> {
+    let home = std::env::var_os("TIDEX_HOME")
+        .map(PathBuf::from)
+        .unwrap_or(default_tidex_home()?);
+    verify_private_directory(&home, "tidex_home")
+}
+
+pub fn create_workspace(home: &Path, name: &str, target: &Path) -> BrainResult<WorkspaceManifest> {
+    let home = verify_private_directory(home, "tidex_home")?;
+    validate_name(name, "workspace_name")?;
+    let target = verify_target(target)?;
+    let workspaces = ensure_private_directory(&home, &home.join("workspaces"))?;
+    let workspace_dir = workspaces.join(name);
+    if fs::symlink_metadata(&workspace_dir).is_ok() {
+        return Err(BrainError::Integrity("workspace_already_exists".into()));
+    }
+    ensure_private_directory(&home, &workspace_dir.join("state"))?;
+    let manifest = WorkspaceManifest {
+        schema: WORKSPACE_SCHEMA.into(),
+        name: name.into(),
+        target,
+    };
+    create_canonical_json(&home, &workspace_dir.join("workspace.json"), &manifest)?;
+    Ok(manifest)
+}
+
+pub fn load_workspace(home: &Path, name: &str) -> BrainResult<WorkspaceManifest> {
+    let home = verify_private_directory(home, "tidex_home")?;
+    validate_name(name, "workspace_name")?;
+    let workspace_dir = existing_directory_under_root(&home, &home.join("workspaces").join(name))?;
+    let manifest: WorkspaceManifest =
+        read_canonical_json(&home, &workspace_dir.join("workspace.json"))?;
+    if manifest.schema != WORKSPACE_SCHEMA
+        || manifest.name != name
+        || verify_target(&manifest.target)? != manifest.target
+    {
+        return Err(BrainError::Integrity("workspace_manifest_invalid".into()));
+    }
+    Ok(manifest)
+}
+
+pub fn use_workspace(home: &Path, name: &str) -> BrainResult<()> {
+    load_workspace(home, name)?;
+    replace_canonical_json(
+        home,
+        &home.join("current-workspace.json"),
+        &serde_json::json!({
+            "schema":"cerebro.tidex.current_workspace/v1",
+            "name":name
+        }),
+    )
+}
+
+pub fn current_workspace(home: &Path) -> BrainResult<WorkspaceManifest> {
+    let value: serde_json::Value = read_canonical_json(home, &home.join("current-workspace.json"))?;
+    let name = value
+        .get("name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| BrainError::Integrity("current_workspace_invalid".into()))?;
+    if value.get("schema").and_then(|v| v.as_str()) != Some("cerebro.tidex.current_workspace/v1")
+        || value.as_object().map(|o| o.len()) != Some(2)
+    {
+        return Err(BrainError::Integrity("current_workspace_invalid".into()));
+    }
+    load_workspace(home, name)
+}
+
+pub fn add_model(home: &Path, profile: ModelProfile) -> BrainResult<()> {
+    let home = verify_private_directory(home, "tidex_home")?;
+    validate_name(&profile.name, "model_name")?;
+    validate_model(&profile)?;
+    let models = ensure_private_directory(&home, &home.join("models"))?;
+    let path = models.join(format!("{}.json", profile.name));
+    if fs::symlink_metadata(&path).is_ok() {
+        return Err(BrainError::Integrity("model_profile_already_exists".into()));
+    }
+    create_canonical_json(&home, &path, &profile)
+}
+
+pub fn use_model(home: &Path, name: &str) -> BrainResult<()> {
+    let profile = load_model(home, name)?;
+    replace_canonical_json(
+        home,
+        &home.join("current-model.json"),
+        &serde_json::json!({
+            "schema":"cerebro.tidex.current_model/v1",
+            "name":profile.name
+        }),
+    )
+}
+
+pub fn load_model(home: &Path, name: &str) -> BrainResult<ModelProfile> {
+    let home = verify_private_directory(home, "tidex_home")?;
+    validate_name(name, "model_name")?;
+    let profile: ModelProfile =
+        read_canonical_json(&home, &home.join("models").join(format!("{name}.json")))?;
+    validate_model(&profile)?;
+    if profile.name != name {
+        return Err(BrainError::Integrity("model_profile_identity_mismatch".into()));
+    }
+    Ok(profile)
+}
+
+fn validate_model(profile: &ModelProfile) -> BrainResult<()> {
+    if profile.schema != MODEL_SCHEMA
+        || profile.model.trim().is_empty()
+        || profile.model.len() > 512
+    {
+        return Err(BrainError::Invalid("model_profile_invalid".into()));
+    }
+    validate_http_endpoint(&profile.endpoint, 4096)?;
+    Ok(())
+}
+
+fn verify_target(target: &Path) -> BrainResult<PathBuf> {
+    if !target.is_absolute() {
+        return Err(BrainError::Invalid("workspace_target_must_be_absolute".into()));
+    }
+    let metadata = fs::symlink_metadata(target)
+        .map_err(|e| BrainError::Integrity(format!("workspace_target_unreadable:{e}")))?;
+    if metadata.file_type().is_symlink() || !(metadata.is_dir() || metadata.is_file()) {
+        return Err(BrainError::Integrity("workspace_target_invalid".into()));
+    }
+    Ok(target.canonicalize()?)
+}
+
+fn verify_private_directory(path: &Path, label: &str) -> BrainResult<PathBuf> {
+    if !path.is_absolute() {
+        return Err(BrainError::Invalid(format!("{label}_must_be_absolute")));
+    }
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|e| BrainError::Integrity(format!("{label}_unreadable:{e}")))?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_dir()
+        || metadata.permissions().mode() & 0o077 != 0
+    {
+        return Err(BrainError::Integrity(format!("{label}_not_private")));
+    }
+    Ok(path.canonicalize()?)
+}
+
+fn validate_name(name: &str, label: &str) -> BrainResult<()> {
+    validate_identifier(name, label, 128)
+}
+
+fn create_canonical_json<T: Serialize>(home: &Path, path: &Path, value: &T) -> BrainResult<()> {
+    create_private_immutable(home, path, &serde_json::to_vec(value)?)?;
+    Ok(())
+}
+
+fn replace_canonical_json<T: Serialize>(home: &Path, path: &Path, value: &T) -> BrainResult<()> {
+    replace_private_file_atomic(home, path, &serde_json::to_vec(value)?, None)?;
+    Ok(())
+}
+
+fn read_canonical_json<T: serde::de::DeserializeOwned + Serialize>(
+    home: &Path,
+    path: &Path,
+) -> BrainResult<T> {
+    let bytes = read_existing_private_file_bounded(home, path, MAX_RECORD_BYTES)?;
+    let value: T = serde_json::from_slice(&bytes)?;
+    if serde_json::to_vec(&value)? != bytes {
+        return Err(BrainError::Integrity("workspace_record_noncanonical".into()));
+    }
+    Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::foundation::security::secure_dir;
+    use std::os::unix::fs::symlink;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn roots() -> (PathBuf, PathBuf) {
+        let n = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("tidex-workspace-{}-{n}", std::process::id()));
+        let home = base.join("home");
+        let target = base.join("target");
+        fs::create_dir_all(&home).unwrap();
+        fs::create_dir_all(&target).unwrap();
+        secure_dir(&home).unwrap();
+        (home, target)
+    }
+
+    #[test]
+    fn workspace_and_model_selection_are_persistent_and_separate_from_target() {
+        let (home, target) = roots();
+        let ws = create_workspace(&home, "demo", &target).unwrap();
+        assert_eq!(ws.target, target.canonicalize().unwrap());
+        assert_eq!(ws.private_root(&home), home.join("workspaces/demo/state"));
+        use_workspace(&home, "demo").unwrap();
+        assert_eq!(current_workspace(&home).unwrap().name, "demo");
+        add_model(
+            &home,
+            ModelProfile {
+                schema: MODEL_SCHEMA.into(),
+                name: "qwen".into(),
+                provider: ModelProvider::OpenAiCompatible,
+                endpoint: "http://127.0.0.1:8080/v1".into(),
+                model: "Qwen".into(),
+            },
+        )
+        .unwrap();
+        use_model(&home, "qwen").unwrap();
+        assert_eq!(load_model(&home, "qwen").unwrap().model, "Qwen");
+        fs::remove_dir_all(home.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn selectors_reject_symlinks_before_writing_outside_home() {
+        let (home, target) = roots();
+        create_workspace(&home, "demo", &target).unwrap();
+        add_model(
+            &home,
+            ModelProfile {
+                schema: MODEL_SCHEMA.into(),
+                name: "qwen".into(),
+                provider: ModelProvider::OpenAiCompatible,
+                endpoint: "http://127.0.0.1:8080/v1".into(),
+                model: "Qwen".into(),
+            },
+        )
+        .unwrap();
+        let outside = target.join("must-remain-unchanged.txt");
+        fs::write(&outside, b"original external contents").unwrap();
+        symlink(&outside, home.join("current-workspace.json")).unwrap();
+        symlink(&outside, home.join("current-model.json")).unwrap();
+        assert!(use_workspace(&home, "demo").is_err());
+        assert!(use_model(&home, "qwen").is_err());
+        assert_eq!(fs::read(&outside).unwrap(), b"original external contents");
+        fs::remove_dir_all(home.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn symlinked_record_directories_cannot_create_external_state() {
+        let (home, target) = roots();
+        symlink(&target, home.join("workspaces")).unwrap();
+        symlink(&target, home.join("models")).unwrap();
+        assert!(create_workspace(&home, "demo", &target).is_err());
+        assert!(add_model(
+            &home,
+            ModelProfile {
+                schema: MODEL_SCHEMA.into(),
+                name: "qwen".into(),
+                provider: ModelProvider::OpenAiCompatible,
+                endpoint: "http://127.0.0.1:8080/v1".into(),
+                model: "Qwen".into(),
+            }
+        )
+        .is_err());
+        assert_eq!(fs::read_dir(&target).unwrap().count(), 0);
+        fs::remove_dir_all(home.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn rejects_non_private_home_relative_target_and_unsafe_names() {
+        let (home, target) = roots();
+        fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(create_workspace(&home, "demo", &target).is_err());
+        fs::set_permissions(&home, fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(create_workspace(&home, "../escape", &target).is_err());
+        assert!(create_workspace(&home, "demo", Path::new("relative")).is_err());
+        fs::remove_dir_all(home.parent().unwrap()).unwrap();
+    }
+}

@@ -1,23 +1,23 @@
-# CEREBRO3
+# TIDE-X
 
-CEREBRO3 es un proyecto Rust orientado a la ejecución real, la evidencia verificable y la autoridad explícita. El sistema no busca simular inteligencia ni delegar la verdad a modelos externos. Su objetivo es mantener un ciclo gobernado en el que cada paso sólo avanza si se demuestra que es necesario, útil, autentificado y verificable.
+TIDE-X es un proyecto Rust orientado a la ejecución real, la evidencia verificable y la autoridad explícita. El sistema no busca simular inteligencia ni delegar la verdad a modelos externos. Su objetivo es mantener un ciclo gobernado en el que cada paso sólo avanza si se demuestra que es necesario, útil, autentificado y verificable.
 
 ## 0. Estado honesto y límites de evidencia
 
 ## Calidad profesional del repositorio
 
-CEREBRO3 mantiene una base de ingeniería real y reproducible:
+TIDE-X mantiene una base de ingeniería real y reproducible:
 
 - `Makefile` con el pipeline mínimo de validación: `fmt`, `check`, `test`, `integration`, `ci`.
 - `rustfmt.toml` y `clippy.toml` para un estilo y una calidad de código coherentes.
 - `.github/workflows/ci.yml` para ejecutar compilación y pruebas en cada cambio.
 - `docs/QUALITY_AND_TESTING.md` como referencia del modelo de pruebas y la política de evidencia.
 
-Esto evita que el proyecto dependa de una UI bonita, nombres atractivos o una narración de laboratorio sin verificación real.
+Esto evita que el proyecto dependa de una UI bonita, nombres atractivos o una narración de producto sin verificación real.
 
 La arquitectura formal del sistema y la separación de dominios están documentadas en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), con el propósito de dejar explícito qué es autoridad, qué es workflow y qué es evidencia verificable.
 
-La documentación de CEREBRO3 distingue tres capas con reglas distintas:
+La documentación de TIDE-X distingue tres capas con reglas distintas:
 
 - capa de producción o autoridad: módulos en Rust con validación, receipts y fail-closed;
 - capa de ejecución acotada: workers externos, backends reales y modelos que ejecutan operaciones concretas pero no deciden autoridad;
@@ -25,12 +25,11 @@ La documentación de CEREBRO3 distingue tres capas con reglas distintas:
 
 Esto no es un detalle burocrático: es la diferencia entre “lo que está realmente probado” y “lo que es un experimento útil o un punto de investigación”.
 
-Lo que sí está verificado con evidencia real en el repositorio:
+Lo que el repositorio sí sostiene en código (no es un recuento de `cargo test` re-ejecutado en esta nota):
 
-- la base Rust del sistema compila y pasa la suite de tests de librería;
-- la autoridad central sigue siendo Rust;
-- la ejecución de modelos externos queda acotada bajo validación explícita;
-- el sistema exige receipts, hashes, identidad y fail-closed cuando la evidencia no encaja.
+- la autoridad central está en Rust, con receipts, hashes, identidad y fail-closed;
+- la ejecución de modelos externos queda acotada bajo validación explícita y no decide promoción;
+- Makefile y GitHub Actions definen el pipeline `fmt` / `check` / `test --lib` / integración / contratos de configuración productiva / compilación del crate de fuzzing.
 
 Lo que todavía no está demostrado como una afirmación universal del proyecto:
 
@@ -41,163 +40,125 @@ Lo que todavía no está demostrado como una afirmación universal del proyecto:
 
 La política del proyecto es clara: no se promociona una hipótesis como hechos reales sin origen verificable, hash, contrato y evidencia.
 
-## 1. La idea central: no hay “segundo cerebro”
+El código fuente está organizado por dominio bajo `src/` (`foundation`, `knowledge`, `governance`, `operator`, `runtime`, `engine`, `learning`, `receiver`, `materialization`, `analysis`, `capability` y, con feature, `cross_model`). No hay un módulo `src/adaptive_staircase.rs`.
 
-CEREBRO3 no se organiza como un sistema paralelo que decide por sí mismo. Su patrón operativo es:
+## 1. La idea central: no hay una segunda autoridad
 
-- una capacidad detecta una necesidad;
-- la autoridad del sistema decide si esa necesidad es real;
-- un executor concreto resuelve la acción correcta;
-- la evidencia resultante se valida;
-- el sistema emite un receipt y sólo entonces avanza o bloquea.
+TIDE-X no se organiza como un sistema paralelo que decide por sí mismo. El patrón que el código sí sostiene hoy es:
 
-La escalera viva no reemplaza la autoridad. La escalera vive encima de la autoridad y la utiliza.
+- KnowledgeEngine planifica, valida obligaciones y emite receipts;
+- AdapterBank autentica y muta el ciclo de vida de adaptadores;
+- la interfaz y los backends ejecutan trabajo acotado y no conceden autoridad productiva.
+
+La “escalera viva” no es un coordinador separado. En código es `KnowledgeEngine::living_staircase`: una proyección de solo lectura sobre las obligaciones ya autenticadas. No detecta necesidades, no resuelve executors y no ejecuta el ciclo.
 
 ## 2. Autoridad real del sistema
 
-La separación de roles del sistema es clara:
+La separación de roles implementada es esta:
 
 ```text
-KnowledgeEngine
+KnowledgeEngine  (src/knowledge/knowledge_engine.rs)
   -> autoriza el plan
   -> revisa obligaciones, hipótesis y evidencia
   -> decide si una acción puede avanzar
   -> emite receipts y transiciones autorizadas
+  -> deriva LivingStaircaseProjection (vista, no orquestador)
 
-AdapterBank
+AdapterBank  (src/governance/adapter_bank.rs)
   -> resuelve un backend o adapter real
   -> autentica la resolución
   -> activa, revoca y rollback cuando la evidencia lo exige
+  -> único descriptor con production_authority=true (adapter.bank)
 
-Living Staircase
-  -> coordina necesidades, pasos y contención
-  -> no sustituye la autoridad
-  -> no inventa evidencia ni promueve capacidades sin respaldo
-
-Cross-model runtime
+Cross-model runtime  (src/cross_model/, feature cross-model-plasticity)
   -> ejecuta backend real
   -> observa activaciones, métricas y firma del runtime
-  -> devuelve resultados con hashing y contract validation
+  -> devuelve resultados con hashing y validación de contrato
+  -> no decide promoción ni activación productiva
 ```
 
-No existe un segundo poder de decisión. La autoridad final sigue siendo Rust y la capa de gobernanza legítima del sistema.
+`KnowledgeEngine::open` falla cerrado con `authority_instance_required`. El arranque real es `open_with_authority_instance`. No existe un segundo poder de decisión.
 
-## 3. Qué es la escalera viva en CEREBRO3
+## 3. Qué es la escalera viva en el código
 
-La escalera viva es la estructura recurrente que hace que todas las capacidades entren en un mismo ciclo:
+`LivingStaircaseProjection` proyecta el estado de conocimiento ya gobernado: obligaciones, profundidades autenticadas, estado open/satisfied/blocked y la siguiente `PlanningDecision`. No persiste un grafo propio y nadie fuera de `KnowledgeEngine` la invoca como orquestador.
 
-```text
-Need
-  -> Detectar brecha / insuficiencia / evidencia pendiente
-  -> Resolver un executor válido
-  -> Ejecutar acción real con evidencia
-  -> Validar provenance, identidad, contrato y hash
-  -> Decidir: commit / refine / prune / block
-  -> Persistir receipt y avanzar o cerrar
-```
+El ciclo operativo deseado (necesidad → executor → evidencia → commit/refine/prune/block) es la dirección de integración descrita en [docs/design/adaptive_staircase.md](docs/design/adaptive_staircase.md). No es un runtime que ya unifique plasticidad, numerics, residency, receiver compiler, materialization y promotion gate.
 
-Esto es la arquitectura que unifica lo que ya existe en el árbol: autoridad, plasticidad, numerics, residency, receiver compiler, materialization, promotion gate y adapter lifecycle.
+## 4. Módulos que existen y cómo se relacionan
 
-## 4. Qué debe estar conectado al mismo ciclo
-
-La escalera viva debe coordinar módulos ya existentes, no reemplazarlos. Su papel es canalizar cada capacidad en una dinámica común.
+Estos módulos existen. No están cableados por una escalera coordinadora.
 
 ### 4.1 KnowledgeEngine
 
-Es la autoridad epistemológica central. Debe seguir siendo la fuente de:
-
-- planificación,
-- obligaciones,
-- hipótesis,
-- claims,
-- evidence,
-- receipts,
-- decisiones terminales.
+Autoridad epistemológica central: planificación, obligaciones, hipótesis, claims, evidence, receipts y decisiones terminales.
 
 ### 4.2 ResidencyDecision
 
-Este motor debe derivar residencia, no aceptar un valor impreso por el caller. La decisión debe ser:
-
-- Software,
-- Weights,
-- Hybrid,
-- Unknown.
-
-Si vuelve Unknown, la escalera crea automáticamente un nuevo micro-escalón de evidencia.
+`src/governance/residency_decision.rs` deriva residencia (Software, Weights, Hybrid, Unknown) y no acepta un valor impreso por el caller. Si el resultado es Unknown, el código no crea automáticamente un micro-escalón vía la proyección de la escalera.
 
 ### 4.3 BrainEngine
 
-Debe seguir funcionando como ejecutor neuronal y de consolidación, no como coordinador global. Su función final es:
-
-- analizar,
-- consolidar,
-- recuperar transiciones incompletas,
-- preparar memoria/learning sessions,
-- sostener la capa de ejecución y consolidación.
+`src/engine/` es ejecutor de consolidación, no coordinador global.
 
 ### 4.4 NumericalEvolutionEngine
 
-Debe entrar como executor especializado de un need de profundidad numérica. No es un sistema paralelo; es una vía de resolución para problemas donde la numerics requiere validación o evolución.
+`src/learning/numerical_evolution.rs` es un motor especializado. El catálogo lo registra; no lo dispara una escalera viva.
 
 ### 4.5 Plasticity
 
-La plasticidad no debe gobernar el sistema. Debe ejecutar cambios acotados dentro del ciclo de la escalera:
-
-- BCM,
-- eligibility traces,
-- neuromodulation,
-- routing plasticity,
-- content plasticity,
-- PI controller,
-- ELO.
-
-Todos estos mecanismos son herramientas de adaptación, no autoridad.
+Los mecanismos (BCM, eligibility traces, neuromodulation, routing/content plasticity, PI, ELO) viven en la librería. Varios descriptores del catálogo están en `ArchitectureOnly`: existen como diseño o código de análisis, no como autoridad operativa. No gobiernan el sistema.
 
 ### 4.6 UniversalPromotionGate
 
-Debe mantenerse como gate canónico de promoción, pero no como sistema autónomo. La promoción es la etapa final del ciclo, no una decisión aislada.
+`src/governance/universal_promotion_gate.rs` es el gate canónico de promoción. No es autónomo y no se dispara desde la proyección de la escalera.
 
 ### 4.7 AdapterBank
 
-Debe seguir siendo la autoridad del lifecycle real de activación, revocación y rollback.
+Autoridad del lifecycle real de activación, revocación y rollback. Un receipt de la interfaz con `authorizes_production: false` no sustituye esa autoridad.
 
-## 5. La relación correcta entre módulos
+## 5. Relación real entre módulos
 
-La relación final que más encaja con el árbol real es esta:
+Hoy la relación implementada es esta:
 
 ```text
-Living Staircase
-   -> Need detectors
-   -> Executor registry
-   -> KnowledgeEngine authority
-   -> ResidencyDecision
-   -> BrainEngine / Plasticity / NumericalEvolution
-   -> Materialization / ReceiverCompiler / ShadowEvaluation
-   -> UniversalPromotionGate
-   -> AdapterBank lifecycle
-   -> Evidence + Receipt + decision
+KnowledgeEngine
+   -> obligaciones, planes, receipts
+   -> living_staircase()  (proyección de esas obligaciones)
+
+AdapterBank
+   -> lifecycle productivo de adaptadores
+
+ExecutorRegistry
+   -> catálogo declarado (./tidex executors)
+   -> no ejecuta; describe estado, madurez y superficies
+
+Lab / backends / BrainEngine / Plasticity / NumericalEvolution
+   -> ejecución acotada o análisis
+   -> no conceden autoridad productiva
 ```
 
-No se trata de reescribir CEREBRO3 en una sola máquina. Se trata de hacer que todo el árbol entre en una misma dinámica de necesidad → ejecución → evidencia → contención → avance.
+La integración bajo una sola dinámica necesidad → ejecución → evidencia → contención → avance sigue siendo trabajo pendiente, no un hecho del árbol.
 
 ## 6. Reglas de diseño que no se deben romper
 
 - ninguna capa ejecuta sin evidencia real;
 - ninguna capa inventa autoridad;
 - ninguna pieza puede promocionar un cambio sin validación y receipt;
-- la escalera sólo orquesta; no sustituye a KnowledgeEngine ni a AdapterBank;
+- la proyección de la escalera no sustituye a KnowledgeEngine ni a AdapterBank, ni orquesta el árbol;
 - la plasticidad modifica dentro de límites; no controla el sistema global;
-- la memoria y la procedimental memory alimentan decisiones, pero no son autoridad;
+- la memoria y la procedural memory alimentan decisiones, pero no son autoridad;
 - los bridges triviales deben reducirse porque añaden superficie sin aportar verdad.
 
-## 7. TIDE-X Advanced Laboratory
+## 7. Interfaz de TIDE-X
 
-El repositorio incluye una superficie de laboratorio real sobre las autoridades existentes. No reimplementa los algoritmos: ejecuta los mismos backends y contratos del proyecto.
+TIDE-X no tiene un laboratorio aparte. La UI y el CLI son la interfaz del cerebro: ejecutan los mismos backends y contratos del proyecto.
 
-Arranque recomendado desde la raíz del repositorio:
+Arranque desde la raíz del repositorio:
 
 ```bash
-./tidex lab serve
+./quality/bootstrap-runtime.sh   # venv HF + SmolLM2-135M y Instruct en el hub
+./tidex serve
 ```
 
 La interfaz queda disponible únicamente en loopback:
@@ -206,9 +167,13 @@ La interfaz queda disponible únicamente en loopback:
 http://127.0.0.1:8793
 ```
 
-El launcher `./tidex` es intencionado: el proyecto configura Cargo para construir fuera del checkout, bajo `/home/yo/Future/cerebro3-runtime/cargo-target`, por lo que no se debe asumir que exista `./target/debug/tidex`. El runtime persistente vive fuera del repo pero dentro de `Future`.
+El launcher `./tidex` es intencionado. `.cargo/config.toml` fija `build.target-dir` a `../.cache/tidex/cargo-target`, fuera del checkout y separado del runtime operativo. No se debe asumir que exista `./target/debug/tidex`. El runtime persistente queda en `$ROOT/runtime` salvo que se defina `TIDEX_RUNTIME_ROOT`.
 
-Funciones de alto nivel disponibles en el laboratorio:
+- hogar del cerebro: `$TIDEX_HOME` → `runtime/tidex/`
+- pesos HF: `runtime/llms/huggingface/hub/`
+- catálogo, jobs y receipts: `$TIDEX_HOME/operator/`
+
+Funciones de la interfaz:
 
 - catálogo y selección de modelos HF locales;
 - importación y catalogación de datasets con SHA-256 y provenance;
@@ -216,48 +181,55 @@ Funciones de alto nivel disponibles en el laboratorio:
 - descubrimiento comparativo multi-LLM;
 - extracción de representaciones internas;
 - instrumentación profunda con NNsight cuando el intérprete configurado la soporte;
-- análisis SAE cuando NNsight + SAE Lens estén disponibles;
+- análisis SAE sobre un diccionario local ligado (`sae.safetensors` + `config.json`); no entrena y no descarga releases del Hub;
 - análisis contrafactual;
 - calibración de alineamiento A→B;
 - experimento de transferencia por activation steering con baseline, intervención, restauración y evaluación separadas;
-- acceso avanzado a las operaciones canónicas de receiver compiler, materialización, universality, promotion gate y AdapterBank.
+- acceso a receiver compiler, materialización, universality, promotion gate y AdapterBank.
 
-CLI del laboratorio:
+CLI:
 
 ```bash
-./tidex lab models scan "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub"
-./tidex lab models list
-./tidex lab datasets list
-./tidex lab dataset import <nombre> json <benchmark.json>
-./tidex lab evaluate <model-id> <dataset-sha256>
-./tidex lab discover <dataset-sha256> <model-id-1> <model-id-2> [model-id...]
+./tidex models scan "$PWD/runtime/llms/huggingface/hub"
+./tidex models list
+./tidex datasets list
+./tidex dataset import <nombre> json <benchmark.json>
+./tidex evaluate <model-id> <dataset-sha256>
+./tidex discover <dataset-sha256> <model-id-1> <model-id-2> [model-id...]
 ```
 
-Para usar un intérprete HF específico —por ejemplo uno que incluya NNsight y SAE Lens— se configura explícitamente:
+Para usar un intérprete HF específico —el certificado en `src/cross_model/runtime/hf-runtime.lock.txt`— se configura explícitamente:
 
 ```bash
 export TIDEX_HF_PYTHON=/ruta/absoluta/al/python
-./tidex lab serve
+./tidex serve
 ```
 
-Los resultados del Lab quedan bajo `/home/yo/Future/cerebro3-runtime/tidex/lab/` por defecto. Un resultado de laboratorio nunca concede por sí mismo autoridad de activación productiva.
+Un receipt de esta interfaz marca `authorizes_production: false`. La activación productiva sigue en AdapterBank (`tidex adapter-bank …`).
 
 ## 8. Estado verificado del proyecto
 
-La validación de ingeniería debe ejecutarse con los targets/features que correspondan a la superficie probada. El laboratorio se valida con `--all-features --all-targets`; las pruebas de LLM además requieren ejecución real del backend seleccionado.
+La validación de ingeniería debe ejecutarse con los targets y features de la superficie que se afirma. El Makefile y GitHub Actions corren `fmt --check`, `cargo check --all-targets --locked`, `cargo test --lib --locked`, las integraciones registradas, `configuration_contracts` con `--all-features` y `cargo check --locked --manifest-path fuzz/Cargo.toml --all-targets`. Clippy sigue perteneciendo a las puertas de `quality/`. El toolchain local (`rust-toolchain.toml`) es 1.96.0; CI fija 1.85.0. Las pruebas de LLM que requieren ejecución de modelo siguen dependiendo de un backend real disponible. Esta nota no inventa resultados de campañas no ejecutadas.
 
 ## 9. Estructura del repositorio
 
-- src/ — runtime principal, autoridad y contratos.
-- src/cross_model/ — backends reales y lógica de plasticidad/cross-model.
-- src/adaptive_staircase.rs — coordinación de la escalera viva.
-- src/knowledge_engine.rs — autoridad epistemológica del sistema.
-- src/residency_decision.rs — derivación de residencia.
-- src/numerical_evolution.rs — evolución numérica acotada.
-- src/adapter_bank.rs — autenticación y lifecycle de adaptadores.
-- src/cross_model/runtime/hf_worker.py — executor acotado, no autoridad.
-- design/ — arquitectura y documentos operativos.
-- quality/ — evidencia y puertas de validación.
+- `src/` — runtime principal por dominio (`foundation`, `knowledge`, `governance`, `operator`, `engine`, …).
+- `src/knowledge/knowledge_engine.rs` — autoridad epistemológica; incluye `living_staircase`.
+- `src/governance/adapter_bank.rs` — autenticación y lifecycle de adaptadores.
+- `src/governance/residency_decision.rs` — derivación de residencia.
+- `src/learning/numerical_evolution.rs` — evolución numérica acotada.
+- `src/operator/executor_registry.rs` — catálogo declarado de ejecutores.
+- `src/operator/control_plane.rs` — HTTP/CLI de la interfaz TIDE-X.
+- `web-console/` — UI de la interfaz.
+- `src/cross_model/` — backends reales y plasticidad (feature `cross-model-plasticity`).
+- `src/cross_model/runtime/hf_worker.py` — worker embebido con `include_str!`; executor acotado, no autoridad.
+- `src/cross_model/runtime/hf-runtime.lock.txt` — artefactos exactos con SHA-256 del venv HF certificado (torch CPU, transformers, nnsight). SAE no es un paquete pip: es un diccionario local ligado.
+- `docs/` — arquitectura, implementación y estado.
+- `config/evaluations/` — definiciones versionadas de evaluación conductual consumibles por los runtimes reales de evaluación.
+- `config/materialization/` — políticas operativas versionadas para selección y materialización de backends.
+- `quality/` — gates, evidencias y `quality/smoke/`.
+- `docs/design/` — propuestas de diseño explícitamente no implementadas; no forman parte de la autoridad de runtime.
+- `./tidex` — launcher del binario.
 
 ## 10. Política documental
 
@@ -265,17 +237,16 @@ La documentación debe reflejar el estado real del código. Si una capacidad no 
 
 ## 11. Documentación de referencia
 
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [IMPLEMENTATION.md](IMPLEMENTATION.md)
-- [SYSTEM_STATUS.md](SYSTEM_STATUS.md)
-- [README_CROSS_MODEL.md](README_CROSS_MODEL.md)
-- [design/adaptive_staircase.md](design/adaptive_staircase.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
+- [docs/SYSTEM_STATUS.md](docs/SYSTEM_STATUS.md)
+- [docs/README_CROSS_MODEL.md](docs/README_CROSS_MODEL.md)
+- [docs/design/adaptive_staircase.md](docs/design/adaptive_staircase.md)
 
-La conclusión operativa es más precisa: CEREBRO3 ya dispone de múltiples autoridades, ejecutores y mecanismos de evidencia reales, pero cada afirmación de capacidad debe seguir demostrarse en el alcance concreto donde se usa. La integración debe unificar esas piezas bajo una misma dinámica sin convertir la escalera en una segunda autoridad.
-
+La conclusión operativa: TIDE-X dispone de autoridades, ejecutores y evidencia reales, pero cada afirmación de capacidad debe demostrarse en el alcance concreto donde se usa. Unificar esas piezas bajo una sola dinámica no debe convertir la proyección de la escalera en una segunda autoridad.
 
 ### Executor Registry multi-eje
 
-`./tidex executors` devuelve el catálogo canónico de ejecutores. Todos los descriptores registrados tienen `state=operational` en el sentido de contrato implementado y rastreable, pero la madurez se separa en campos independientes: `runtime_status`, `workflow_status`, `evidence_status`, `maturity`, `production_authority` y `actionable_now`. No se debe usar `state` como sinónimo de autorización productiva.
+`./tidex executors` devuelve el catálogo declarado de ejecutores. El campo `state` no es uniforme: hay `Operational`, `OperationalNeedsWorkflow`, `ExperimentalCandidateOnly` y `ArchitectureOnly`. `ExecutorDescriptor::new` fuerza `implementation_status = Implemented` en todos los descriptores; eso no significa que el módulo esté cableado a producción. La madurez se separa en `runtime_status`, `workflow_status`, `evidence_status`, `maturity`, `production_authority` y `actionable_now`. No se debe usar `state` como sinónimo de autorización productiva.
 
 La única autoridad de ciclo de vida productivo para adaptadores es `adapter.bank`. Los ejecutores candidate/advisory pueden producir evidencia, candidatos o señales, pero no activan producción por sí solos.

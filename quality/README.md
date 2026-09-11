@@ -1,6 +1,6 @@
 # Nota de mantenimiento del dossier de calidad
 
-Este archivo contiene la evidencia histórica de las puertas de validación del proyecto y sirve como documento de referencia de calidad técnica. Sin embargo, el estado operativo actual y la visión del sistema en ejecución quedan descritos en [../README.md](../README.md), [../SYSTEM_STATUS.md](../SYSTEM_STATUS.md) y [../ARCHITECTURE.md](../ARCHITECTURE.md).
+Este archivo contiene la evidencia histórica de las puertas de validación del proyecto y sirve como documento de referencia de calidad técnica. Sin embargo, el estado operativo actual y la visión del sistema en ejecución quedan descritos en [../README.md](../README.md), [../docs/SYSTEM_STATUS.md](../docs/SYSTEM_STATUS.md) y [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 
 El contenido histórico que sigue documenta los gates, snapshots y mensajes de aseguramiento del proyecto. Debe leerse como un dossier de evidencia y control, no como un resumen de la arquitectura moderna del runtime.
 
@@ -12,7 +12,7 @@ El contenido histórico que sigue documenta los gates, snapshots y mensajes de a
 
 Los receipts P2/P3/P4 descritos en este documento son históricos y están ligados a snapshots congelados. El verificador ejecutable `quality/verify-p3-reuse.sh` rechaza el HEAD actual con `reusable_input_path_set_changed`; por tanto no se puede reutilizar esa evidencia para certificar el código actual.
 
-Para el HEAD actual se verificaron formato, Clippy con `-D warnings` y 504 pruebas de todos los targets al excluir `sleep_cycle_promotes_after_verified_evidence_and_certifies_runtime`, cuyo resultado no pudo recuperarse porque el canal de ejecución agota el tiempo antes de devolverlo. Esta evidencia no sustituye P0-P4, fuzzing, Miri, sanitizadores ni una evaluación E2E de modelo real.
+Para un HEAD histórico se documentaron formato, Clippy con `-D warnings` y 504 pruebas de todos los targets al excluir `sleep_cycle_promotes_after_verified_evidence_and_certifies_runtime`. Esa cifra no es el recuento actual del árbol ni un resultado re-ejecutado aquí. Esta evidencia no sustituye P0-P4, fuzzing, Miri, sanitizadores ni una evaluación E2E de modelo real.
 
 El banco de adaptadores y el perfilador se consideran control-plane: no acreditan mejora de inferencia, serving, seguridad de modelo ni compatibilidad universal sin una campaña reproducible de checkpoint, LoRA y evaluación held-out.
 
@@ -23,12 +23,7 @@ proyecto que elimina al terminar. Comprueba formato, Clippy con advertencias
 como errores, todas las pruebas, auditoría de vulnerabilidades y las políticas
 de dependencias tanto del núcleo como del arnés de fuzzing.
 
-`.cargo/config.toml` fija `build.target-dir = "/tmp/tidex-cargo-target"`. Sin
-un override explícito de Cargo, `cargo check`, `cargo test`, `cargo build` y la
-resolución del target de `fuzz/Cargo.toml` quedan fuera del checkout. P0 verifica
-la resolución del `target_directory` con `CARGO_TARGET_DIR` ausente. Las propias
-puertas usan además destinos temporales aislados bajo `/tmp`. P0-P3 no ejecutan
-`cargo fuzz coverage` sobre el árbol fuente.
+`.cargo/config.toml` fija `build.target-dir` a `../.cache/tidex/cargo-target`, fuera del checkout y fuera del runtime operativo. Sin un override explícito de Cargo, `cargo check`, `cargo test`, `cargo build` y la resolución del target de `fuzz/Cargo.toml` quedan fuera del árbol fuente. P0 verifica la resolución del `target_directory` con `CARGO_TARGET_DIR` ausente. Las propias puertas usan además destinos temporales aislados bajo `/tmp`. P0-P3 no ejecutan `cargo fuzz coverage` sobre el árbol fuente.
 
 El arnés aplica una política separada únicamente para admitir de forma
 explícita la licencia permisiva NCSA del runtime LLVM libFuzzer; esa licencia
@@ -60,7 +55,7 @@ copia debe controlarse por separado en el proceso de actualización.
 
 La comprobación reproducible está en `quality/gate1-tooling.sh`. Usa sólo las
 dependencias fijadas por los dos `Cargo.lock`, trabaja sin red para resolver
-dependencias, ejecuta los dos targets de fuzz de forma secuencial y separa cobertura, Miri, ASan,
+dependencias, ejecuta los tres targets de fuzz actuales (`multi-case-solver`, `persisted-inputs` e `identity-wire`) de forma secuencial y separa cobertura, Miri, ASan,
 LSan, TSan y fuzzing en destinos temporales independientes para impedir mezclas
 ABI. Una instantánea de rutas, modos, tamaños y SHA-256 antes y después hace
 fallar la puerta si cualquier herramienta modifica el checkout.

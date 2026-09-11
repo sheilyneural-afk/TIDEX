@@ -1,6 +1,6 @@
 //! Integration bridges module
 //!
-//! This module contains bridges to existing cerebro3 systems
+//! This module contains bridges to existing TIDE-X systems
 //! for seamless integration with the cross-model system.
 
 pub mod activation_steering_bridge;

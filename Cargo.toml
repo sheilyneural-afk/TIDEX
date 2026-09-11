@@ -1,8 +1,8 @@
 [package]
-name = "cerebro-tidex"
+name = "tidex"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.96"
 publish = false
 autobins = false
 autotests = false
@@ -17,7 +17,7 @@ cross-model-plasticity = ["chrono", "reqwest", "candle-core", "candle-nn", "cand
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
 sha2 = "=0.10.9"
-rustix = { version = "=1.1.4", features = ["fs"] }
+rustix = { version = "=1.1.4", features = ["event", "fs"] }
 crossterm = "=0.28.1"
 ratatui = "=0.29.0"
 chrono = { version = "0.4", optional = true }
@@ -48,7 +48,7 @@ debug = "line-tables-only"
 unsafe_code = "forbid"
 
 [[bin]]
-name = "cerebro-tidex"
+name = "tidex-engine"
 path = "src/main.rs"
 
 [[bin]]
@@ -93,17 +93,53 @@ path = "src/cross_model/plasticity_daemon.rs"
 required-features = ["cross-model-plasticity"]
 
 [[bin]]
-name = "tidex-lab-runner"
-path = "src/bin/tidex_lab_runner.rs"
+name = "tidex-operator-runner"
+path = "src/bin/tidex_operator_runner.rs"
 required-features = ["cross-model-plasticity"]
 
 [[bin]]
 name = "v67-weight-actuator-smoke"
 path = "quality/experiments/v67_weight_actuator_smoke.rs"
 
-[[test]]
-name = "brain"
-path = "tests/brain.rs"
+[[bin]]
+name = "active_aperture_bench"
+path = "src/bin/active_aperture_bench.rs"
+
+[[bin]]
+name = "causal_credit_bench"
+path = "src/bin/causal_credit_bench.rs"
+
+[[bin]]
+name = "cognitive_field_bench"
+path = "src/bin/cognitive_field_bench.rs"
+
+[[bin]]
+name = "dual_space_bench"
+path = "src/bin/dual_space_bench.rs"
+
+[[bin]]
+name = "functional_transplant_bench"
+path = "src/bin/functional_transplant_bench.rs"
+
+[[bin]]
+name = "protected_map_bench"
+path = "src/bin/protected_map_bench.rs"
+
+[[bin]]
+name = "relational_transport_bench"
+path = "src/bin/relational_transport_bench.rs"
+
+[[bin]]
+name = "sbas_diag"
+path = "src/bin/sbas_diag.rs"
+
+[[bin]]
+name = "structured_geometry_bench"
+path = "src/bin/structured_geometry_bench.rs"
+
+[[bin]]
+name = "trust_region_bench"
+path = "src/bin/trust_region_bench.rs"
 
 [[test]]
 name = "production_surface"
@@ -116,3 +152,7 @@ path = "tests/quality_properties.rs"
 [[test]]
 name = "convergence_pipeline"
 path = "tests/convergence_pipeline.rs"
+
+[[test]]
+name = "configuration_contracts"
+path = "tests/configuration_contracts.rs"

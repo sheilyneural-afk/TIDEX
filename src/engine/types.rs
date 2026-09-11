@@ -1,23 +1,23 @@
 //! Wire and transaction types for the TIDE-X engine authorities.
 
-use crate::aperture_independence::ApertureIndependenceReport;
-use crate::artifact::DeltaArtifactRef;
-use crate::authority::PrivateFileReference;
-use crate::cognitive_field::{CognitiveFieldState, FieldRoutingDecision};
-use crate::contracts::{PromotionDecision, ReconstructionInverseMode, SkillField};
-use crate::digest::{
+use crate::analysis::aperture_independence::ApertureIndependenceReport;
+use crate::analysis::identifiability::ResolutionMap;
+use crate::analysis::protected::ProtectionResult;
+use crate::analysis::trust_region::TrustRegionResult;
+use crate::analysis::weight_tomography::WeightTomographyObservation;
+use crate::engine::cognitive_field::{CognitiveFieldState, FieldRoutingDecision};
+use crate::foundation::artifact::DeltaArtifactRef;
+use crate::foundation::authority::PrivateFileReference;
+use crate::foundation::contracts::{PromotionDecision, ReconstructionInverseMode, SkillField};
+use crate::foundation::digest::{
     AnalysisVersionDigest, CausalCreditDigest, ConfigDigest, CorpusDigest, EvidenceBundleDigest,
     MemoryDigest, ParameterLayoutDigest, ReportDigest, Sha256Digest, SkillBankDigest,
     SourceTreeDigest,
 };
-use crate::identifiability::ResolutionMap;
-use crate::identity::{SessionId, SkillId};
-use crate::learning_finalization::RepresentationObservationBinding;
-use crate::protected::ProtectionResult;
-use crate::sleep_diagnostics::SleepConsolidationDiagnostics;
-use crate::sleep_evidence::SleepEvidenceVerification;
-use crate::trust_region::TrustRegionResult;
-use crate::weight_tomography::WeightTomographyObservation;
+use crate::foundation::identity::{SessionId, SkillId};
+use crate::learning::learning_finalization::RepresentationObservationBinding;
+use crate::learning::sleep_diagnostics::SleepConsolidationDiagnostics;
+use crate::learning::sleep_evidence::SleepEvidenceVerification;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;

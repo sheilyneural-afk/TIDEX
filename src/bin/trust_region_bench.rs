@@ -1,16 +1,16 @@
-use cerebro_tidex::artifact::{read_dvec_f32, sha256_file};
-use cerebro_tidex::causal_credit::{certified_causal_priority_weights, CausalCreditReport};
-use cerebro_tidex::engine::ReconstructionReport;
-use cerebro_tidex::identity::SkillId;
-use cerebro_tidex::interaction::second_order_interactions;
-use cerebro_tidex::protected_map::{load_protected_cortex, ProtectedMapArtifactReport};
-use cerebro_tidex::security::configured_private_root;
-use cerebro_tidex::trust_region::apply_causal_priority_trust_region;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use tidex::analysis::interaction::second_order_interactions;
+use tidex::analysis::protected_map::{load_protected_cortex, ProtectedMapArtifactReport};
+use tidex::analysis::trust_region::apply_causal_priority_trust_region;
+use tidex::engine::ReconstructionReport;
+use tidex::foundation::artifact::{read_dvec_f32, sha256_file};
+use tidex::foundation::identity::SkillId;
+use tidex::foundation::security::configured_private_root;
+use tidex::learning::causal_credit::{certified_causal_priority_weights, CausalCreditReport};
 
 #[derive(Debug, Deserialize)]
 struct ProtectedWrapper {

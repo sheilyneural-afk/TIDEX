@@ -8,18 +8,18 @@
 //! inference; Candle Llama/Mistral load authenticated local SafeTensors. None of
 //! these backends implicitly grants hidden-state or weight-mutation authority.
 
-use cerebro_tidex::cross_model::discovery::BehavioralBenchmark;
-use cerebro_tidex::cross_model::models::{
-    CandleLlamaModel, CandleMistralModel, GenerationPolicy, HfTransformersModel,
-    HfTransformersRuntimeConfig, LLMModel, OllamaModel,
-};
-use cerebro_tidex::cross_model::plasticity_engine::{PlasticityEngine, PlasticityEngineConfig};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tidex::cross_model::discovery::BehavioralBenchmark;
+use tidex::cross_model::models::{
+    CandleLlamaModel, CandleMistralModel, GenerationPolicy, HfTransformersModel,
+    HfTransformersRuntimeConfig, LLMModel, OllamaModel,
+};
+use tidex::cross_model::plasticity_engine::{PlasticityEngine, PlasticityEngineConfig};
 
 const MAX_CONFIG_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_INTERVAL_SECONDS: u64 = 86_400;

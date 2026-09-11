@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Embedded persistent Hugging Face execution worker for CEREBRO3.
+"""Embedded persistent Hugging Face execution worker for TIDE-X.
 
-Loaded by Rust from compile-time embedded source. It performs only real model
-generation, hidden-state measurement, activation intervention and clearing.
+Loaded by Rust from compile-time embedded source. It performs real model
+generation, hidden-state measurement, activation intervention, and bound local
+sparse-autoencoder analysis. Hello reports a domain-separated runtime identity
+digest, not a catalog of package versions.
 """
 
 from __future__ import annotations
@@ -13,14 +15,16 @@ import importlib.metadata
 import json
 import math
 import os
+import re
 import struct
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
-HELLO_SCHEMA = "cerebro.cross_model.hf_worker_hello/v1"
+HELLO_SCHEMA = "cerebro.tidex.hf_worker_hello/v1"
 RESPONSE_SCHEMA = "cerebro.cross_model.hf_worker_response/v1"
+RUNTIME_IDENTITY_DOMAIN = b"CEREBRO:TIDEX:HF-RUNTIME-IDENTITY:v1\0"
 MAX_LINE_BYTES = 32 * 1024 * 1024
 MAX_PROMPT_CHARS = 1_048_576
 MAX_GENERATED_TOKENS = 32_768
@@ -89,32 +93,56 @@ def failure(request_id: str, operation: str, error: BaseException) -> dict[str, 
     return value
 
 
-def run_hf_worker(args: argparse.Namespace) -> int:
-    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
-    os.environ.setdefault("USE_TF", "0")
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")
-    os.environ.setdefault("PYTHONNOUSERSITE", "1")
+def digest_domain(domain: bytes, payload: bytes) -> str:
+    hasher = hashlib.sha256()
+    hasher.update(domain)
+    hasher.update(payload)
+    return hasher.hexdigest()
 
+
+def pep503_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def installed_runtime_identity() -> str:
+    packages: dict[str, str] = {}
+    for distribution in importlib.metadata.distributions():
+        raw_name = distribution.metadata["Name"]
+        require(isinstance(raw_name, str) and raw_name.strip(), "hf_runtime_distribution_unnamed")
+        key = pep503_name(raw_name)
+        version = distribution.version
+        require(version.strip(), f"hf_runtime_distribution_unversioned:{raw_name}")
+        if key in packages:
+            require(packages[key] == version, f"hf_runtime_distribution_conflict:{key}")
+            continue
+        packages[key] = version
+    payload = {
+        "implementation": sys.implementation.name,
+        "packages": {key: packages[key] for key in sorted(packages)},
+        "python_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
+    }
+    return digest_domain(
+        RUNTIME_IDENTITY_DOMAIN,
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(),
+    )
+
+
+def run_hf_worker(args: argparse.Namespace) -> int:
+    require(sys.version_info[:2] == (3, 12), f"hf_worker_python_unsupported:{sys.version}")
+    require(os.environ.get("PYTHONNOUSERSITE") == "1", "hf_worker_usersite_forbidden")
+    require(os.environ.get("HF_HUB_OFFLINE") == "1", "hf_worker_hub_offline_required")
+    require(os.environ.get("TOKENIZERS_PARALLELISM") == "false", "hf_worker_tokenizers_parallelism_required")
+    require(os.environ.get("TRANSFORMERS_NO_TF") == "1", "hf_worker_transformers_tf_forbidden")
+    require(os.environ.get("USE_TF") == "0", "hf_worker_tf_forbidden")
+
+    import nnsight
     import torch
+    from safetensors.torch import load_file
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    def importable_package_version(name: str) -> str | None:
-        candidates = [name.lower().replace("-", "_")]
-        if name.lower() == "sae-lens":
-            candidates = ["sae_lens", "sae-lens"]
-        if name.lower() == "nnsight":
-            candidates = ["nnsight"]
-        for candidate in candidates:
-            try:
-                __import__(candidate)
-                return importlib.metadata.version(name)
-            except Exception:
-                continue
-        return None
-
-    nnsight_version = importable_package_version("nnsight")
-    sae_lens_version = importable_package_version("sae-lens")
+    nnsight_version = importlib.metadata.version("nnsight")
+    require(nnsight.__version__ == nnsight_version, "hf_nnsight_version_identity_mismatch")
+    runtime_identity_sha256 = installed_runtime_identity()
 
     snapshot = Path(args.model_dir)
     checkpoint_link = Path(args.checkpoint)
@@ -125,12 +153,8 @@ def run_hf_worker(args: argparse.Namespace) -> int:
     tokenizer_path = exact_snapshot_file(snapshot, tokenizer_link, "tokenizer.json")
 
     require(1 <= args.threads <= 256, "hf_worker_thread_count_invalid")
+    torch.set_num_interop_threads(args.threads)
     torch.set_num_threads(args.threads)
-    if hasattr(torch, "set_num_interop_threads"):
-        try:
-            torch.set_num_interop_threads(max(1, min(args.threads, 8)))
-        except RuntimeError:
-            pass
 
     checkpoint_sha_before = sha256_file(checkpoint)
     config_sha_before = sha256_file(config_path)
@@ -144,7 +168,7 @@ def run_hf_worker(args: argparse.Namespace) -> int:
         str(snapshot),
         local_files_only=True,
         trust_remote_code=False,
-        torch_dtype=torch.float32,
+        dtype=torch.float32,
         low_cpu_mem_usage=False,
     )
     model.eval()
@@ -155,16 +179,18 @@ def run_hf_worker(args: argparse.Namespace) -> int:
     require(sha256_file(tokenizer_path) == tokenizer_sha_before, "hf_worker_tokenizer_changed_during_load")
 
     cfg = model.config
-    hidden_size = int(getattr(cfg, "hidden_size", 0) or 0)
-    intermediate_size = int(getattr(cfg, "intermediate_size", 0) or 0)
-    num_layers = int(getattr(cfg, "num_hidden_layers", 0) or 0)
-    num_heads = int(getattr(cfg, "num_attention_heads", 0) or 0)
-    vocab_size = int(getattr(cfg, "vocab_size", 0) or 0)
-    max_positions = int(getattr(cfg, "max_position_embeddings", 0) or 0)
+    hidden_size = int(cfg.hidden_size)
+    intermediate_size = int(cfg.intermediate_size)
+    num_layers = int(cfg.num_hidden_layers)
+    num_heads = int(cfg.num_attention_heads)
+    vocab_size = int(cfg.vocab_size)
+    max_positions = int(cfg.max_position_embeddings)
+    architectures = [str(item) for item in cfg.architectures]
     require(
         all(v > 0 for v in [hidden_size, intermediate_size, num_layers, num_heads, vocab_size, max_positions]),
         "hf_worker_model_geometry_missing",
     )
+    require(bool(architectures) and all(item.strip() for item in architectures), "hf_worker_architecture_list_invalid")
 
     decoder = getattr(model, "model", None)
     decoder_layers = getattr(decoder, "layers", None)
@@ -174,8 +200,8 @@ def run_hf_worker(args: argparse.Namespace) -> int:
 
     hello = {
         "schema": HELLO_SCHEMA,
-        "model_type": str(getattr(cfg, "model_type", "")),
-        "architectures": list(getattr(cfg, "architectures", None) or []),
+        "model_type": str(cfg.model_type),
+        "architectures": architectures,
         "hidden_size": hidden_size,
         "intermediate_size": intermediate_size,
         "num_hidden_layers": num_layers,
@@ -189,8 +215,7 @@ def run_hf_worker(args: argparse.Namespace) -> int:
         "load_duration_ns": load_duration_ns,
         "activation_semantics": "decoder_layer_output_last_prompt_token/v1",
         "steering_semantics": "decoder_layer_output_additive_broadcast/v1",
-        "nnsight_version": nnsight_version,
-        "sae_lens_version": sae_lens_version,
+        "runtime_identity_sha256": runtime_identity_sha256,
     }
     hello["manifest_sha256"] = canonical_sha256(hello)
     print(json.dumps(hello, separators=(",", ":")), flush=True)
@@ -253,7 +278,7 @@ def run_hf_worker(args: argparse.Namespace) -> int:
         return current
 
     def capture_nnsight_vector(prompt: str, module_path: str, token_from_end: int) -> tuple[list[float], int]:
-        require(nnsight_version is not None, "hf_nnsight_not_installed")
+        require(nnsight_version == importlib.metadata.version("nnsight"), "hf_nnsight_version_identity_mismatch")
         require(isinstance(token_from_end, int) and 0 <= token_from_end <= 65_535, "hf_nnsight_token_index_invalid")
         import nnsight
 
@@ -414,32 +439,48 @@ def run_hf_worker(args: argparse.Namespace) -> int:
             elif operation == "sae_analysis":
                 require(
                     set(payload)
-                    == {"prompt", "module_path", "token_from_end", "release", "sae_id", "top_k"},
+                    == {
+                        "prompt",
+                        "module_path",
+                        "token_from_end",
+                        "sae_dir",
+                        "weights_path",
+                        "config_path",
+                        "top_k",
+                    },
                     "hf_sae_payload_fields_invalid",
                 )
-                require(sae_lens_version is not None, "hf_sae_lens_not_installed")
-                release = payload["release"]
-                sae_id = payload["sae_id"]
                 top_k = int(payload["top_k"])
-                require(isinstance(release, str) and 0 < len(release) <= 4096, "hf_sae_release_invalid")
-                require(isinstance(sae_id, str) and 0 < len(sae_id) <= 4096, "hf_sae_id_invalid")
                 require(1 <= top_k <= 4096, "hf_sae_top_k_invalid")
+                sae_dir = Path(payload["sae_dir"])
+                weights = exact_snapshot_file(sae_dir, Path(payload["weights_path"]), "sae.safetensors")
+                config_file = exact_snapshot_file(sae_dir, Path(payload["config_path"]), "config.json")
                 values, duration = capture_nnsight_vector(
                     payload["prompt"], payload["module_path"], int(payload["token_from_end"])
                 )
-                from sae_lens import SAE
-
                 started_sae = time.monotonic_ns()
-                sae = SAE.from_pretrained(release=release, sae_id=sae_id, device="cpu", dtype="float32")
-                activation = torch.tensor(values, dtype=torch.float32)
-                with torch.no_grad():
-                    features = sae.encode(activation)
-                    reconstruction = sae.decode(features)
-                require(torch.is_tensor(features) and features.numel() > 0, "hf_sae_features_invalid")
-                features = features.detach().to(dtype=torch.float64, device="cpu").reshape(-1)
-                reconstruction = reconstruction.detach().to(dtype=torch.float64, device="cpu").reshape(-1)
-                require(reconstruction.numel() == len(values), "hf_sae_reconstruction_shape_mismatch")
+                cfg = json.loads(config_file.read_text(encoding="utf-8"))
+                require(isinstance(cfg, dict) and set(cfg) == {"activation", "d_in", "d_sae"}, "hf_sae_config_fields_invalid")
+                require(cfg["activation"] == "relu", "hf_sae_activation_unsupported")
+                d_in = int(cfg["d_in"])
+                d_sae = int(cfg["d_sae"])
+                require(d_in == len(values) and d_sae > 0, "hf_sae_geometry_mismatch")
+                tensors = load_file(str(weights))
+                require(set(tensors) == {"W_dec", "W_enc", "b_dec", "b_enc"}, "hf_sae_tensor_set_invalid")
+                w_enc = tensors["W_enc"].detach().to(dtype=torch.float64, device="cpu")
+                b_enc = tensors["b_enc"].detach().to(dtype=torch.float64, device="cpu")
+                w_dec = tensors["W_dec"].detach().to(dtype=torch.float64, device="cpu")
+                b_dec = tensors["b_dec"].detach().to(dtype=torch.float64, device="cpu")
+                require(tuple(w_enc.shape) == (d_in, d_sae), "hf_sae_w_enc_shape_invalid")
+                require(tuple(b_enc.shape) == (d_sae,), "hf_sae_b_enc_shape_invalid")
+                require(tuple(w_dec.shape) == (d_sae, d_in), "hf_sae_w_dec_shape_invalid")
+                require(tuple(b_dec.shape) == (d_in,), "hf_sae_b_dec_shape_invalid")
                 source = torch.tensor(values, dtype=torch.float64)
+                with torch.no_grad():
+                    features = torch.relu(source @ w_enc + b_enc)
+                    reconstruction = features @ w_dec + b_dec
+                require(features.numel() == d_sae, "hf_sae_features_invalid")
+                require(reconstruction.numel() == d_in, "hf_sae_reconstruction_shape_mismatch")
                 denominator = float(torch.linalg.vector_norm(source))
                 require(math.isfinite(denominator) and denominator > 0.0, "hf_sae_input_degenerate")
                 reconstruction_error = float(torch.linalg.vector_norm(reconstruction - source) / denominator)
@@ -455,9 +496,10 @@ def run_hf_worker(args: argparse.Namespace) -> int:
                 payload_out = {
                     "module_path": payload["module_path"],
                     "token_from_end": int(payload["token_from_end"]),
-                    "release": release,
-                    "sae_id": sae_id,
-                    "sae_lens_version": sae_lens_version,
+                    "sae_weights_sha256": sha256_file(weights),
+                    "sae_config_sha256": sha256_file(config_file),
+                    "d_in": d_in,
+                    "d_sae": d_sae,
                     "input_sha256": f64_vector_sha256(values),
                     "feature_count": feature_count,
                     "active_feature_count": active_feature_count,

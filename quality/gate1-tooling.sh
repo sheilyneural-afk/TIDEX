@@ -92,7 +92,7 @@ probe_lsan_host() {
     RUSTFLAGS='-Zsanitizer=leak -Cforce-frame-pointers=yes' \
     LSAN_OPTIONS='exitcode=86:halt_on_error=1' \
         cargo "+$QUALITY_NIGHTLY" test -Zbuild-std --lib \
-        low_rank_math::tests::rank_one_solution_is_exact_without_damping \
+        foundation::low_rank_math::tests::rank_one_solution_is_exact_without_damping \
         --target "$QUALITY_TARGET" -- --exact --test-threads=1 \
         >"$log" 2>&1
     status=$?
@@ -153,7 +153,7 @@ CARGO_TARGET_DIR="$QUALITY_TMP/target-coverage" \
 
 CARGO_TARGET_DIR="$QUALITY_TMP/target-miri" \
 MIRIFLAGS='-Zmiri-strict-provenance -Zmiri-symbolic-alignment-check -Zmiri-isolation-error=abort -Zmiri-many-seeds=0..8' \
-    cargo "+$QUALITY_NIGHTLY" miri test --lib low_rank_math::tests -- --test-threads=1
+    cargo "+$QUALITY_NIGHTLY" miri test --lib foundation::low_rank_math::tests -- --test-threads=1
 
 CARGO_TARGET_DIR="$QUALITY_TMP/target-asan" \
 RUSTFLAGS='-Zsanitizer=address -Cforce-frame-pointers=yes' \
@@ -191,11 +191,14 @@ QUALITY_FUZZ_PROJECT="$QUALITY_TMP/fuzz-project"
 mkdir -p \
     "$QUALITY_FUZZ_TMP/multi-case-solver" \
     "$QUALITY_FUZZ_TMP/persisted-inputs" \
+    "$QUALITY_FUZZ_TMP/identity-wire" \
     "$QUALITY_FUZZ_PROJECT" \
     "$QUALITY_TMP/fuzz-artifacts-multi" \
-    "$QUALITY_TMP/fuzz-artifacts-persisted"
+    "$QUALITY_TMP/fuzz-artifacts-persisted" \
+    "$QUALITY_TMP/fuzz-artifacts-identity"
 cp fuzz/seeds/multi-case-solver/finite-values "$QUALITY_FUZZ_TMP/multi-case-solver/"
 cp fuzz/seeds/persisted-inputs/empty-object.json "$QUALITY_FUZZ_TMP/persisted-inputs/"
+cp fuzz/seeds/identity-wire/* "$QUALITY_FUZZ_TMP/identity-wire/"
 cp fuzz/Cargo.lock fuzz/deny.toml "$QUALITY_FUZZ_PROJECT/"
 cp -R fuzz/fuzz_targets "$QUALITY_FUZZ_PROJECT/"
 sed "s|path = \"..\"|path = \"$QUALITY_ROOT\"|" \
@@ -215,6 +218,12 @@ sed "s|path = \"..\"|path = \"$QUALITY_ROOT\"|" \
         persisted-inputs "$QUALITY_FUZZ_TMP/persisted-inputs" -- \
         -runs="$QUALITY_FUZZ_RUNS" -rss_limit_mb=768 -max_len=4096 \
         -timeout=10 -artifact_prefix="$QUALITY_TMP/fuzz-artifacts-persisted/"
+    CARGO_TARGET_DIR="$QUALITY_TMP/target-fuzz" \
+    ASAN_OPTIONS='detect_leaks=0:halt_on_error=1' \
+        cargo "+$QUALITY_NIGHTLY" fuzz run --fuzz-dir "$QUALITY_FUZZ_PROJECT" \
+        identity-wire "$QUALITY_FUZZ_TMP/identity-wire" -- \
+        -runs="$QUALITY_FUZZ_RUNS" -rss_limit_mb=512 -max_len=1024 \
+        -timeout=10 -artifact_prefix="$QUALITY_TMP/fuzz-artifacts-identity/"
 )
 
 snapshot_checkout "$QUALITY_TMP/checkout-after"

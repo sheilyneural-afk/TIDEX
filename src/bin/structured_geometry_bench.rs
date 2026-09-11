@@ -1,15 +1,15 @@
-use cerebro_tidex::artifact::DeltaArtifactRef;
-use cerebro_tidex::block_tomography::{
-    reconstruct_structured_geometry, BlockShapeSpec, ParameterBlockLayout, StructuredSource,
-};
-use cerebro_tidex::contracts::{BrainConfig, DeltaObservation};
-use cerebro_tidex::engine::ReconstructionReport;
-use cerebro_tidex::security::configured_private_root;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use tidex::analysis::block_tomography::{
+    reconstruct_structured_geometry, BlockShapeSpec, ParameterBlockLayout, StructuredSource,
+};
+use tidex::engine::ReconstructionReport;
+use tidex::foundation::artifact::DeltaArtifactRef;
+use tidex::foundation::contracts::{BrainConfig, DeltaObservation};
+use tidex::foundation::security::configured_private_root;
 
 #[derive(Debug, Deserialize)]
 struct AdapterRow {

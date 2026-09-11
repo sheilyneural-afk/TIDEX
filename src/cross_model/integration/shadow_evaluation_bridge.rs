@@ -1,9 +1,11 @@
 //! Thin adapter to the canonical isolated shadow evaluator.
 
-use crate::error::BrainResult;
-use crate::isolated_execution::{AuthenticatedBytes, IsolationLimits, IsolationRequirements};
-use crate::shadow_evaluation::{
+use crate::foundation::error::BrainResult;
+use crate::materialization::shadow_evaluation::{
     run_shadow_evaluation, ShadowEvaluationBundle, ShadowEvaluationReceipt,
+};
+use crate::runtime::isolated_execution::{
+    AuthenticatedBytes, IsolationLimits, IsolationRequirements,
 };
 
 #[derive(Debug, Clone, Default)]

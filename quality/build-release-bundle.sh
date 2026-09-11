@@ -5,7 +5,7 @@ umask 077
 
 QUALITY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 BINARIES=(
-    cerebro-tidex
+    tidex-engine
     acquire-system
     adaptive-learning-cycle
     autonomous-learning-plan
@@ -63,7 +63,7 @@ PACKAGE_VERSION=${PACKAGE_META[1]}
 LICENSE_DECLARED=${PACKAGE_META[2]}
 PACKAGE_LICENSE=${PACKAGE_META[3]}
 PACKAGE_LICENSE_FILE=${PACKAGE_META[4]}
-[[ "$PACKAGE_NAME" == cerebro-tidex ]] || fail 'unexpected_package_name'
+[[ "$PACKAGE_NAME" == tidex ]] || fail 'unexpected_package_name'
 [[ "$PACKAGE_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z.+-]*$ ]] || fail 'package_version_not_release_safe'
 
 TARGET=$(rustc -vV | sed -n 's/^host: //p')
@@ -96,7 +96,7 @@ done
 
 mapfile -t SOURCE_DIGESTS < <(
     grep -h '^cargo:rustc-env=TIDEX_SOURCE_TREE_DIGEST=' \
-        "$WORK"/target-a/release/build/cerebro-tidex-*/output \
+        "$WORK"/target-a/release/build/tidex-*/output \
         | sed 's/^cargo:rustc-env=TIDEX_SOURCE_TREE_DIGEST=//' \
         | LC_ALL=C sort -u
 )
@@ -134,10 +134,10 @@ src,dst,name,commit,target,epoch=sys.argv[1:]
 doc=json.load(open(src,encoding='utf-8'))
 if doc.get('spdxVersion') != 'SPDX-2.3':
     raise SystemExit('release build rejected: sbom_spdx_version_invalid')
-if any(pkg.get('name') == 'cerebro-tidex-fuzz' for pkg in doc.get('packages',[])):
+if any(pkg.get('name') == 'tidex-fuzz' for pkg in doc.get('packages',[])):
     raise SystemExit('release build rejected: sbom_contains_fuzz_package')
 doc['name']=name
-doc['documentNamespace']='urn:uuid:'+str(uuid.uuid5(uuid.NAMESPACE_URL,f'cerebro-tidex:{commit}:{target}'))
+doc['documentNamespace']='urn:uuid:'+str(uuid.uuid5(uuid.NAMESPACE_URL,f'tidex:{commit}:{target}'))
 doc.setdefault('creationInfo',{})['created']=dt.datetime.fromtimestamp(int(epoch),dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 for key in ('packages','files','relationships','externalDocumentRefs','snippets','annotations'):
     value=doc.get(key)

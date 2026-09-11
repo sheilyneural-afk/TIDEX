@@ -1,9 +1,9 @@
-//! Thin adapter to CEREBRO3's canonical weight tomography.
+//! Thin adapter to TIDE-X's canonical weight tomography.
 
-use crate::contracts::BrainConfig;
-use crate::error::BrainResult;
-use crate::linalg::Matrix;
-use crate::tomography::{reconstruct_skill_fields, TomographyResult};
+use crate::analysis::tomography::{reconstruct_skill_fields, TomographyResult};
+use crate::foundation::contracts::BrainConfig;
+use crate::foundation::error::BrainResult;
+use crate::foundation::linalg::Matrix;
 
 #[derive(Debug, Clone, Default)]
 pub struct WeightTomographyBridgeConfig;

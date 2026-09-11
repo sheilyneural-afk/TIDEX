@@ -25,22 +25,35 @@ access = ["behavioral_inference"]
 name = "smollm2-135m-candle"
 backend = "candle_llama"
 enabled = false
-checkpoint_path = "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/model.safetensors"
-config_path = "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/config.json"
-tokenizer_path = "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/tokenizer.json"
+checkpoint_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/model.safetensors"
+config_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/config.json"
+tokenizer_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/tokenizer.json"
 access = ["behavioral_inference"]
 
 [[models]]
 name = "smollm2-135m-hf"
 backend = "hf_transformers"
-enabled = false
-python_executable = "/home/yo/Future/cerebro3-runtime/python/cerebro3-mechinterp/bin/python"
-worker_script = "/home/yo/Future/cerebro3/src/cross_model/runtime/hf_worker.py"
+enabled = true
+python_executable = "/home/yo/Future/runtime/python/tidex-mechinterp/bin/python"
 require_nnsight = true
-require_sae_lens = true
-model_dir = "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2"
-checkpoint_path = "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/model.safetensors"
-config_path = "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/config.json"
-tokenizer_path = "/home/yo/Future/cerebro3-runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/tokenizer.json"
+require_sae_lens = false
+model_dir = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2"
+checkpoint_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/model.safetensors"
+config_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/config.json"
+tokenizer_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M/snapshots/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/tokenizer.json"
+threads = 8
+access = ["behavioral_inference", "internal_activations", "activation_intervention"]
+
+[[models]]
+name = "smollm2-135m-instruct-hf"
+backend = "hf_transformers"
+enabled = true
+python_executable = "/home/yo/Future/runtime/python/tidex-mechinterp/bin/python"
+require_nnsight = true
+require_sae_lens = false
+model_dir = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M-Instruct/snapshots/12fd25f77366fa6b3b4b768ec3050bf629380bac"
+checkpoint_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M-Instruct/snapshots/12fd25f77366fa6b3b4b768ec3050bf629380bac/model.safetensors"
+config_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M-Instruct/snapshots/12fd25f77366fa6b3b4b768ec3050bf629380bac/config.json"
+tokenizer_path = "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M-Instruct/snapshots/12fd25f77366fa6b3b4b768ec3050bf629380bac/tokenizer.json"
 threads = 8
 access = ["behavioral_inference", "internal_activations", "activation_intervention"]

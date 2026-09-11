@@ -81,10 +81,7 @@ impl BrainEngine {
         let (corpus_digest, observation_count) = if observations.is_empty() {
             (None, 0)
         } else {
-            (
-                Some(observation_set_digest(&observations)?),
-                observations.len(),
-            )
+            (Some(observation_set_digest(&observations)?), observations.len())
         };
         let active_bank_sha256 = self
             .optional_pointer_digest(&self.bank_path())?
@@ -174,7 +171,7 @@ impl BrainEngine {
         ) {
             Ok(bytes) => bytes,
             Err(BrainError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(None)
+                return Ok(None);
             }
             Err(error) => return Err(error),
         };
@@ -231,10 +228,7 @@ impl BrainEngine {
         let (corpus_digest, observation_count) = if observations.is_empty() {
             (None, 0)
         } else {
-            (
-                Some(observation_set_digest(&observations)?),
-                observations.len(),
-            )
+            (Some(observation_set_digest(&observations)?), observations.len())
         };
         let sleep_path = self.root.join("state/sleep_state.json");
         let (live_certification_status, live_report_sha256) =
@@ -369,9 +363,7 @@ impl BrainEngine {
 
     pub(super) fn load_parameter_layout(&self, digest: &str) -> BrainResult<ParameterBlockLayout> {
         if !valid_digest(digest) {
-            return Err(BrainError::Invalid(
-                "parameter_layout_digest_invalid".into(),
-            ));
+            return Err(BrainError::Invalid("parameter_layout_digest_invalid".into()));
         }
         let path = self
             .root
@@ -399,9 +391,7 @@ impl BrainEngine {
         reference: &DeltaArtifactRef,
     ) -> BrainResult<PathBuf> {
         if !valid_digest(&reference.sha256) || reference.parameter_count == 0 {
-            return Err(BrainError::Integrity(
-                "runtime_dense_reference_contract_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_dense_reference_contract_invalid".into()));
         }
         let supplied = Path::new(&reference.path);
         let expected = self
@@ -409,18 +399,14 @@ impl BrainEngine {
             .join("artifacts/deltas/by-sha")
             .join(format!("{}.dvec", reference.sha256.to_ascii_lowercase()));
         if supplied != expected {
-            return Err(BrainError::Integrity(
-                "runtime_dense_reference_path_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_dense_reference_path_invalid".into()));
         }
         let expected = existing_regular_file_under_root(&self.root, &expected)?;
         let inspected = inspect_dvec(&self.root, &expected)?;
         if inspected.sha256 != reference.sha256.to_ascii_lowercase()
             || inspected.parameter_count != reference.parameter_count
         {
-            return Err(BrainError::Integrity(
-                "runtime_dense_reference_identity_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("runtime_dense_reference_identity_mismatch".into()));
         }
         Ok(expected)
     }
@@ -430,23 +416,17 @@ impl BrainEngine {
     }
     pub(super) fn validate_bank_scalar(label: &str, value: f64) -> BrainResult<()> {
         if !value.is_finite() {
-            return Err(BrainError::Integrity(format!(
-                "skill_bank_{label}_nonfinite"
-            )));
+            return Err(BrainError::Integrity(format!("skill_bank_{label}_nonfinite")));
         }
         if value.abs() > f64::MAX.sqrt() {
-            return Err(BrainError::Integrity(format!(
-                "skill_bank_{label}_magnitude_too_large"
-            )));
+            return Err(BrainError::Integrity(format!("skill_bank_{label}_magnitude_too_large")));
         }
         Ok(())
     }
 
     pub(super) fn validate_skill_bank_semantics(bank: &SkillBank) -> BrainResult<()> {
         if bank.fields.len() > MAX_ENGINE_SKILL_FIELDS {
-            return Err(BrainError::Integrity(
-                "skill_bank_field_limit_exceeded".into(),
-            ));
+            return Err(BrainError::Integrity("skill_bank_field_limit_exceeded".into()));
         }
         let expected_direction_dimension = bank.fields.first().map(|field| field.direction.len());
         let mut ids = BTreeSet::new();
@@ -626,9 +606,7 @@ impl BrainEngine {
                 return Err(BrainError::Integrity("active_skill_bank_missing".into()));
             }
             Err(error) => {
-                return Err(BrainError::Integrity(format!(
-                    "active_skill_bank_invalid:{error}"
-                )));
+                return Err(BrainError::Integrity(format!("active_skill_bank_invalid:{error}")));
             }
         };
         let bank: SkillBank = serde_json::from_slice(&raw)?;
@@ -664,9 +642,7 @@ impl BrainEngine {
         digests.sort();
         digests.dedup();
         if digests.len() != obs.len() {
-            return Err(BrainError::Integrity(
-                "persisted_observation_digest_duplicate".into(),
-            ));
+            return Err(BrainError::Integrity("persisted_observation_digest_duplicate".into()));
         }
         let batch_digest = digest_json(&digests)?;
         let staging = self
@@ -693,9 +669,7 @@ impl BrainEngine {
             .map(|(name, _, _)| name.clone())
             .collect::<BTreeSet<_>>();
         if staged_names != expected_names {
-            return Err(BrainError::Integrity(
-                "observation_staging_directory_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("observation_staging_directory_invalid".into()));
         }
         let live = self.root.join("state/observations");
         match fs::symlink_metadata(&live) {

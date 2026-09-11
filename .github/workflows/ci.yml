@@ -15,16 +15,26 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85.0
+          toolchain: 1.96.0
+          components: rustfmt, clippy
 
       - name: Format check
         run: cargo fmt --all -- --check
 
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+
       - name: Compile project
-        run: cargo check --all-targets
+        run: cargo check --all-targets --all-features --locked
 
       - name: Library test suite
-        run: cargo test --lib
+        run: cargo test --lib --all-features --locked
 
-      - name: Integration smoke tests
-        run: cargo test --test brain --test production_surface --test quality_properties --test convergence_pipeline
+      - name: Integration tests
+        run: cargo test --locked --all-features --test production_surface --test quality_properties --test convergence_pipeline
+
+      - name: Production configuration contracts
+        run: cargo test --locked --all-features --test configuration_contracts
+
+      - name: Compile fuzz harnesses
+        run: cargo check --locked --manifest-path fuzz/Cargo.toml --all-targets

@@ -1,9 +1,9 @@
 #![no_main]
 
-use cerebro_tidex::capability_bundle::CapabilityBundle;
-use cerebro_tidex::capability_ir::CapabilityIr;
-use cerebro_tidex::content_vault::CaptureReceipt;
-use cerebro_tidex::procedural_memory::{DriftRecord, SolverAttempt, SolverRunFailureRecord};
+use tidex::capability::capability_bundle::CapabilityBundle;
+use tidex::capability::capability_ir::CapabilityIr;
+use tidex::capability::content_vault::CaptureReceipt;
+use tidex::learning::procedural_memory::{DriftRecord, SolverAttempt, SolverRunFailureRecord};
 use libfuzzer_sys::fuzz_target;
 
 fn round_trip<T>(bytes: &[u8])

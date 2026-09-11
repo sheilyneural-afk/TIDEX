@@ -311,7 +311,7 @@ impl PlasticityEngine {
 
         if !target.supports(ModelAccess::ActivationIntervention) {
             return Err(
-                format!("target_intervention_backend_unavailable:{target_model_name}").into(),
+                format!("target_intervention_backend_unavailable:{target_model_name}").into()
             );
         }
         let receipt = target.apply_steering(
@@ -336,7 +336,7 @@ impl PlasticityEngine {
         let target = self.model(target_model_name)?;
         if !target.supports(ModelAccess::ActivationIntervention) {
             return Err(
-                format!("target_intervention_backend_unavailable:{target_model_name}").into(),
+                format!("target_intervention_backend_unavailable:{target_model_name}").into()
             );
         }
         target.clear_activation_interventions()?;

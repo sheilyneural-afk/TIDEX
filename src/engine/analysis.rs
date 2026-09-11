@@ -23,9 +23,7 @@ impl BrainEngine {
             return Ok(None);
         }
         if populated != observations.len() {
-            return Err(BrainError::Invalid(
-                "structured_geometry_partial_dense_evidence".into(),
-            ));
+            return Err(BrainError::Invalid("structured_geometry_partial_dense_evidence".into()));
         }
         let layout_ids = observations
             .iter()
@@ -83,9 +81,7 @@ impl BrainEngine {
                 .iter()
                 .any(|mixture| mixture.len() != observations.len())
         {
-            return Err(BrainError::Invalid(
-                "dense_field_materialization_shape".into(),
-            ));
+            return Err(BrainError::Invalid("dense_field_materialization_shape".into()));
         }
         let (layout_sha, layout, _) = self
             .structured_sources(observations)?
@@ -225,9 +221,7 @@ impl BrainEngine {
             return Ok(None);
         }
         if populated != observations.len() {
-            return Err(BrainError::Invalid(
-                "dual_space_partial_representation_evidence".into(),
-            ));
+            return Err(BrainError::Invalid("dual_space_partial_representation_evidence".into()));
         }
         let protocol_ids = observations
             .iter()
@@ -241,9 +235,7 @@ impl BrainEngine {
             })
             .collect::<BrainResult<BTreeSet<_>>>()?;
         if protocol_ids.len() != 1 {
-            return Err(BrainError::Invalid(
-                "dual_space_multiple_representation_protocols".into(),
-            ));
+            return Err(BrainError::Invalid("dual_space_multiple_representation_protocols".into()));
         }
         let protocol_sha = protocol_ids.into_iter().next().ok_or_else(|| {
             BrainError::Integrity("dual_space_representation_protocol_missing".into())
@@ -293,9 +285,7 @@ impl BrainEngine {
         let _forbidden_vocab_sha = string_digest("forbidden_vocabulary_sha256")?;
         let _source_representation_sha = string_digest("source_representation_sha256")?;
         if probe_sha != probe_text_sha {
-            return Err(BrainError::Integrity(
-                "representation_probe_text_digest_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("representation_probe_text_digest_mismatch".into()));
         }
         let sketch_dim = protocol
             .get("sketch_dim")
@@ -385,27 +375,21 @@ impl BrainEngine {
             return Err(BrainError::Invalid("minimum_six_observations".into()));
         }
         if obs.len() > MAX_ENGINE_OBSERVATIONS {
-            return Err(BrainError::Invalid(
-                "observation_count_limit_exceeded".into(),
-            ));
+            return Err(BrainError::Invalid("observation_count_limit_exceeded".into()));
         }
         let dim = obs[0].delta.len();
         if dim == 0 {
             return Err(BrainError::Invalid("empty_delta".into()));
         }
         if dim > MAX_ENGINE_PARAMETER_DIMENSION {
-            return Err(BrainError::Invalid(
-                "parameter_dimension_limit_exceeded".into(),
-            ));
+            return Err(BrainError::Invalid("parameter_dimension_limit_exceeded".into()));
         }
         let total_delta_elements = obs
             .len()
             .checked_mul(dim)
             .ok_or_else(|| BrainError::Invalid("delta_element_count_overflow".into()))?;
         if total_delta_elements > MAX_ENGINE_TOTAL_DELTA_ELEMENTS {
-            return Err(BrainError::Invalid(
-                "delta_element_count_limit_exceeded".into(),
-            ));
+            return Err(BrainError::Invalid("delta_element_count_limit_exceeded".into()));
         }
 
         let mut ids = BTreeSet::new();
@@ -436,9 +420,7 @@ impl BrainEngine {
             }
             groups.insert(o.independence_group.as_str());
             if groups.len() > MAX_ENGINE_INDEPENDENCE_GROUPS {
-                return Err(BrainError::Invalid(
-                    "independence_group_limit_exceeded".into(),
-                ));
+                return Err(BrainError::Invalid("independence_group_limit_exceeded".into()));
             }
             if o.confounders.len() > MAX_ENGINE_CONFOUNDERS_PER_OBSERVATION
                 || o.confounders.iter().any(|confounder| {
@@ -473,9 +455,7 @@ impl BrainEngine {
             if o.functional_response.len() > MAX_ENGINE_FUNCTIONAL_RESPONSE_DIMENSION
                 || o.functional_response.iter().any(|v| !v.is_finite())
             {
-                return Err(BrainError::Invalid(
-                    "functional_response_contract_invalid".into(),
-                ));
+                return Err(BrainError::Invalid("functional_response_contract_invalid".into()));
             }
             total_functional_elements = total_functional_elements
                 .checked_add(o.functional_response.len())
@@ -849,18 +829,9 @@ impl BrainEngine {
                 0.0
             },
         );
-        metrics.insert(
-            "weight_tomography_temporal_depth".into(),
-            weight_tomography.temporal_depth,
-        );
-        metrics.insert(
-            "weight_tomography_instability".into(),
-            weight_tomography.instability,
-        );
-        metrics.insert(
-            "weight_tomography_confidence".into(),
-            weight_tomography.confidence,
-        );
+        metrics.insert("weight_tomography_temporal_depth".into(), weight_tomography.temporal_depth);
+        metrics.insert("weight_tomography_instability".into(), weight_tomography.instability);
+        metrics.insert("weight_tomography_confidence".into(), weight_tomography.confidence);
         metrics.insert(
             "weight_tomography_high_frequency_ratio".into(),
             weight_tomography.high_frequency_ratio,
@@ -878,10 +849,7 @@ impl BrainEngine {
             weight_tomography.trajectory_quality,
         );
         metrics.insert("functional_cv_r2".into(), functional_cv_r2);
-        metrics.insert(
-            "spectral_functional_cv_r2".into(),
-            spectral_functional.cv_r2,
-        );
+        metrics.insert("spectral_functional_cv_r2".into(), spectral_functional.cv_r2);
         if let Some(value) = persistent_functional_cv_r2 {
             metrics.insert("persistent_functional_cv_r2".into(), value);
         }
@@ -918,32 +886,17 @@ impl BrainEngine {
             "aperture_numerical_group_rank".into(),
             aperture_independence.numerical_design_rank as f64,
         );
-        metrics.insert(
-            "identifiability_resolved_rank".into(),
-            resolution_map.resolved_rank as f64,
-        );
+        metrics.insert("identifiability_resolved_rank".into(), resolution_map.resolved_rank as f64);
         metrics.insert(
             "identifiability_min_principal_angle_degrees".into(),
             resolution_map.min_principal_angle_degrees,
         );
-        metrics.insert(
-            "normalized_reconstruction_rms".into(),
-            normalized_reconstruction_rms,
-        );
+        metrics.insert("normalized_reconstruction_rms".into(), normalized_reconstruction_rms);
         metrics.insert("effective_rank".into(), effective_rank);
         metrics.insert("condition_estimate".into(), condition_estimate);
-        metrics.insert(
-            "structured_active_block_count".into(),
-            structured_block_count as f64,
-        );
-        metrics.insert(
-            "structured_max_local_rank".into(),
-            structured_max_local_rank as f64,
-        );
-        metrics.insert(
-            "structured_mean_effective_rank".into(),
-            structured_mean_effective_rank,
-        );
+        metrics.insert("structured_active_block_count".into(), structured_block_count as f64);
+        metrics.insert("structured_max_local_rank".into(), structured_max_local_rank as f64);
+        metrics.insert("structured_mean_effective_rank".into(), structured_mean_effective_rank);
         let field_coefficients = (0..selected_coefficients.rows)
             .map(|row| selected_coefficients.row_vec(row))
             .collect::<Vec<_>>();
@@ -976,9 +929,7 @@ impl BrainEngine {
                 },
             )?;
             if dual.fields.len() != fields.len() {
-                return Err(BrainError::Integrity(
-                    "dual_space_field_count_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("dual_space_field_count_mismatch".into()));
             }
             for (field, dual_field) in fields.iter_mut().zip(&dual.fields) {
                 if field.skill_id != dual_field.skill_id
@@ -989,17 +940,13 @@ impl BrainEngine {
                         .iter()
                         .any(|value| !value.is_finite())
                 {
-                    return Err(BrainError::Integrity(
-                        "dual_space_field_identity_mismatch".into(),
-                    ));
+                    return Err(BrainError::Integrity("dual_space_field_identity_mismatch".into()));
                 }
                 field.representation_signature = dual_field.representation_signature.clone();
             }
             metrics.insert("representation_cv_r2".into(), dual.representation_cv_r2);
-            metrics.insert(
-                "representation_match_accuracy".into(),
-                dual.representation_match_accuracy,
-            );
+            metrics
+                .insert("representation_match_accuracy".into(), dual.representation_match_accuracy);
             metrics.insert(
                 "representation_mean_matched_cosine".into(),
                 dual.representation_mean_matched_cosine,

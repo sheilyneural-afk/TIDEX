@@ -1,11 +1,11 @@
 //! Verified low-rank/LoRA factorization of an already compiled weight delta.
 //!
 //! This module does not convert an activation steering vector into weights.
-//! It delegates numerical factorization to CEREBRO3's canonical verified
+//! It delegates numerical factorization to TIDE-X's canonical verified
 //! low-rank core and preserves an exact identity link to the dense delta.
 
 use crate::cross_model::models::{sha256_hex, CapabilityEvidenceKind, CapabilityMetadata, Tensor};
-use crate::low_rank_shadow_materializer::{
+use crate::materialization::low_rank_shadow_materializer::{
     factor_dense_delta_verified, LowRankShadowPolicy, VerifiedLowRankFactors,
 };
 use serde::{Deserialize, Serialize};

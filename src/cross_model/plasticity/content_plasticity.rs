@@ -141,10 +141,8 @@ impl ContentPlasticityMatrix {
             .clamp(0.0, 1.0)
             + similarity_bonus * self.consolidation_rate;
         confidence = confidence.clamp(0.0, 1.0);
-        self.temporal_decay.insert(
-            fact_id.to_string(),
-            (decay + self.eligibility_decay_content).min(0.99),
-        );
+        self.temporal_decay
+            .insert(fact_id.to_string(), (decay + self.eligibility_decay_content).min(0.99));
         self.fact_confidence.insert(fact_id.to_string(), confidence);
         Ok(confidence)
     }

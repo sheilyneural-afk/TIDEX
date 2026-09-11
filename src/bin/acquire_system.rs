@@ -3,16 +3,16 @@
 //! receipt.  This command performs no donor execution and never claims that a
 //! captured source tree has been understood or transferred to weights.
 
-use cerebro_tidex::acquisition_contract::{
-    AcquisitionBudget, AcquisitionRequest, AcquisitionScope, DeclaredRelativePath, NoisePolicy,
-    RequestedResidency,
-};
-use cerebro_tidex::content_vault::capture_to_vault;
-use cerebro_tidex::identity::AcquisitionId;
-use cerebro_tidex::security::configured_private_root;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::path::PathBuf;
+use tidex::capability::acquisition_contract::{
+    AcquisitionBudget, AcquisitionRequest, AcquisitionScope, DeclaredRelativePath, NoisePolicy,
+    RequestedResidency,
+};
+use tidex::capability::content_vault::capture_to_vault;
+use tidex::foundation::identity::AcquisitionId;
+use tidex::foundation::security::configured_private_root;
 
 fn main() {
     if let Err(error) = run(std::env::args_os().skip(1).collect()) {

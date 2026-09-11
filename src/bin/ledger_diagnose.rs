@@ -1,7 +1,7 @@
-use cerebro_tidex::ledger;
-use cerebro_tidex::security::configured_private_root;
 use sha2::{Digest, Sha256};
 use std::path::Path;
+use tidex::foundation::ledger;
+use tidex::foundation::security::configured_private_root;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = configured_private_root()?;
@@ -41,7 +41,7 @@ mod tests {
             .as_nanos();
         let root = std::env::temp_dir().join(format!("test-bin-diag-{unique}"));
         std::fs::create_dir_all(&root).unwrap();
-        cerebro_tidex::security::secure_dir(&root).unwrap();
+        tidex::foundation::security::secure_dir(&root).unwrap();
 
         assert!(run_diagnose(&root).is_ok());
         let _ = std::fs::remove_dir_all(&root);

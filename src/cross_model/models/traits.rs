@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -240,8 +241,9 @@ pub struct SparseAutoencoderRequest {
     pub module_path: String,
     pub prompt: String,
     pub token_from_end: usize,
-    pub release: String,
-    pub sae_id: String,
+    pub sae_dir: PathBuf,
+    pub weights_path: PathBuf,
+    pub config_path: PathBuf,
     pub top_k: usize,
 }
 
@@ -253,10 +255,11 @@ impl SparseAutoencoderRequest {
             token_from_end: self.token_from_end,
         }
         .validate()?;
-        if self.release.trim().is_empty()
-            || self.release.len() > 4096
-            || self.sae_id.trim().is_empty()
-            || self.sae_id.len() > 4096
+        if !self.sae_dir.is_absolute()
+            || !self.weights_path.is_absolute()
+            || !self.config_path.is_absolute()
+            || self.weights_path.file_name() != Some(Path::new("sae.safetensors").as_os_str())
+            || self.config_path.file_name() != Some(Path::new("config.json").as_os_str())
             || self.top_k == 0
             || self.top_k > 4096
         {
@@ -281,9 +284,10 @@ pub struct SparseAutoencoderEvidence {
     pub runtime_metadata_sha256: String,
     pub module_path: String,
     pub token_from_end: usize,
-    pub release: String,
-    pub sae_id: String,
-    pub sae_lens_version: String,
+    pub sae_weights_sha256: String,
+    pub sae_config_sha256: String,
+    pub d_in: usize,
+    pub d_sae: usize,
     pub input_sha256: String,
     pub feature_count: usize,
     pub active_feature_count: usize,
@@ -294,15 +298,16 @@ pub struct SparseAutoencoderEvidence {
 
 impl SparseAutoencoderEvidence {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.sparse_autoencoder_evidence/v1"
+        if self.schema != "cerebro.tidex.sparse_autoencoder_evidence/v1"
             || self.model.trim().is_empty()
             || !is_sha256(&self.runtime_metadata_sha256)
             || self.module_path.trim().is_empty()
-            || self.release.trim().is_empty()
-            || self.sae_id.trim().is_empty()
-            || self.sae_lens_version.trim().is_empty()
+            || !is_sha256(&self.sae_weights_sha256)
+            || !is_sha256(&self.sae_config_sha256)
+            || self.d_in == 0
+            || self.d_sae == 0
             || !is_sha256(&self.input_sha256)
-            || self.feature_count == 0
+            || self.feature_count != self.d_sae
             || self.active_feature_count > self.feature_count
             || self.top_features.is_empty()
             || self.top_features.len() > self.feature_count
@@ -546,11 +551,7 @@ pub trait LLMModel: Send + Sync {
         _layer_index: usize,
         _input: &str,
     ) -> Result<Tensor, Box<dyn std::error::Error + Send + Sync>> {
-        Err(format!(
-            "internal_activations_unavailable:{}",
-            self.config().runtime_model
-        )
-        .into())
+        Err(format!("internal_activations_unavailable:{}", self.config().runtime_model).into())
     }
 
     fn apply_steering(
@@ -559,43 +560,33 @@ pub trait LLMModel: Send + Sync {
         _steering: &Tensor,
         _strength: f64,
     ) -> Result<ActivationInterventionReceipt, Box<dyn std::error::Error + Send + Sync>> {
-        Err(format!(
-            "activation_intervention_unavailable:{}",
-            self.config().runtime_model
-        )
-        .into())
+        Err(format!("activation_intervention_unavailable:{}", self.config().runtime_model).into())
     }
 
     fn clear_activation_interventions(
         &self,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        Err(format!(
-            "activation_intervention_clear_unavailable:{}",
-            self.config().runtime_model
+        Err(
+            format!("activation_intervention_clear_unavailable:{}", self.config().runtime_model)
+                .into(),
         )
-        .into())
     }
 
     fn deep_instrumentation(
         &self,
         _request: &DeepInstrumentationRequest,
     ) -> Result<DeepInstrumentationEvidence, Box<dyn std::error::Error + Send + Sync>> {
-        Err(format!(
-            "deep_instrumentation_unavailable:{}",
-            self.config().runtime_model
-        )
-        .into())
+        Err(format!("deep_instrumentation_unavailable:{}", self.config().runtime_model).into())
     }
 
     fn sparse_autoencoder_analysis(
         &self,
         _request: &SparseAutoencoderRequest,
     ) -> Result<SparseAutoencoderEvidence, Box<dyn std::error::Error + Send + Sync>> {
-        Err(format!(
-            "sparse_autoencoder_analysis_unavailable:{}",
-            self.config().runtime_model
+        Err(
+            format!("sparse_autoencoder_analysis_unavailable:{}", self.config().runtime_model)
+                .into(),
         )
-        .into())
     }
 }
 

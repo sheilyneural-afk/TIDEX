@@ -1,7 +1,7 @@
 //! Thin adapter to the canonical persistent-topology implementation.
 
-use crate::error::BrainResult;
-use crate::pythagoras_topology::{TopologicalManifoldReport, TopologicalSkillManifold};
+use crate::analysis::pythagoras_topology::{TopologicalManifoldReport, TopologicalSkillManifold};
+use crate::foundation::error::BrainResult;
 
 #[derive(Debug, Clone, Default)]
 pub struct PythagorasBridgeConfig;

@@ -1,7 +1,7 @@
 //! Thin adapter to the canonical SBAS temporal reconstruction.
 
-use crate::error::BrainResult;
-use crate::temporal_tracking::{sbas_inversion, DifferentialPair, SbasTimeSeries};
+use crate::analysis::temporal_tracking::{sbas_inversion, DifferentialPair, SbasTimeSeries};
+use crate::foundation::error::BrainResult;
 
 #[derive(Debug, Clone, Default)]
 pub struct TemporalTrackingBridgeConfig;

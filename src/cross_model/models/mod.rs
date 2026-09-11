@@ -18,17 +18,99 @@ pub use mistral::MistralModel;
 pub use qwen::QwenModel;
 pub use traits::*;
 
+use crate::foundation::digest::Sha256Digest;
 use reqwest::blocking::Client;
+use rustix::event::{poll, PollFd, PollFlags, Timespec};
+use rustix::fs::{fcntl_getfl, fcntl_setfl, OFlags};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::error::Error;
-use std::io::{BufRead, BufReader, Write};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const HF_WORKER_SOURCE: &str = include_str!("../runtime/hf_worker.py");
+const HF_RUNTIME_LOCK: &str = include_str!("../runtime/hf-runtime.lock.txt");
+const HF_RUNTIME_PYTHON_MINOR: &str = "3.12";
+
+fn pep503_name(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut prev_sep = false;
+    for ch in name.chars() {
+        if matches!(ch, '-' | '_' | '.') {
+            if !prev_sep {
+                out.push('-');
+                prev_sep = true;
+            }
+        } else {
+            for lower in ch.to_lowercase() {
+                out.push(lower);
+            }
+            prev_sep = false;
+        }
+    }
+    out
+}
+
+fn hf_runtime_lock_packages() -> Result<BTreeMap<String, &'static str>, Box<dyn Error + Send + Sync>>
+{
+    let mut packages = BTreeMap::new();
+    for raw in HF_RUNTIME_LOCK.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') || line.starts_with('-') {
+            continue;
+        }
+        let spec = line
+            .split_whitespace()
+            .next()
+            .ok_or("hf_runtime_lock_line_invalid")?;
+        let Some((name, version)) = spec.split_once("==") else {
+            return Err("hf_runtime_lock_line_invalid".into());
+        };
+        if version.is_empty() {
+            return Err("hf_runtime_lock_version_empty".into());
+        }
+        let key = pep503_name(name);
+        if key.is_empty() {
+            return Err("hf_runtime_lock_name_invalid".into());
+        }
+        if packages.insert(key.clone(), version).is_some() {
+            return Err(format!("hf_runtime_lock_duplicate:{key}").into());
+        }
+    }
+    if packages.is_empty() {
+        return Err("hf_runtime_lock_empty".into());
+    }
+    Ok(packages)
+}
+
+fn hf_runtime_lock_version(package: &str) -> Result<&'static str, Box<dyn Error + Send + Sync>> {
+    let wanted = pep503_name(package);
+    hf_runtime_lock_packages()?
+        .get(&wanted)
+        .copied()
+        .ok_or_else(|| format!("hf_runtime_lock_package_missing:{package}").into())
+}
+
+fn certified_runtime_identity_sha256() -> Result<String, Box<dyn Error + Send + Sync>> {
+    let packages = hf_runtime_lock_packages()?;
+    let payload = serde_json::json!({
+        "implementation": "cpython",
+        "packages": packages,
+        "python_minor": HF_RUNTIME_PYTHON_MINOR,
+    });
+    Ok(Sha256Digest::digest_domain(
+        b"CEREBRO:TIDEX:HF-RUNTIME-IDENTITY:v1\0",
+        &serde_json::to_vec(&payload)?,
+    )
+    .into_string())
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -127,12 +209,8 @@ impl OllamaBackend {
             .timeout(Duration::from_secs(policy.request_timeout_seconds))
             .pool_idle_timeout(Duration::from_secs(90))
             .build()?;
-        let show = Self::post_json_with(
-            &client,
-            &endpoint,
-            "api/show",
-            &json!({"model": runtime_model}),
-        )?;
+        let show =
+            Self::post_json_with(&client, &endpoint, "api/show", &json!({"model": runtime_model}))?;
         let config = Self::config_from_show(&runtime_model, &show)?;
         if let Some(expected) = expected_family {
             if config.family != expected {
@@ -435,7 +513,7 @@ pub(crate) struct LocalSafetensorsArtifacts {
     pub checkpoint_bytes: Vec<u8>,
     pub config_bytes: Vec<u8>,
     pub tokenizer_bytes: Vec<u8>,
-    pub inventory: crate::weight_actuator::ModelParameterInventory,
+    pub inventory: crate::receiver::weight_actuator::ModelParameterInventory,
 }
 
 pub(crate) fn load_local_safetensors_artifacts(
@@ -467,7 +545,7 @@ pub(crate) fn load_local_safetensors_artifacts(
         Ok(bytes)
     }
 
-    let inventory = crate::weight_actuator::inspect_model_safetensors(checkpoint_path)?;
+    let inventory = crate::receiver::weight_actuator::inspect_model_safetensors(checkpoint_path)?;
     let checkpoint_bytes =
         read_regular_bounded(checkpoint_path, MAX_CHECKPOINT_BYTES, "checkpoint")?;
     let checkpoint_sha256 = sha256_hex(&checkpoint_bytes);
@@ -546,9 +624,7 @@ pub struct HfTransformersRuntimeConfig {
     pub tokenizer_path: PathBuf,
     pub threads: usize,
     pub generation: GenerationPolicy,
-    #[serde(default)]
     pub require_nnsight: bool,
-    #[serde(default)]
     pub require_sae_lens: bool,
 }
 
@@ -620,14 +696,14 @@ struct HfWorkerHello {
     load_duration_ns: u64,
     activation_semantics: String,
     steering_semantics: String,
-    nnsight_version: Option<String>,
-    sae_lens_version: Option<String>,
+    runtime_identity_sha256: String,
     manifest_sha256: String,
 }
 
 impl HfWorkerHello {
     fn validate(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        if self.schema != "cerebro.cross_model.hf_worker_hello/v1"
+        let expected_identity = certified_runtime_identity_sha256()?;
+        if self.schema != "cerebro.tidex.hf_worker_hello/v1"
             || self.model_type.trim().is_empty()
             || self.hidden_size == 0
             || self.intermediate_size == 0
@@ -640,18 +716,18 @@ impl HfWorkerHello {
             || !is_sha256(&self.config_sha256)
             || !is_sha256(&self.tokenizer_sha256)
             || !is_sha256(&self.manifest_sha256)
+            || !is_sha256(&self.runtime_identity_sha256)
             || self.activation_semantics != "decoder_layer_output_last_prompt_token/v1"
             || self.steering_semantics != "decoder_layer_output_additive_broadcast/v1"
-            || self
-                .nnsight_version
-                .as_ref()
-                .is_some_and(|value| value.trim().is_empty())
-            || self
-                .sae_lens_version
-                .as_ref()
-                .is_some_and(|value| value.trim().is_empty())
         {
             return Err("hf_worker_hello_invalid".into());
+        }
+        if self.runtime_identity_sha256 != expected_identity {
+            return Err(format!(
+                "hf_worker_runtime_identity_mismatch:expected={expected_identity}:got={}",
+                self.runtime_identity_sha256
+            )
+            .into());
         }
         if self
             .architectures
@@ -684,20 +760,154 @@ struct HfWorkerResponse {
     response_sha256: String,
 }
 
+const MAX_HF_PROTOCOL_LINE: usize = 32 * 1024 * 1024;
+const MAX_HF_STDERR_BYTES: usize = 256 * 1024;
+
+fn drain_hf_stderr(stderr: &mut ChildStderr, retained: &mut Vec<u8>) -> std::io::Result<()> {
+    let mut buffer = [0_u8; 8192];
+    loop {
+        match stderr.read(&mut buffer) {
+            Ok(0) => return Ok(()),
+            Ok(count) => {
+                let remaining = MAX_HF_STDERR_BYTES.saturating_sub(retained.len());
+                retained.extend_from_slice(&buffer[..count.min(remaining)]);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(()),
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+fn duration_timespec(duration: Duration) -> Timespec {
+    Timespec {
+        tv_sec: duration.as_secs() as i64,
+        tv_nsec: i64::from(duration.subsec_nanos()),
+    }
+}
+
+fn read_hf_protocol_line(
+    stdout: &mut BufReader<ChildStdout>,
+    stderr: &mut ChildStderr,
+    retained_stderr: &mut Vec<u8>,
+    timeout: Duration,
+) -> Result<Option<Vec<u8>>, Box<dyn Error + Send + Sync>> {
+    let deadline = Instant::now() + timeout;
+    let mut line = Vec::with_capacity(4096);
+    loop {
+        drain_hf_stderr(stderr, retained_stderr)?;
+        match stdout.fill_buf() {
+            Ok([]) => {
+                return if line.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(line))
+                };
+            }
+            Ok(buffer) => {
+                let newline = buffer.iter().position(|byte| *byte == b'\n');
+                let consume = newline.map_or(buffer.len(), |index| index + 1);
+                let next_len = line
+                    .len()
+                    .checked_add(consume)
+                    .ok_or("hf_worker_protocol_line_length_overflow")?;
+                if next_len > MAX_HF_PROTOCOL_LINE {
+                    return Err("hf_worker_protocol_line_too_large".into());
+                }
+                line.extend_from_slice(&buffer[..consume]);
+                stdout.consume(consume);
+                if newline.is_some() {
+                    return Ok(Some(line));
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(error) => return Err(error.into()),
+        }
+
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .ok_or("hf_worker_timeout")?;
+        let mut fds = [
+            PollFd::new(stdout.get_ref(), PollFlags::IN | PollFlags::HUP | PollFlags::ERR),
+            PollFd::new(stderr, PollFlags::IN | PollFlags::HUP | PollFlags::ERR),
+        ];
+        if poll(&mut fds, Some(&duration_timespec(remaining)))? == 0 {
+            return Err("hf_worker_timeout".into());
+        }
+        if fds.iter().any(|fd| fd.revents().contains(PollFlags::NVAL)) {
+            return Err("hf_worker_poll_invalid_fd".into());
+        }
+    }
+}
+
+fn sha256_open_file(file: &mut File) -> Result<String, Box<dyn Error + Send + Sync>> {
+    file.seek(SeekFrom::Start(0))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    file.seek(SeekFrom::Start(0))?;
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
 struct HfWorker {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    stderr: ChildStderr,
+    stderr_bytes: Vec<u8>,
+    request_timeout: Duration,
     next_request: u64,
 }
 
 impl HfWorker {
+    fn terminate(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+
+    fn stderr_detail(&self) -> String {
+        String::from_utf8_lossy(&self.stderr_bytes)
+            .trim()
+            .to_string()
+    }
+
+    fn receive_line(&mut self, context: &str) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+        match read_hf_protocol_line(
+            &mut self.stdout,
+            &mut self.stderr,
+            &mut self.stderr_bytes,
+            self.request_timeout,
+        ) {
+            Ok(Some(line)) => Ok(line),
+            Ok(None) => {
+                let status = self.child.try_wait()?;
+                Err(format!(
+                    "hf_worker_closed_pipe:{context}:{status:?}:stderr={}",
+                    self.stderr_detail()
+                )
+                .into())
+            }
+            Err(error) => {
+                self.terminate();
+                Err(format!(
+                    "hf_worker_protocol_failure:{context}:{error}:stderr={}",
+                    self.stderr_detail()
+                )
+                .into())
+            }
+        }
+    }
+
     fn transact(
         &mut self,
         operation: &str,
         payload: Value,
     ) -> Result<Value, Box<dyn Error + Send + Sync>> {
-        const MAX_PROTOCOL_LINE: usize = 32 * 1024 * 1024;
         self.next_request = self
             .next_request
             .checked_add(1)
@@ -710,28 +920,27 @@ impl HfWorker {
             "payload": payload,
         });
         let bytes = serde_json::to_vec(&request)?;
-        if bytes.len() > MAX_PROTOCOL_LINE {
+        if bytes.len() > MAX_HF_PROTOCOL_LINE {
             return Err("hf_worker_request_too_large".into());
         }
-        self.stdin.write_all(&bytes)?;
-        self.stdin.write_all(b"\n")?;
-        self.stdin.flush()?;
+        if let Err(error) = self
+            .stdin
+            .write_all(&bytes)
+            .and_then(|()| self.stdin.write_all(b"\n"))
+            .and_then(|()| self.stdin.flush())
+        {
+            self.terminate();
+            return Err(format!("hf_worker_request_write_failed:{error}").into());
+        }
 
-        let mut line = Vec::new();
-        let read = self.stdout.read_until(b'\n', &mut line)?;
-        if read == 0 {
-            let status = self.child.try_wait()?;
-            return Err(format!("hf_worker_closed_pipe:{status:?}").into());
-        }
-        if line.len() > MAX_PROTOCOL_LINE {
-            return Err("hf_worker_response_too_large".into());
-        }
+        let line = self.receive_line(operation)?;
         let response: HfWorkerResponse = serde_json::from_slice(&line)?;
         if response.schema != "cerebro.cross_model.hf_worker_response/v1"
             || response.request_id != request_id
             || response.operation != operation
             || !is_sha256(&response.response_sha256)
         {
+            self.terminate();
             return Err("hf_worker_response_binding_invalid".into());
         }
         let commitment = if response.ok {
@@ -769,11 +978,19 @@ impl HfWorker {
             return Err("hf_worker_response_sha256_mismatch".into());
         }
         if response.ok {
-            Ok(response.payload.expect("validated success payload"))
+            response
+                .payload
+                .ok_or_else(|| "hf_worker_success_payload_missing".into())
         } else {
-            let error = response.error.expect("validated failure reason");
+            let error = response.error.ok_or("hf_worker_failure_reason_missing")?;
             Err(format!("hf_worker_operation_failed:{operation}:{error}").into())
         }
+    }
+}
+
+impl Drop for HfWorker {
+    fn drop(&mut self) {
+        self.terminate();
     }
 }
 
@@ -839,9 +1056,10 @@ struct HfSparseFeaturePayload {
 struct HfSparseAutoencoderPayload {
     module_path: String,
     token_from_end: usize,
-    release: String,
-    sae_id: String,
-    sae_lens_version: String,
+    sae_weights_sha256: String,
+    sae_config_sha256: String,
+    d_in: usize,
+    d_sae: usize,
     input_sha256: String,
     feature_count: usize,
     active_feature_count: usize,
@@ -855,8 +1073,8 @@ pub struct HfTransformersModel {
     worker: Mutex<HfWorker>,
     policy: GenerationPolicy,
     worker_load_duration_ns: u64,
-    nnsight_version: Option<String>,
-    sae_lens_version: Option<String>,
+    nnsight_version: String,
+    runtime_identity_sha256: String,
 }
 
 impl std::fmt::Debug for HfTransformersModel {
@@ -875,13 +1093,21 @@ impl HfTransformersModel {
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         runtime.validate()?;
         let inventory =
-            crate::weight_actuator::inspect_model_safetensors(&runtime.checkpoint_path)?;
-        let config_sha256 = crate::digest::sha256_file(&runtime.config_path)?;
-        let tokenizer_sha256 = crate::digest::sha256_file(&runtime.tokenizer_path)?;
+            crate::receiver::weight_actuator::inspect_model_safetensors(&runtime.checkpoint_path)?;
+        let config_sha256 = crate::foundation::digest::sha256_file(&runtime.config_path)?;
+        let tokenizer_sha256 = crate::foundation::digest::sha256_file(&runtime.tokenizer_path)?;
         let worker_sha256 = sha256_hex(HF_WORKER_SOURCE.as_bytes());
-        let python_sha256 = crate::digest::sha256_file(&runtime.python_executable)?;
+        let python_path = std::fs::canonicalize(&runtime.python_executable)?;
+        let mut python_file = File::open(&python_path)?;
+        if !python_file.metadata()?.is_file() {
+            return Err("hf_python_executable_not_regular".into());
+        }
+        let python_sha256 = sha256_open_file(&mut python_file)?;
+        let python_fd_path = format!("/proc/self/fd/{}", python_file.as_raw_fd());
+        let request_timeout = Duration::from_secs(runtime.generation.request_timeout_seconds);
 
-        let mut child = Command::new(&runtime.python_executable)
+        let mut child = Command::new(&python_fd_path)
+            .arg0(&runtime.python_executable)
             .arg("-c")
             .arg(HF_WORKER_SOURCE)
             .arg("--model-dir")
@@ -894,60 +1120,63 @@ impl HfTransformersModel {
             .arg(&runtime.tokenizer_path)
             .arg("--threads")
             .arg(runtime.threads.to_string())
+            .env_clear()
             .env("HF_HUB_OFFLINE", "1")
+            .env("PYTHONHASHSEED", "0")
+            .env("PYTHONNOUSERSITE", "1")
             .env("TOKENIZERS_PARALLELISM", "false")
             .env("TRANSFORMERS_NO_TF", "1")
             .env("USE_TF", "0")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .spawn()?;
+        drop(python_file);
         let stdin = child.stdin.take().ok_or("hf_worker_stdin_missing")?;
         let stdout = child.stdout.take().ok_or("hf_worker_stdout_missing")?;
-        let mut stdout = BufReader::new(stdout);
-        let mut hello_line = Vec::new();
-        let read = stdout.read_until(b'\n', &mut hello_line)?;
-        if read == 0 || hello_line.len() > 8 * 1024 * 1024 {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("hf_worker_hello_missing_or_oversize".into());
+        let stderr = child.stderr.take().ok_or("hf_worker_stderr_missing")?;
+        fcntl_setfl(&stdout, fcntl_getfl(&stdout)? | OFlags::NONBLOCK)?;
+        fcntl_setfl(&stderr, fcntl_getfl(&stderr)? | OFlags::NONBLOCK)?;
+        let mut worker = HfWorker {
+            child,
+            stdin,
+            stdout: BufReader::new(stdout),
+            stderr,
+            stderr_bytes: Vec::new(),
+            request_timeout,
+            next_request: 0,
+        };
+        let hello_line = worker.receive_line("hello")?;
+        if hello_line.len() > 8 * 1024 * 1024 {
+            return Err("hf_worker_hello_oversize".into());
         }
         let hello: HfWorkerHello = serde_json::from_slice(&hello_line)?;
         hello.validate()?;
-        if runtime.require_nnsight && hello.nnsight_version.is_none() {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("hf_runtime_requires_nnsight".into());
-        }
-        if runtime.require_sae_lens && hello.sae_lens_version.is_none() {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("hf_runtime_requires_sae_lens".into());
-        }
         if hello.checkpoint_sha256.as_str() != inventory.model_sha256.as_ref()
             || hello.config_sha256.as_str() != config_sha256.as_ref()
             || hello.tokenizer_sha256.as_str() != tokenizer_sha256.as_ref()
             || hello.parameter_count != inventory.total_parameter_count
         {
-            let _ = child.kill();
-            let _ = child.wait();
+            worker.terminate();
             return Err("hf_worker_model_identity_mismatch".into());
         }
         let family = ArchitectureFamily::from_runtime_architecture(&hello.model_type);
-        let nnsight_version = hello.nnsight_version.clone();
-        let sae_lens_version = hello.sae_lens_version.clone();
+        let nnsight_version = hf_runtime_lock_version("nnsight")?.to_string();
+        let runtime_identity_sha256 = hello.runtime_identity_sha256.clone();
         let tensor_names = inventory
             .tensors
             .iter()
             .map(|tensor| tensor.tensor_id.to_string())
             .collect::<Vec<_>>();
+        let lock_sha256 = sha256_hex(HF_RUNTIME_LOCK.as_bytes());
         let runtime_metadata_sha256 = sha256_hex(&serde_json::to_vec(&(
             hello.manifest_sha256.as_str(),
             inventory.model_sha256.as_ref(),
             config_sha256.as_ref(),
             tokenizer_sha256.as_ref(),
             worker_sha256.as_str(),
-            python_sha256.as_ref(),
+            python_sha256.as_str(),
+            lock_sha256.as_str(),
         ))?);
         let config = ModelConfig {
             name: runtime.name,
@@ -968,17 +1197,24 @@ impl HfTransformersModel {
         config.validate()?;
         Ok(Self {
             config,
-            worker: Mutex::new(HfWorker {
-                child,
-                stdin,
-                stdout,
-                next_request: 0,
-            }),
+            worker: Mutex::new(worker),
             policy: runtime.generation,
             worker_load_duration_ns: hello.load_duration_ns,
             nnsight_version,
-            sae_lens_version,
+            runtime_identity_sha256,
         })
+    }
+
+    pub fn nnsight_version(&self) -> &str {
+        &self.nnsight_version
+    }
+
+    pub fn runtime_identity_sha256(&self) -> &str {
+        &self.runtime_identity_sha256
+    }
+
+    pub fn worker_load_duration_ns(&self) -> u64 {
+        self.worker_load_duration_ns
     }
 }
 
@@ -992,10 +1228,8 @@ impl LLMModel for HfTransformersModel {
             ModelAccess::BehavioralInference
             | ModelAccess::InternalActivations
             | ModelAccess::ActivationIntervention => true,
-            ModelAccess::DeepInstrumentation => self.nnsight_version.is_some(),
-            ModelAccess::SparseAutoencoderAnalysis => {
-                self.nnsight_version.is_some() && self.sae_lens_version.is_some()
-            }
+            ModelAccess::DeepInstrumentation => true,
+            ModelAccess::SparseAutoencoderAnalysis => true,
         }
     }
 
@@ -1075,10 +1309,7 @@ impl LLMModel for HfTransformersModel {
             .worker
             .lock()
             .map_err(|_| "hf_worker_lock_poisoned")?
-            .transact(
-                "activation",
-                json!({"prompt": input, "layer_index": layer_index}),
-            )?;
+            .transact("activation", json!({"prompt": input, "layer_index": layer_index}))?;
         let payload: HfActivationPayload = serde_json::from_value(value)?;
         if payload.layer_index != layer_index
             || payload.semantics != "decoder_layer_output_last_prompt_token/v1"
@@ -1170,9 +1401,6 @@ impl LLMModel for HfTransformersModel {
         request: &DeepInstrumentationRequest,
     ) -> Result<DeepInstrumentationEvidence, Box<dyn Error + Send + Sync>> {
         request.validate()?;
-        if self.nnsight_version.is_none() {
-            return Err("hf_deep_instrumentation_requires_nnsight".into());
-        }
         let value = self
             .worker
             .lock()
@@ -1192,7 +1420,7 @@ impl LLMModel for HfTransformersModel {
             || payload.values.iter().any(|v| !v.is_finite())
             || payload.values_sha256 != f64_vector_sha256(&payload.values)?
             || payload.backend != "nnsight"
-            || Some(payload.backend_version.clone()) != self.nnsight_version
+            || payload.backend_version != self.nnsight_version
             || payload.total_duration_ns == 0
         {
             return Err("hf_deep_instrumentation_payload_invalid".into());
@@ -1228,9 +1456,16 @@ impl LLMModel for HfTransformersModel {
         request: &SparseAutoencoderRequest,
     ) -> Result<SparseAutoencoderEvidence, Box<dyn Error + Send + Sync>> {
         request.validate()?;
-        if self.nnsight_version.is_none() || self.sae_lens_version.is_none() {
-            return Err("hf_sparse_autoencoder_tooling_unavailable".into());
+        let expected_weights = request.sae_dir.join("sae.safetensors");
+        let expected_config = request.sae_dir.join("config.json");
+        if !request.sae_dir.is_dir()
+            || !expected_weights.same_file(&request.weights_path)?
+            || !expected_config.same_file(&request.config_path)?
+        {
+            return Err("hf_sparse_autoencoder_snapshot_binding_invalid".into());
         }
+        let weights_sha256 = crate::foundation::digest::sha256_file(&request.weights_path)?;
+        let config_sha256 = crate::foundation::digest::sha256_file(&request.config_path)?;
         let value = self
             .worker
             .lock()
@@ -1241,19 +1476,21 @@ impl LLMModel for HfTransformersModel {
                     "prompt": request.prompt,
                     "module_path": request.module_path,
                     "token_from_end": request.token_from_end,
-                    "release": request.release,
-                    "sae_id": request.sae_id,
+                    "sae_dir": request.sae_dir,
+                    "weights_path": request.weights_path,
+                    "config_path": request.config_path,
                     "top_k": request.top_k,
                 }),
             )?;
         let payload: HfSparseAutoencoderPayload = serde_json::from_value(value)?;
         if payload.module_path != request.module_path
             || payload.token_from_end != request.token_from_end
-            || payload.release != request.release
-            || payload.sae_id != request.sae_id
-            || Some(payload.sae_lens_version.clone()) != self.sae_lens_version
+            || payload.sae_weights_sha256 != weights_sha256.as_str()
+            || payload.sae_config_sha256 != config_sha256.as_str()
+            || payload.d_in == 0
+            || payload.d_sae == 0
+            || payload.feature_count != payload.d_sae
             || !is_sha256(&payload.input_sha256)
-            || payload.feature_count == 0
             || payload.active_feature_count > payload.feature_count
             || payload.top_features.is_empty()
             || payload.top_features.len() > request.top_k
@@ -1272,14 +1509,15 @@ impl LLMModel for HfTransformersModel {
             })
             .collect::<Vec<_>>();
         let mut evidence = SparseAutoencoderEvidence {
-            schema: "cerebro.cross_model.sparse_autoencoder_evidence/v1".into(),
+            schema: "cerebro.tidex.sparse_autoencoder_evidence/v1".into(),
             model: self.config.name.clone(),
             runtime_metadata_sha256: self.config.runtime_metadata_sha256.clone(),
             module_path: payload.module_path,
             token_from_end: payload.token_from_end,
-            release: payload.release,
-            sae_id: payload.sae_id,
-            sae_lens_version: payload.sae_lens_version,
+            sae_weights_sha256: payload.sae_weights_sha256,
+            sae_config_sha256: payload.sae_config_sha256,
+            d_in: payload.d_in,
+            d_sae: payload.d_sae,
             input_sha256: payload.input_sha256,
             feature_count: payload.feature_count,
             active_feature_count: payload.active_feature_count,
@@ -1293,9 +1531,10 @@ impl LLMModel for HfTransformersModel {
             &evidence.runtime_metadata_sha256,
             &evidence.module_path,
             evidence.token_from_end,
-            &evidence.release,
-            &evidence.sae_id,
-            &evidence.sae_lens_version,
+            &evidence.sae_weights_sha256,
+            &evidence.sae_config_sha256,
+            evidence.d_in,
+            evidence.d_sae,
             &evidence.input_sha256,
             evidence.feature_count,
             evidence.active_feature_count,
@@ -1381,5 +1620,45 @@ mod evidence_tests {
             .unwrap()
         };
         assert_ne!(digest(&empty_sha, 0), digest(&active_sha, 1));
+    }
+
+    #[test]
+    fn hf_runtime_lock_certifies_worker_packages_and_excludes_sae_lens() {
+        for package in [
+            "torch",
+            "transformers",
+            "safetensors",
+            "accelerate",
+            "huggingface_hub",
+            "tokenizers",
+            "nnsight",
+        ] {
+            let version = hf_runtime_lock_version(package).unwrap();
+            assert!(!version.is_empty(), "{package}");
+        }
+        assert!(hf_runtime_lock_version("torch").unwrap().contains("+cpu"));
+        assert!(HF_RUNTIME_LOCK.contains("--hash=sha256:"));
+        assert!(hf_runtime_lock_version("sae-lens").is_err());
+        assert!(hf_runtime_lock_version("sae_lens").is_err());
+        assert_eq!(pep503_name("HuggingFace.Hub"), "huggingface-hub");
+        assert_eq!(pep503_name("huggingface_hub"), "huggingface-hub");
+        let identity = certified_runtime_identity_sha256().unwrap();
+        assert_eq!(identity.len(), 64);
+        assert!(identity.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        let payload = serde_json::json!({
+            "implementation": "cpython",
+            "packages": hf_runtime_lock_packages().unwrap(),
+            "python_minor": HF_RUNTIME_PYTHON_MINOR,
+        });
+        assert_eq!(serde_json::to_vec(&payload).unwrap().len(), 1402);
+        assert_eq!(identity, "6f878b9a0c499cbca153d263337b8116bc4861a3ca2002307a78bbfb21c2722b");
+        assert!(HF_RUNTIME_LOCK
+            .lines()
+            .filter(|line| !line.trim_start().starts_with('#'))
+            .all(|line| {
+                let spec = line.split_whitespace().next().unwrap_or("");
+                let name = spec.split_once("==").map(|(name, _)| name).unwrap_or("");
+                pep503_name(name) != "sae-lens"
+            }));
     }
 }

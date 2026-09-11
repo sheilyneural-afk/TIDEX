@@ -1,6 +1,6 @@
 #![no_main]
 
-use cerebro_tidex::solver_portfolio::{
+use tidex::learning::solver_portfolio::{
     solve_with_portfolio, LeastSquaresProblem, PortfolioPolicy, SolverStatus,
 };
 use libfuzzer_sys::fuzz_target;

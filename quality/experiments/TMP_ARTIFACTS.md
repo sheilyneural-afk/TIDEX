@@ -1,5 +1,7 @@
 # Artefactos experimentales conservados fuera de /tmp
 
+Esta nota es un log de una máquina concreta. Las rutas absolutas no viven en el repositorio y no son autoridad del runtime.
+
 La copia persistente de los artefactos V65–V67, el snapshot anterior y las
 exploraciones V69 está en:
 
@@ -11,23 +13,9 @@ Los originales de los modelos se mantienen para no romper recibos ni scripts.
 
 ## Integración con el código existente
 
-No copiar las exploraciones de /tmp como una segunda implementación activa.
-La implementación actual es `v69_target_update_free_compilation.py`:
+Las exploraciones V69 quedan conservadas únicamente en el archivo externo indicado arriba. No forman parte del código ejecutable ni de la evidencia vigente de TIDE-X: trabajaban sobre una familia sintética y, por tanto, no satisfacen la política actual de evidencia real. No deben restaurarse como implementación, test, fallback ni fuente de autoridad.
 
-| Exploración archivada | Punto existente que debe reutilizarse |
-| --- | --- |
-| v69_explore.py / v69_explore_semantic.py | donor_signature, pca_projection, receiver_prompt_features |
-| v69_threshold.py / v69_threshold2.py | fit_calibration_basis, calibration_fold, replay_model |
-| v69_calibration_supervised_basis.py | fit_calibration_basis y v69_calibration_retry.py |
-
-Esta tabla identifica responsabilidades relacionadas; no afirma equivalencia
-numérica entre algoritmos ni valida los resultados de la implementación actual.
-Las exploraciones se conservan como antecedentes con resultados favorables y
-desfavorables. Sus cálculos margen_base + características @ delta no sustituyen
-un forward del checkpoint materializado.
-
-Los scripts usan calibración supervisada aunque no haya un optimizador por
-gradiente. Sus umbrales numéricos no son umbrales de confianza metacognitiva.
+Las capacidades que siguen vigentes viven en los módulos Rust canónicos de receiver/materialization y en los experimentos que ejecutan checkpoints y evidencia reales. Los recibos históricos V69 permanecen históricos; no autorizan afirmaciones actuales.
 
 ## Almacenamiento y limpieza
 

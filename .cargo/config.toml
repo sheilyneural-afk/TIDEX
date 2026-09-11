@@ -3,6 +3,6 @@ offline = false
 
 [build]
 incremental = false
-# Cargo manual no materializa ./target dentro del checkout.
-# El target compartido vive dentro de Future, separado del repo fuente.
-target-dir = "/home/yo/Future/cerebro3-runtime/cargo-target"
+# Mantener los artefactos de Cargo fuera del checkout y fuera del runtime
+# operativo. La ruta es relativa al checkout, no a una cuenta de usuario fija.
+target-dir = "../.cache/tidex/cargo-target"

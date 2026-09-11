@@ -1,16 +1,3 @@
-use cerebro_tidex::authority::read_existing_private_file_bounded;
-use cerebro_tidex::contracts::BrainConfig;
-use cerebro_tidex::engine::{BrainEngine, ControllerInvocation, RecordedControllerExecution};
-use cerebro_tidex::learned_controller::{
-    load_persisted_runtime_learned_controller, train_persisted_runtime_learned_controller,
-    LearnedControllerBinding, LearnedControllerPolicy,
-};
-use cerebro_tidex::learning_orchestrator::{
-    assimilate_persistent_learning_evidence, issue_next_persistent_learning_aperture,
-    load_persistent_adaptive_learning_receipt, start_persistent_adaptive_learning,
-    AdaptiveLearningPolicy, LearningTarget,
-};
-use cerebro_tidex::security::configured_private_root;
 use serde_json::json;
 use std::error::Error;
 use std::fs;
@@ -18,6 +5,19 @@ use std::io::Read;
 use std::path::Path;
 #[cfg(test)]
 use std::path::PathBuf;
+use tidex::engine::learned_controller::{
+    load_persisted_runtime_learned_controller, train_persisted_runtime_learned_controller,
+    LearnedControllerBinding, LearnedControllerPolicy,
+};
+use tidex::engine::{BrainEngine, ControllerInvocation, RecordedControllerExecution};
+use tidex::foundation::authority::read_existing_private_file_bounded;
+use tidex::foundation::contracts::BrainConfig;
+use tidex::foundation::security::configured_private_root;
+use tidex::learning::learning_orchestrator::{
+    assimilate_persistent_learning_evidence, issue_next_persistent_learning_aperture,
+    load_persistent_adaptive_learning_receipt, start_persistent_adaptive_learning,
+    AdaptiveLearningPolicy, LearningTarget,
+};
 
 const MAX_CLI_JSON_BYTES: u64 = 64 * 1024 * 1024;
 
@@ -44,7 +44,7 @@ fn usage() -> &'static str {
 }
 
 fn print_receipt(
-    loaded: cerebro_tidex::learning_orchestrator::LoadedAdaptiveLearningReceipt,
+    loaded: tidex::learning::learning_orchestrator::LoadedAdaptiveLearningReceipt,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
@@ -58,7 +58,7 @@ fn print_receipt(
 }
 
 fn print_controller_receipt(
-    loaded: cerebro_tidex::learned_controller::LoadedLearnedControllerReceipt,
+    loaded: tidex::engine::learned_controller::LoadedLearnedControllerReceipt,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
@@ -113,17 +113,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 &policy,
             )?)
         }
-        "next" if arguments.len() == 2 => print_receipt(issue_next_persistent_learning_aperture(
-            &root,
-            &arguments[1],
-        )?),
+        "next" if arguments.len() == 2 => {
+            print_receipt(issue_next_persistent_learning_aperture(&root, &arguments[1])?)
+        }
         "assimilate" if arguments.len() == 3 => print_receipt(
             assimilate_persistent_learning_evidence(&root, &arguments[1], &arguments[2])?,
         ),
-        "show" if arguments.len() == 2 => print_receipt(load_persistent_adaptive_learning_receipt(
-            &root,
-            &arguments[1],
-        )?),
+        "show" if arguments.len() == 2 => {
+            print_receipt(load_persistent_adaptive_learning_receipt(&root, &arguments[1])?)
+        }
         "controller-train" if arguments.len() == 4 => {
             let policy: LearnedControllerPolicy = read_json(&arguments[2])?;
             let binding: LearnedControllerBinding = read_json(&arguments[3])?;
@@ -154,19 +152,17 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cerebro_tidex::security::secure_dir;
     use std::os::unix::fs::symlink;
     use std::time::{SystemTime, UNIX_EPOCH};
+    use tidex::foundation::security::secure_dir;
 
     fn temporary_root(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "cerebro-controller-execution-{label}-{}-{nonce}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir()
+            .join(format!("cerebro-controller-execution-{label}-{}-{nonce}", std::process::id()));
         fs::create_dir(&root).unwrap();
         secure_dir(&root).unwrap();
         root
@@ -191,15 +187,14 @@ mod tests {
         });
         assert!(serde_json::from_value::<ControllerInvocation>(free_coefficients).is_err());
 
-        let invalid = ControllerInvocation {
-            schema: "cerebro.tidex.controller_invocation/v1".into(),
-            session_id: cerebro_tidex::identity::SessionId::parse("session-a").unwrap(),
-            state_before: Vec::new(),
-            promoted_observation_semantic_sha256: cerebro_tidex::digest::Sha256Digest::parse(
-                "a".repeat(64),
-            )
-            .unwrap(),
-        };
+        let invalid =
+            ControllerInvocation {
+                schema: "cerebro.tidex.controller_invocation/v1".into(),
+                session_id: tidex::foundation::identity::SessionId::parse("session-a").unwrap(),
+                state_before: Vec::new(),
+                promoted_observation_semantic_sha256:
+                    tidex::foundation::digest::Sha256Digest::parse("a".repeat(64)).unwrap(),
+            };
         assert!(invalid.validate().is_err());
     }
 
@@ -229,10 +224,8 @@ mod tests {
         fs::write(&inside, b"{}").unwrap();
         assert!(read_confined_invocation(&root, inside.to_str().unwrap()).is_ok());
 
-        let outside = std::env::temp_dir().join(format!(
-            "cerebro-controller-execution-outside-{}",
-            std::process::id()
-        ));
+        let outside = std::env::temp_dir()
+            .join(format!("cerebro-controller-execution-outside-{}", std::process::id()));
         fs::write(&outside, b"{}").unwrap();
         assert!(read_confined_invocation(&root, outside.to_str().unwrap()).is_err());
         let linked = root.join("linked.json");

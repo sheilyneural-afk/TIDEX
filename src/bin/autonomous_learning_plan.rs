@@ -1,7 +1,7 @@
-use cerebro_tidex::learning_orchestrator::{plan_autonomous_learning, LearningTarget};
 use std::fs;
 use std::io::Read;
 use std::path::Path;
+use tidex::learning::learning_orchestrator::{plan_autonomous_learning, LearningTarget};
 
 fn main() {
     if let Err(error) = run() {
@@ -56,11 +56,7 @@ mod tests {
             "cost_weight": 0.0,
             "risk_weight": 0.0
         });
-        std::fs::write(
-            &temp_target,
-            serde_json::to_vec_pretty(&target_json).unwrap(),
-        )
-        .unwrap();
+        std::fs::write(&temp_target, serde_json::to_vec_pretty(&target_json).unwrap()).unwrap();
 
         let output = run_from_path(&temp_target).unwrap();
         let _ = std::fs::remove_file(&temp_target);

@@ -144,12 +144,12 @@ impl BrainEngine {
                     phase.or(Some(CorpusTransitionPhase::NewCorpusPublished)),
                 ))
             }
-            UnsealedCorpusRecoveryDecision::RejectUnrecognizedLiveCorpus => Err(
-                BrainError::Integrity("recovery_live_corpus_unrecognized".into()),
-            ),
-            UnsealedCorpusRecoveryDecision::RejectLiveAndArchiveBothPresent => Err(
-                BrainError::Integrity("recovery_live_and_archive_both_present".into()),
-            ),
+            UnsealedCorpusRecoveryDecision::RejectUnrecognizedLiveCorpus => {
+                Err(BrainError::Integrity("recovery_live_corpus_unrecognized".into()))
+            }
+            UnsealedCorpusRecoveryDecision::RejectLiveAndArchiveBothPresent => {
+                Err(BrainError::Integrity("recovery_live_and_archive_both_present".into()))
+            }
             UnsealedCorpusRecoveryDecision::RestorePriorCorpus => {
                 self.restore_archived_prior_corpus(&operation_key)?;
                 self.abort_inflight_transition(&operation_key)?;
@@ -193,20 +193,14 @@ impl BrainEngine {
             Ok(_) => {
                 return Err(BrainError::Integrity(
                     "recovery_live_observations_already_present".into(),
-                ))
+                ));
             }
             Err(error) => return Err(error.into()),
         }
         for (label, destination) in [
             ("skill_bank.json", self.bank_path()),
-            (
-                "shadow_skill_bank.json",
-                self.root.join("state/shadow_skill_bank.json"),
-            ),
-            (
-                "memory_current.json",
-                self.root.join("state/memory/current.json"),
-            ),
+            ("shadow_skill_bank.json", self.root.join("state/shadow_skill_bank.json")),
+            ("memory_current.json", self.root.join("state/memory/current.json")),
             ("sleep_state.json", self.root.join("state/sleep_state.json")),
             (
                 "sleep_evidence_current.json",
@@ -229,7 +223,7 @@ impl BrainEngine {
                         Ok(_) => {
                             return Err(BrainError::Integrity(format!(
                                 "recovery_live_pointer_already_present:{label}"
-                            )))
+                            )));
                         }
                         Err(error) => return Err(error.into()),
                     }
@@ -252,10 +246,7 @@ impl BrainEngine {
             .root
             .join("state/corpus_transitions/aborted")
             .join(operation_key.as_str());
-        ensure_private_directory(
-            &self.root,
-            &self.root.join("state/corpus_transitions/aborted"),
-        )?;
+        ensure_private_directory(&self.root, &self.root.join("state/corpus_transitions/aborted"))?;
         let identity = inspect_private_directory(&self.root, &inflight)?;
         move_private_directory_transactional(&self.root, &inflight, &aborted, &identity)
     }
@@ -283,9 +274,7 @@ impl BrainEngine {
                 "learning_corpus_transition_inflight_entry_invalid".into(),
             ));
         }
-        Err(BrainError::Integrity(
-            "learning_corpus_transition_incomplete".into(),
-        ))
+        Err(BrainError::Integrity("learning_corpus_transition_incomplete".into()))
     }
 
     pub(super) fn commit_after_verified_corpus_transition(
@@ -306,9 +295,7 @@ impl BrainEngine {
         let observation_digests = self.persist_observations(&obs)?;
         let batch_digest = digest_json(&observation_digests)?;
         if batch_digest != report.observation_set_digest {
-            return Err(BrainError::Integrity(
-                "commit_observation_set_digest_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("commit_observation_set_digest_mismatch".into()));
         }
         // The persisted report is the authority for every artifact derived from
         // this commit. Normalize once through the shared exact wire boundary.
@@ -337,16 +324,12 @@ impl BrainEngine {
             Ok(_) => {
                 return Err(BrainError::Integrity(
                     "corpus_transition_prior_shadow_bank_not_archived".into(),
-                ))
+                ));
             }
             Err(error) => return Err(error.into()),
         }
         let mut shadow_bank = SkillBank::default();
-        assimilate_bank(
-            &mut shadow_bank,
-            &report.fields,
-            self.config.skill_match_cosine,
-        )?;
+        assimilate_bank(&mut shadow_bank, &report.fields, self.config.skill_match_cosine)?;
         let staged_bank_bytes = serialize_pretty_line(&shadow_bank)?;
         let shadow_bank_sha256 =
             SkillBankDigest::from(Sha256Digest::digest_bytes(&staged_bank_bytes));
@@ -383,9 +366,7 @@ impl BrainEngine {
                 || receipt.memory_sha256 != expected_intent.memory_sha256
                 || receipt.shadow_bank_sha256 != expected_intent.shadow_bank_sha256
             {
-                return Err(BrainError::Integrity(
-                    "commit_receipt_report_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("commit_receipt_report_mismatch".into()));
             }
             let event = ledger::find_v2_event_by_payload_string(
                 &self.root,
@@ -395,9 +376,7 @@ impl BrainEngine {
             )?
             .ok_or_else(|| BrainError::Integrity("commit_receipt_ledger_event_missing".into()))?;
             if event.event_hash != receipt.ledger_event_hash {
-                return Err(BrainError::Integrity(
-                    "commit_receipt_ledger_event_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("commit_receipt_ledger_event_mismatch".into()));
             }
             verify_commit_transaction_ledger_binding(&event, &expected_intent, obs.len(), &report)?;
             let report_path = self
@@ -407,9 +386,7 @@ impl BrainEngine {
             if read_existing_private_file_bounded(&self.root, &report_path, MAX_ENGINE_JSON_BYTES)?
                 != report_bytes
             {
-                return Err(BrainError::Integrity(
-                    "commit_receipt_report_content_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("commit_receipt_report_content_mismatch".into()));
             }
             let memory_path = memory_artifact_path(&self.root, &receipt.memory_sha256);
             let persisted_memory = read_existing_private_file_bounded(
@@ -418,14 +395,10 @@ impl BrainEngine {
                 MAX_ENGINE_JSON_BYTES,
             )?;
             if sha256_bytes(&persisted_memory) != receipt.memory_sha256.as_str() {
-                return Err(BrainError::Integrity(
-                    "commit_receipt_memory_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("commit_receipt_memory_mismatch".into()));
             }
             if persisted_memory != memory_bytes {
-                return Err(BrainError::Integrity(
-                    "commit_receipt_memory_content_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("commit_receipt_memory_content_mismatch".into()));
             }
             let bank_path = self
                 .root
@@ -436,9 +409,7 @@ impl BrainEngine {
             if sha256_bytes(&persisted_bank) != shadow_bank_sha256.as_str()
                 || persisted_bank != staged_bank_bytes
             {
-                return Err(BrainError::Integrity(
-                    "commit_receipt_shadow_bank_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("commit_receipt_shadow_bank_mismatch".into()));
             }
             let current_memory = read_existing_private_file_bounded(
                 &self.root,
@@ -501,9 +472,7 @@ impl BrainEngine {
                     MAX_SKILL_BANK_BYTES,
                 )? != staged_bank_bytes
             {
-                return Err(BrainError::Integrity(
-                    "commit_transaction_intent_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("commit_transaction_intent_mismatch".into()));
             }
             let mut names = BTreeSet::new();
             for path in list_existing_private_directory(&self.root, &transaction_dir)? {
@@ -533,11 +502,7 @@ impl BrainEngine {
             write_new_private(&self.root, &staged_report_path, &report_bytes)?;
             write_new_private(&self.root, &staged_memory_path, &memory_bytes)?;
             write_new_private(&self.root, &staged_bank_path, &staged_bank_bytes)?;
-            write_new_private(
-                &self.root,
-                &intent_path,
-                &serialize_pretty_line(&expected_intent)?,
-            )?;
+            write_new_private(&self.root, &intent_path, &serialize_pretty_line(&expected_intent)?)?;
         }
         let intent = expected_intent;
 
@@ -566,12 +531,7 @@ impl BrainEngine {
             .root
             .join("state/reports")
             .join(format!("{}.json", intent.report_sha256));
-        write_immutable_exact(
-            &self.root,
-            &canonical_report,
-            &report_bytes,
-            &intent.report_sha256,
-        )?;
+        write_immutable_exact(&self.root, &canonical_report, &report_bytes, &intent.report_sha256)?;
         let historical_memory = memory_artifact_path(&self.root, &intent.memory_sha256);
         write_immutable_exact(
             &self.root,
@@ -594,12 +554,7 @@ impl BrainEngine {
             .root
             .join("state/skill_banks/by-sha")
             .join(format!("{expected_bank}.json"));
-        write_immutable_exact(
-            &self.root,
-            &historical_bank,
-            &staged_bank_bytes,
-            expected_bank,
-        )?;
+        write_immutable_exact(&self.root, &historical_bank, &staged_bank_bytes, expected_bank)?;
         replace_private_pointer_exact(
             &self.root,
             &self.root.join("state/shadow_skill_bank.json"),
@@ -621,9 +576,7 @@ impl BrainEngine {
         let persisted_receipt: CommitReceipt =
             read_private_json(&self.root, &receipt_path, MAX_ENGINE_JSON_BYTES)?;
         if persisted_receipt != receipt {
-            return Err(BrainError::Integrity(
-                "commit_receipt_post_write_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("commit_receipt_post_write_mismatch".into()));
         }
         let verified_event = ledger::find_v2_event_by_payload_string(
             &self.root,
@@ -633,9 +586,7 @@ impl BrainEngine {
         )?
         .ok_or_else(|| BrainError::Integrity("commit_receipt_ledger_event_missing".into()))?;
         if verified_event.event_hash != receipt.ledger_event_hash {
-            return Err(BrainError::Integrity(
-                "commit_receipt_post_write_ledger_changed".into(),
-            ));
+            return Err(BrainError::Integrity("commit_receipt_post_write_ledger_changed".into()));
         }
         verify_commit_transaction_ledger_binding(&verified_event, &intent, obs.len(), &report)?;
         let current_memory = read_existing_private_file_bounded(
@@ -649,9 +600,7 @@ impl BrainEngine {
             MAX_SKILL_BANK_BYTES,
         )?;
         if current_memory != memory_bytes || current_shadow != staged_bank_bytes {
-            return Err(BrainError::Integrity(
-                "commit_receipt_post_write_pointer_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("commit_receipt_post_write_pointer_mismatch".into()));
         }
         self.advance_canonical_engine_head(
             HeadIncomplete::Preserve,
@@ -778,9 +727,7 @@ impl BrainEngine {
 
         let prior_observations = canonical_observations(&self.load_persisted_observations()?);
         if prior_observations.is_empty() {
-            return Err(BrainError::Integrity(
-                "learning_finalization_prior_corpus_missing".into(),
-            ));
+            return Err(BrainError::Integrity("learning_finalization_prior_corpus_missing".into()));
         }
         let prior_corpus_digest =
             Sha256Digest::parse(observation_set_digest(&prior_observations)?)?;
@@ -898,20 +845,12 @@ impl BrainEngine {
             &archive_dir.join("observations_manifest.json"),
             &prior_observation_manifest,
         )?;
-        archived_artifact_sha256.insert(
-            "observations_manifest.json".into(),
-            prior_observation_manifest_sha,
-        );
+        archived_artifact_sha256
+            .insert("observations_manifest.json".into(), prior_observation_manifest_sha);
         for (source, label) in [
             (self.bank_path(), "skill_bank.json"),
-            (
-                self.root.join("state/shadow_skill_bank.json"),
-                "shadow_skill_bank.json",
-            ),
-            (
-                self.root.join("state/memory/current.json"),
-                "memory_current.json",
-            ),
+            (self.root.join("state/shadow_skill_bank.json"), "shadow_skill_bank.json"),
+            (self.root.join("state/memory/current.json"), "memory_current.json"),
             (self.root.join("state/sleep_state.json"), "sleep_state.json"),
             (
                 self.root.join("state/sleep_evidence/current.json"),
@@ -1052,14 +991,14 @@ impl BrainEngine {
                     })?;
                 Ok(Some(bytes))
             }
-            (Some(_), Err(error)) if error.kind() == std::io::ErrorKind::NotFound => Err(
-                BrainError::Integrity("sleep_evidence_current_pointer_missing".into()),
-            ),
+            (Some(_), Err(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                Err(BrainError::Integrity("sleep_evidence_current_pointer_missing".into()))
+            }
             (Some(_), Err(error)) => Err(error.into()),
             (None, Err(error)) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            (None, Ok(_)) => Err(BrainError::Integrity(
-                "sleep_installation_unexpected_current_evidence".into(),
-            )),
+            (None, Ok(_)) => {
+                Err(BrainError::Integrity("sleep_installation_unexpected_current_evidence".into()))
+            }
             (None, Err(error)) => Err(error.into()),
         }
     }
@@ -1106,9 +1045,7 @@ impl BrainEngine {
             &self.root.join("state/memory/current.json"),
             receipt.memory_sha256.as_str(),
         ) {
-            return Err(BrainError::Integrity(
-                "sleep_installation_current_memory_mismatch".into(),
-            ));
+            return Err(BrainError::Integrity("sleep_installation_current_memory_mismatch".into()));
         }
         match &receipt.active_bank_sha256 {
             Some(bank_sha) => {
@@ -1133,7 +1070,7 @@ impl BrainEngine {
                 Ok(_) => {
                     return Err(BrainError::Integrity(
                         "sleep_installation_unexpected_active_bank".into(),
-                    ))
+                    ));
                 }
                 Err(error) => return Err(error.into()),
             },
@@ -1199,22 +1136,12 @@ impl BrainEngine {
             BrainError::Integrity("learning_finalization_prior_sleep_evidence_missing".into())
         })?;
         let mut artifacts = BTreeMap::new();
-        artifacts.insert(
-            "skill_bank.json".into(),
-            Sha256Digest::parse(active_bank_sha)?,
-        );
-        artifacts.insert(
-            "memory_current.json".into(),
-            Sha256Digest::parse(&receipt.memory_sha256)?,
-        );
-        artifacts.insert(
-            "sleep_state.json".into(),
-            Sha256Digest::parse(&receipt.sleep_state_sha256)?,
-        );
-        artifacts.insert(
-            "sleep_evidence_current.json".into(),
-            Sha256Digest::parse(evidence_sha)?,
-        );
+        artifacts.insert("skill_bank.json".into(), Sha256Digest::parse(active_bank_sha)?);
+        artifacts
+            .insert("memory_current.json".into(), Sha256Digest::parse(&receipt.memory_sha256)?);
+        artifacts
+            .insert("sleep_state.json".into(), Sha256Digest::parse(&receipt.sleep_state_sha256)?);
+        artifacts.insert("sleep_evidence_current.json".into(), Sha256Digest::parse(evidence_sha)?);
         Ok(artifacts)
     }
 
@@ -1252,9 +1179,7 @@ impl BrainEngine {
         let receipt: SleepReceipt =
             read_private_json(&self.root, &receipt_path, MAX_ENGINE_JSON_BYTES)?;
         if receipt.operation_key != operation_key.as_str() || receipt.active_bank_sha256.is_some() {
-            return Err(BrainError::Integrity(
-                "empty_bank_bootstrap_prior_receipt_invalid".into(),
-            ));
+            return Err(BrainError::Integrity("empty_bank_bootstrap_prior_receipt_invalid".into()));
         }
         self.verify_current_sleep_installation(&receipt, previous)
     }
@@ -1268,9 +1193,7 @@ impl BrainEngine {
         self.require_no_incomplete_corpus_transition()?;
         let observations = canonical_observations(&self.load_persisted_observations()?);
         if observations.len() < self.config.min_observations {
-            return Err(BrainError::Invalid(
-                "sleep_requires_persisted_observations".into(),
-            ));
+            return Err(BrainError::Invalid("sleep_requires_persisted_observations".into()));
         }
         let mut reconstruction = self.analyze_canonical(&observations)?;
         // Dense materialization is deterministic from authenticated observations
@@ -1325,9 +1248,7 @@ impl BrainEngine {
                     &evidence_path,
                     MAX_ENGINE_JSON_BYTES,
                 )?;
-                Some(EvidenceBundleDigest::from(Sha256Digest::digest_bytes(
-                    &bytes,
-                )))
+                Some(EvidenceBundleDigest::from(Sha256Digest::digest_bytes(&bytes)))
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => return Err(error.into()),
@@ -1599,9 +1520,7 @@ impl BrainEngine {
                     !private_file_digest_matches(&self.root, &staged_bank, sha.as_str())
                 })
             {
-                return Err(BrainError::Integrity(
-                    "sleep_transaction_stage_mismatch".into(),
-                ));
+                return Err(BrainError::Integrity("sleep_transaction_stage_mismatch".into()));
             }
             let _ = transaction_dir;
         } else {

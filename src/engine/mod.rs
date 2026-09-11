@@ -5,6 +5,11 @@
 //! The former monolith is split by authority, not by file size:
 //! analysis, durable store/head, corpus transitions, and runtime certification.
 
+pub mod cognitive_field;
+pub mod engine_head;
+pub mod learned_controller;
+pub mod parametric_program;
+
 mod analysis;
 mod runtime;
 mod store;
@@ -12,7 +17,7 @@ mod support;
 mod transition;
 mod types;
 
-pub use crate::engine_head::{
+pub use crate::engine::engine_head::{
     CanonicalEngineHead, CorpusTransitionRecovery, CorpusTransitionRecoveryOutcome,
 };
 pub use support::{
@@ -28,14 +33,48 @@ pub use types::{
 pub(super) use support::*;
 pub(super) use types::*;
 
-pub(super) use crate::aperture_independence::{
+pub(super) use crate::analysis::aperture_independence::{
     estimate_aperture_independence, ApertureIndependenceReport,
 };
-pub(super) use crate::artifact::{
+pub(super) use crate::analysis::block_tomography::{
+    reconstruct_structured_geometry, ParameterBlockLayout, ParameterLayoutAuthority,
+    StructuredSource,
+};
+pub(super) use crate::analysis::confounders::remove_confounders;
+pub(super) use crate::analysis::dual_space::{
+    analyze_dual_space, DualSpaceAnalysisConfig, DualSpaceModel, RepresentationObservation,
+};
+pub(super) use crate::analysis::functional::{attach_signatures, fit_functional_map};
+pub(super) use crate::analysis::identifiability::{resolution_map, ResolutionMap};
+pub(super) use crate::analysis::persistent::reconstruct_persistent_skill_fields;
+pub(super) use crate::analysis::protected::{project_to_safe_subspace, ProtectionResult};
+pub(super) use crate::analysis::protected_map::{
+    load_protected_cortex, ProtectedMapArtifactReport,
+};
+pub(super) use crate::analysis::sbas::reconstruct_trajectory;
+pub(super) use crate::analysis::tomography::{
+    align_incoming_identities, assimilate_bank, reconcile_full_corpus, reconstruct_skill_fields,
+};
+pub(super) use crate::analysis::trust_region::{
+    apply_causal_priority_trust_region, TrustRegionAllocationPolicy, TrustRegionResult,
+};
+pub(super) use crate::analysis::weight_tomography::{analyze_weight_dynamics, tomography_gate};
+pub(super) use crate::engine::cognitive_field::{
+    CognitiveFieldConfig, CognitiveFieldDrive, CognitiveFieldState, DynamicCognitiveField,
+    FieldRoutingDecision,
+};
+pub(super) use crate::engine::engine_head::{
+    CorpusTransitionJournal, CorpusTransitionPhase, CANONICAL_ENGINE_HEAD_MAX_BYTES,
+    CANONICAL_ENGINE_HEAD_SCHEMA, CORPUS_TRANSITION_JOURNAL_MAX_BYTES, HARD_MAX_ENGINE_REVISION,
+};
+pub(super) use crate::engine::learned_controller::{
+    load_persisted_runtime_learned_controller, RuntimeLearnedController,
+};
+pub(super) use crate::foundation::artifact::{
     derive_content_addressed_dvec_combination, inspect_dvec, read_dvec_f32, read_f64_artifact,
     ArtifactWriteAuthority, DeltaArtifactRef,
 };
-pub(super) use crate::authority::{
+pub(super) use crate::foundation::authority::{
     ensure_private_directory, ensure_private_parent, existing_directory_under_root,
     existing_regular_file_under_root, inspect_private_directory, list_existing_private_directory,
     move_private_directory_transactional, move_private_file_transactional,
@@ -43,64 +82,36 @@ pub(super) use crate::authority::{
     replace_private_file_atomic, root_relative_path, with_private_authority_lock,
     write_or_verify_immutable, PrivateFileReference,
 };
-pub(super) use crate::block_tomography::{
-    reconstruct_structured_geometry, ParameterBlockLayout, ParameterLayoutAuthority,
-    StructuredSource,
-};
-pub(super) use crate::causal_credit::{certified_causal_priority_weights, CausalCreditReport};
-pub(super) use crate::cognitive_field::{
-    CognitiveFieldConfig, CognitiveFieldDrive, CognitiveFieldState, DynamicCognitiveField,
-    FieldRoutingDecision,
-};
-pub(super) use crate::confounders::remove_confounders;
-pub(super) use crate::contracts::{
+pub(super) use crate::foundation::contracts::{
     BrainConfig, DeltaObservation, PromotionBlocker, PromotionDecision, ProtectedCortex,
     ReconstructionInverseMode, SkillBank, SkillField,
 };
-pub(super) use crate::digest::{
+pub(super) use crate::foundation::digest::{
     AnalysisVersionDigest, CanonicalEngineHeadDigest, CausalCreditDigest, ConfigDigest,
     CorpusDigest, EvidenceBundleDigest, MemoryDigest, ObservationRecordDigest,
     ParameterLayoutDigest, ReportDigest, Sha256Digest, SkillBankDigest, SourceTreeDigest,
 };
-pub(super) use crate::dual_space::{
-    analyze_dual_space, DualSpaceAnalysisConfig, DualSpaceModel, RepresentationObservation,
+pub(super) use crate::foundation::error::{BrainError, BrainResult};
+pub(super) use crate::foundation::identity::{LineageId, ReconstructionId, SessionId, SkillId};
+pub(super) use crate::foundation::ledger;
+pub(super) use crate::foundation::linalg::{compensated_sum, cosine, norm, stable_rms, Matrix};
+pub(super) use crate::foundation::security::{verify_internal_private_root, verify_private_root};
+pub(super) use crate::foundation::validation::source_support_indices;
+pub(super) use crate::learning::causal_credit::{
+    certified_causal_priority_weights, CausalCreditReport,
 };
-pub(super) use crate::engine_head::{
-    CorpusTransitionJournal, CorpusTransitionPhase, CANONICAL_ENGINE_HEAD_MAX_BYTES,
-    CANONICAL_ENGINE_HEAD_SCHEMA, CORPUS_TRANSITION_JOURNAL_MAX_BYTES, HARD_MAX_ENGINE_REVISION,
-};
-pub(super) use crate::error::{BrainError, BrainResult};
-pub(super) use crate::functional::{attach_signatures, fit_functional_map};
-pub(super) use crate::identifiability::{resolution_map, ResolutionMap};
-pub(super) use crate::identity::{LineageId, ReconstructionId, SessionId, SkillId};
-pub(super) use crate::learned_controller::{
-    load_persisted_runtime_learned_controller, RuntimeLearnedController,
-};
-pub(super) use crate::learning_finalization::{
+pub(super) use crate::learning::learning_finalization::{
     learning_finalization_input_sha256, prepare_learning_finalization,
     verify_learning_finalization_input, LearningFinalizationInput,
     RepresentationObservationBinding,
 };
-pub(super) use crate::ledger;
-pub(super) use crate::linalg::{compensated_sum, cosine, norm, stable_rms, Matrix};
-pub(super) use crate::memory::{build_memory_snapshot, memory_artifact_path};
-pub(super) use crate::persistent::reconstruct_persistent_skill_fields;
-pub(super) use crate::protected::{project_to_safe_subspace, ProtectionResult};
-pub(super) use crate::protected_map::{load_protected_cortex, ProtectedMapArtifactReport};
-pub(super) use crate::sbas::reconstruct_trajectory;
-pub(super) use crate::security::{verify_internal_private_root, verify_private_root};
-pub(super) use crate::sleep_diagnostics::{diagnose_consolidation, SleepConsolidationDiagnostics};
-pub(super) use crate::sleep_evidence::{
+pub(super) use crate::learning::memory::{build_memory_snapshot, memory_artifact_path};
+pub(super) use crate::learning::sleep_diagnostics::{
+    diagnose_consolidation, SleepConsolidationDiagnostics,
+};
+pub(super) use crate::learning::sleep_evidence::{
     load_sleep_evidence, verify_sleep_evidence, SleepEvidenceExpectation, SleepEvidenceVerification,
 };
-pub(super) use crate::tomography::{
-    align_incoming_identities, assimilate_bank, reconcile_full_corpus, reconstruct_skill_fields,
-};
-pub(super) use crate::trust_region::{
-    apply_causal_priority_trust_region, TrustRegionAllocationPolicy, TrustRegionResult,
-};
-pub(super) use crate::validation::source_support_indices;
-pub(super) use crate::weight_tomography::{analyze_weight_dynamics, tomography_gate};
 pub(super) use serde::de::DeserializeOwned;
 pub(super) use serde::{Deserialize, Serialize};
 pub(super) use serde_json::{json, Value};
@@ -141,9 +152,7 @@ impl BrainEngine {
     /// self-attesting relaxed promotion gates under a new config digest.
     pub(super) fn require_canonical_runtime_config(&self) -> BrainResult<()> {
         if self.config != BrainConfig::default() {
-            return Err(BrainError::Integrity(
-                "noncanonical_runtime_config_forbidden".into(),
-            ));
+            return Err(BrainError::Integrity("noncanonical_runtime_config_forbidden".into()));
         }
         Ok(())
     }
@@ -160,13 +169,15 @@ impl BrainEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::digest::{ParameterLayoutDigest, ProvenanceDigest, Sha256Digest};
+    use crate::engine::engine_head::CorpusTransitionRecoveryOutcome;
     use crate::engine::store::canonical_head_compare_and_swap_matches;
     use crate::engine::transition::{
         classify_unsealed_corpus_recovery, UnsealedCorpusRecoveryDecision,
     };
-    use crate::engine_head::CorpusTransitionRecoveryOutcome;
-    use crate::identity::{LineageId, ObservationId, ReconstructionId, SessionId, SkillId};
+    use crate::foundation::digest::{ParameterLayoutDigest, ProvenanceDigest, Sha256Digest};
+    use crate::foundation::identity::{
+        LineageId, ObservationId, ReconstructionId, SessionId, SkillId,
+    };
     use std::collections::BTreeMap;
     use std::os::unix::fs::PermissionsExt;
     use std::sync::{Arc, Barrier};
@@ -384,11 +395,7 @@ mod tests {
                 parent_skill_ids: vec![],
             }],
         };
-        fs::write(
-            state_dir.join("skill_bank.json"),
-            serde_json::to_vec(&bank).unwrap(),
-        )
-        .unwrap();
+        fs::write(state_dir.join("skill_bank.json"), serde_json::to_vec(&bank).unwrap()).unwrap();
 
         let engine = BrainEngine {
             root: root.clone(),
@@ -443,11 +450,7 @@ mod tests {
                 parent_skill_ids: vec![],
             }],
         };
-        fs::write(
-            state_dir.join("skill_bank.json"),
-            serde_json::to_vec(&bank).unwrap(),
-        )
-        .unwrap();
+        fs::write(state_dir.join("skill_bank.json"), serde_json::to_vec(&bank).unwrap()).unwrap();
 
         let engine = BrainEngine {
             root: root.clone(),
@@ -463,10 +466,8 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "cerebro-engine-{label}-{}-{unique}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir()
+            .join(format!("cerebro-engine-{label}-{}-{unique}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         let mut permissions = fs::metadata(&root).unwrap().permissions();
         permissions.set_mode(0o700);
@@ -528,17 +529,10 @@ mod tests {
                 .join("state/corpus_transitions/by-operation")
                 .join(operation_key.as_str()),
         };
-        fs::write(
-            inflight.join("intent.json"),
-            serialize_pretty_line(&intent).unwrap(),
-        )
-        .unwrap();
+        fs::write(inflight.join("intent.json"), serialize_pretty_line(&intent).unwrap()).unwrap();
 
         let recovery = engine.recover_incomplete_corpus_transition().unwrap();
-        assert_eq!(
-            recovery.outcome,
-            CorpusTransitionRecoveryOutcome::RolledBackIntent
-        );
+        assert_eq!(recovery.outcome, CorpusTransitionRecoveryOutcome::RolledBackIntent);
         assert_eq!(recovery.operation_key.as_ref(), Some(&operation_key));
         assert!(!inflight.exists());
         assert!(root
@@ -565,11 +559,7 @@ mod tests {
             generation: 3,
             fields: vec![field],
         };
-        fs::write(
-            state_dir.join("skill_bank.json"),
-            serde_json::to_vec(&bank).unwrap(),
-        )
-        .unwrap();
+        fs::write(state_dir.join("skill_bank.json"), serde_json::to_vec(&bank).unwrap()).unwrap();
         let engine = BrainEngine {
             root: root.clone(),
             config: BrainConfig::default(),
@@ -599,11 +589,8 @@ mod tests {
             generation: 1,
             fields: vec![field],
         };
-        fs::write(
-            state_dir.join("skill_bank.json"),
-            serialize_pretty_line(&bank).unwrap(),
-        )
-        .unwrap();
+        fs::write(state_dir.join("skill_bank.json"), serialize_pretty_line(&bank).unwrap())
+            .unwrap();
         let engine = BrainEngine {
             root: root.clone(),
             config: BrainConfig::default(),
@@ -614,11 +601,8 @@ mod tests {
         engine.verify_current_canonical_engine_head().unwrap();
 
         bank.generation = 2;
-        fs::write(
-            state_dir.join("skill_bank.json"),
-            serialize_pretty_line(&bank).unwrap(),
-        )
-        .unwrap();
+        fs::write(state_dir.join("skill_bank.json"), serialize_pretty_line(&bank).unwrap())
+            .unwrap();
         let err = engine.verify_current_canonical_engine_head().unwrap_err();
         assert!(
             matches!(err, BrainError::Integrity(message) if message.contains("live_authority_mismatch"))
@@ -639,11 +623,8 @@ mod tests {
         engine
             .advance_canonical_engine_head(HeadIncomplete::Clear, None, None)
             .unwrap();
-        fs::write(
-            engine.canonical_engine_head_history_path(&first.manifest_digest),
-            b"{}\n",
-        )
-        .unwrap();
+        fs::write(engine.canonical_engine_head_history_path(&first.manifest_digest), b"{}\n")
+            .unwrap();
         assert!(engine.verify_current_canonical_engine_head().is_err());
         let _ = fs::remove_dir_all(&root);
     }
@@ -883,10 +864,7 @@ mod tests {
         assert_eq!(heads[0].parent_revision, None);
         assert_eq!(heads[1].revision, 1);
         assert_eq!(heads[1].parent_revision, Some(0));
-        assert_eq!(
-            heads[1].parent_digest.as_ref(),
-            Some(&heads[0].manifest_digest)
-        );
+        assert_eq!(heads[1].parent_digest.as_ref(), Some(&heads[0].manifest_digest));
         let current = engine.verify_current_canonical_engine_head().unwrap();
         assert_eq!(current, heads[1]);
         assert!(engine
@@ -995,8 +973,8 @@ mod tests {
                 ..BrainConfig::default()
             },
         };
-        let layout = crate::block_tomography::ParameterBlockLayout::from_shapes(&[
-            crate::block_tomography::BlockShapeSpec {
+        let layout = crate::analysis::block_tomography::ParameterBlockLayout::from_shapes(&[
+            crate::analysis::block_tomography::BlockShapeSpec {
                 name: "weights".into(),
                 shape: vec![4],
                 count: 4,
@@ -1104,7 +1082,7 @@ mod tests {
             .join(format!("{protocol_sha}.json"));
         write_or_verify_immutable(&root, &protocol_path, &protocol_bytes).unwrap();
         let typed_protocol =
-            crate::digest::RepresentationProtocolDigest::from(protocol_sha.clone());
+            crate::foundation::digest::RepresentationProtocolDigest::from(protocol_sha.clone());
         for (index, observation) in observations.iter_mut().enumerate() {
             observation.representation_artifact = Some(
                 writer
@@ -1169,7 +1147,7 @@ mod tests {
             &bad_bytes,
         )
         .unwrap();
-        let bad_typed = crate::digest::RepresentationProtocolDigest::from(bad_sha);
+        let bad_typed = crate::foundation::digest::RepresentationProtocolDigest::from(bad_sha);
         let mut bad_observations = observations.clone();
         for observation in &mut bad_observations {
             observation.representation_protocol_sha256 = Some(bad_typed.clone());
@@ -1183,7 +1161,7 @@ mod tests {
 
     #[test]
     fn analysis_fail_closed_branches_reject_incomplete_dense_and_dual_evidence() {
-        use crate::digest::RepresentationProtocolDigest;
+        use crate::foundation::digest::RepresentationProtocolDigest;
 
         let (root, engine, observations, layout_sha) =
             dense_analysis_fixture("analysis-branches", 2);
@@ -1214,8 +1192,8 @@ mod tests {
             Err(BrainError::Invalid(message)) if message == "structured_geometry_multiple_parameter_layouts"
         ));
 
-        let layout5 = crate::block_tomography::ParameterBlockLayout::from_shapes(&[
-            crate::block_tomography::BlockShapeSpec {
+        let layout5 = crate::analysis::block_tomography::ParameterBlockLayout::from_shapes(&[
+            crate::analysis::block_tomography::BlockShapeSpec {
                 name: "weights-five".into(),
                 shape: vec![5],
                 count: 5,
@@ -1395,10 +1373,7 @@ mod tests {
             ("probe_count", "representation_protocol_probe_count_invalid"),
             ("layer_count", "representation_protocol_layer_count_invalid"),
             ("hidden_dim", "representation_protocol_hidden_dim_invalid"),
-            (
-                "raw_dimension_per_observation",
-                "representation_protocol_raw_dim_invalid",
-            ),
+            ("raw_dimension_per_observation", "representation_protocol_raw_dim_invalid"),
         ] {
             let mut invalid = base_protocol.clone();
             invalid[key] = serde_json::json!(0);
@@ -1439,7 +1414,7 @@ mod tests {
 
     #[test]
     fn observation_validation_rejects_each_authority_contract_violation() {
-        use crate::contracts::{ConfounderValue, ExperimentLineage};
+        use crate::foundation::contracts::{ConfounderValue, ExperimentLineage};
 
         let root = isolated_engine_root("observation-validation");
         let engine = BrainEngine {
@@ -1540,7 +1515,7 @@ mod tests {
             lineage_id: LineageId::parse("runtime-lineage").unwrap(),
             generation_created: 1,
             direction: vec![1.0, 0.0],
-            structured_geometry: Some(crate::contracts::SkillSubspaceGeometry {
+            structured_geometry: Some(crate::foundation::contracts::SkillSubspaceGeometry {
                 skill_id,
                 source_support_indices: vec![0],
                 blocks: vec![],
@@ -1570,7 +1545,7 @@ mod tests {
             context_count: 3,
             independent_group_count: 3,
             field_count: 1,
-            fields: vec![crate::causal_credit::FieldCausalCredit {
+            fields: vec![crate::learning::causal_credit::FieldCausalCredit {
                 skill_id: skill_id.clone(),
                 matched_pairs: 3,
                 independent_contexts: 3,
@@ -1709,11 +1684,8 @@ mod tests {
             root: root.clone(),
             config: BrainConfig::default(),
         };
-        ensure_private_directory(
-            &root,
-            &root.join("state/corpus_transitions/inflight/incomplete"),
-        )
-        .unwrap();
+        ensure_private_directory(&root, &root.join("state/corpus_transitions/inflight/incomplete"))
+            .unwrap();
         let health = engine.runtime_integrity_health().unwrap();
         assert!(!health.corpus_transition_clear);
         assert!(health
@@ -1791,8 +1763,8 @@ mod tests {
             root: root.clone(),
             config: BrainConfig::default(),
         };
-        let layout = crate::block_tomography::ParameterBlockLayout::from_shapes(&[
-            crate::block_tomography::BlockShapeSpec {
+        let layout = crate::analysis::block_tomography::ParameterBlockLayout::from_shapes(&[
+            crate::analysis::block_tomography::BlockShapeSpec {
                 name: "runtime-weights".into(),
                 shape: vec![4],
                 count: 4,
@@ -2096,10 +2068,7 @@ mod tests {
             config: BrainConfig::default(),
         };
         let recovery = engine.recover_incomplete_corpus_transition().unwrap();
-        assert_eq!(
-            recovery.outcome,
-            CorpusTransitionRecoveryOutcome::NoIncompleteTransition
-        );
+        assert_eq!(recovery.outcome, CorpusTransitionRecoveryOutcome::NoIncompleteTransition);
         assert!(recovery.operation_key.is_none());
         assert!(recovery.phase.is_none());
         let _ = fs::remove_dir_all(&root);
@@ -2138,11 +2107,7 @@ mod tests {
                 .join("state/corpus_transitions/by-operation")
                 .join(operation_key.as_str()),
         };
-        fs::write(
-            inflight.join("intent.json"),
-            serialize_pretty_line(&intent).unwrap(),
-        )
-        .unwrap();
+        fs::write(inflight.join("intent.json"), serialize_pretty_line(&intent).unwrap()).unwrap();
 
         let valid_obs = sample_observation("obs-1", vec![1.0, 0.0]);
         engine.persist_observations(&[valid_obs]).unwrap();
@@ -2155,10 +2120,7 @@ mod tests {
         fs::rename(root.join("state/observations"), &archive_obs).unwrap();
 
         let recovery = engine.recover_incomplete_corpus_transition().unwrap();
-        assert_eq!(
-            recovery.outcome,
-            CorpusTransitionRecoveryOutcome::RestoredPriorCorpus
-        );
+        assert_eq!(recovery.outcome, CorpusTransitionRecoveryOutcome::RestoredPriorCorpus);
         assert_eq!(recovery.operation_key.as_ref(), Some(&operation_key));
         // Verify live observations directory was restored
         assert!(root.join("state/observations").exists());
@@ -2207,11 +2169,7 @@ mod tests {
                 .join("state/corpus_transitions/by-operation")
                 .join(operation_key.as_str()),
         };
-        fs::write(
-            inflight.join("intent.json"),
-            serialize_pretty_line(&intent).unwrap(),
-        )
-        .unwrap();
+        fs::write(inflight.join("intent.json"), serialize_pretty_line(&intent).unwrap()).unwrap();
 
         let recovery = engine.recover_incomplete_corpus_transition().unwrap();
         assert_eq!(
@@ -2245,7 +2203,7 @@ mod tests {
             schema: "cerebro.tidex.learning_finalization_input/v1".into(),
             session_id: SessionId::parse("session-guard").unwrap(),
             adaptive_receipt_sha256: Sha256Digest::zero(),
-            target_id: crate::identity::LearningTargetId::parse("t-1").unwrap(),
+            target_id: crate::foundation::identity::LearningTargetId::parse("t-1").unwrap(),
             target_digest: Sha256Digest::zero(),
             policy_digest: Sha256Digest::zero(),
             completed_evidence_sha256: vec![],
@@ -2294,8 +2252,11 @@ mod tests {
     fn commit_finalized_session_reconstruction_validation() {
         let root = isolated_engine_root("commit-fin-val");
         let (session_id, rep_receipt, _) =
-            crate::learning_finalization::tests::make_test_scenario(&root, "session-comm-val");
-        let input = crate::learning_finalization::prepare_learning_finalization(
+            crate::learning::learning_finalization::tests::make_test_scenario(
+                &root,
+                "session-comm-val",
+            );
+        let input = crate::learning::learning_finalization::prepare_learning_finalization(
             &root,
             session_id.as_str(),
             &rep_receipt,
@@ -2317,12 +2278,12 @@ mod tests {
         // 2. Scenario with 6 observations: passes minimum observation count, but fails prospective promotion
         let root6 = isolated_engine_root("commit-fin-val-6");
         let (session_id6, rep_receipt6, _) =
-            crate::learning_finalization::tests::make_test_scenario_with_count(
+            crate::learning::learning_finalization::tests::make_test_scenario_with_count(
                 &root6,
                 "session-comm-val6",
                 6,
             );
-        let input6 = crate::learning_finalization::prepare_learning_finalization(
+        let input6 = crate::learning::learning_finalization::prepare_learning_finalization(
             &root6,
             session_id6.as_str(),
             &rep_receipt6,
@@ -2532,10 +2493,7 @@ mod tests {
         let dir = root.join("state/custom_obs");
 
         // 1. Missing directory with missing_is_empty = true returns empty
-        assert_eq!(
-            load_observations_from_private_directory(&root, &dir, true).unwrap(),
-            vec![]
-        );
+        assert_eq!(load_observations_from_private_directory(&root, &dir, true).unwrap(), vec![]);
 
         // 2. Missing directory with missing_is_empty = false fails
         assert!(load_observations_from_private_directory(&root, &dir, false).is_err());
@@ -2625,7 +2583,7 @@ mod tests {
         let s2 = SkillId::parse("skill-2").unwrap();
 
         // 1. Invalid schema
-        let mut route = crate::cognitive_field::FieldRoutingDecision {
+        let mut route = crate::engine::cognitive_field::FieldRoutingDecision {
             schema: "wrong-schema".into(),
             field_ids: vec![s1.clone()],
             coefficients: vec![0.5],
@@ -2754,8 +2712,8 @@ mod tests {
         ));
 
         // 2. Structured geometry missing
-        let layout = crate::block_tomography::ParameterBlockLayout::from_shapes(&[
-            crate::block_tomography::BlockShapeSpec {
+        let layout = crate::analysis::block_tomography::ParameterBlockLayout::from_shapes(&[
+            crate::analysis::block_tomography::BlockShapeSpec {
                 name: "b1".into(),
                 shape: vec![2],
                 count: 2,
@@ -2783,7 +2741,7 @@ mod tests {
         ));
 
         // 3. Dense materialization missing
-        let geom = crate::contracts::SkillSubspaceGeometry {
+        let geom = crate::foundation::contracts::SkillSubspaceGeometry {
             skill_id: SkillId::parse("skill-4").unwrap(),
             source_support_indices: vec![0],
             blocks: vec![],
@@ -2804,7 +2762,8 @@ mod tests {
         ));
 
         // 4. Dense count mismatch
-        let writer = crate::artifact::ArtifactWriteAuthority::for_internal_root(&root).unwrap();
+        let writer =
+            crate::foundation::artifact::ArtifactWriteAuthority::for_internal_root(&root).unwrap();
         let dense_wrong_count = writer
             .create_content_addressed_dvec(&[1.0, 2.0, 3.0])
             .unwrap();
@@ -2825,18 +2784,20 @@ mod tests {
         // must be rejected by the root-bound descriptor verifier.
         let mut invalid_path_field = sample_field("skill-invalid-path");
         invalid_path_field.parameter_layout_sha256 = Some(layout_sha.clone());
-        invalid_path_field.structured_geometry = Some(crate::contracts::SkillSubspaceGeometry {
-            skill_id: invalid_path_field.skill_id.clone(),
-            source_support_indices: vec![0],
-            blocks: vec![],
-            max_local_rank: 1,
-            mean_effective_rank: 1.0,
-        });
-        invalid_path_field.dense_materialization = Some(crate::artifact::DeltaArtifactRef {
-            path: root.join("state/not-an-authorized-delta.dvec"),
-            sha256: Sha256Digest::digest_bytes(b"not-authorized"),
-            parameter_count: 2,
-        });
+        invalid_path_field.structured_geometry =
+            Some(crate::foundation::contracts::SkillSubspaceGeometry {
+                skill_id: invalid_path_field.skill_id.clone(),
+                source_support_indices: vec![0],
+                blocks: vec![],
+                max_local_rank: 1,
+                mean_effective_rank: 1.0,
+            });
+        invalid_path_field.dense_materialization =
+            Some(crate::foundation::artifact::DeltaArtifactRef {
+                path: root.join("state/not-an-authorized-delta.dvec"),
+                sha256: Sha256Digest::digest_bytes(b"not-authorized"),
+                parameter_count: 2,
+            });
         let invalid_path_bank = SkillBank {
             generation: 1,
             fields: vec![invalid_path_field],
@@ -2881,10 +2842,7 @@ mod tests {
         let key_1 = Sha256Digest::digest_bytes(b"op-1");
         let op_dir_1 = inflight.join(key_1.as_str());
         ensure_private_directory(&root, &op_dir_1).unwrap();
-        assert_eq!(
-            engine.incomplete_transition_operation_key().unwrap(),
-            Some(key_1)
-        );
+        assert_eq!(engine.incomplete_transition_operation_key().unwrap(), Some(key_1));
 
         // 4. Multiple inflight operations -> ambiguous error
         let key_2 = Sha256Digest::digest_bytes(b"op-2");
@@ -2907,10 +2865,7 @@ mod tests {
         };
 
         // 1. None expected, no file present -> Ok(None)
-        assert_eq!(
-            engine.verify_current_sleep_evidence_pointer(None).unwrap(),
-            None
-        );
+        assert_eq!(engine.verify_current_sleep_evidence_pointer(None).unwrap(), None);
 
         // 2. Expected some SHA, but file is missing -> Err(sleep_evidence_current_pointer_missing)
         let sha = Sha256Digest::digest_bytes(b"content");
@@ -2984,15 +2939,13 @@ mod tests {
             CertificationStatus::Revoked,
             active_bank_sha256.as_deref(),
         );
-        let corpus_digest = CorpusDigest::from(Sha256Digest::digest_bytes(
-            format!("corpus:{label}").as_bytes(),
-        ));
+        let corpus_digest =
+            CorpusDigest::from(Sha256Digest::digest_bytes(format!("corpus:{label}").as_bytes()));
         let source_tree_digest = SourceTreeDigest::from(Sha256Digest::digest_bytes(
             format!("source:{label}").as_bytes(),
         ));
-        let config_digest = ConfigDigest::from(Sha256Digest::digest_bytes(
-            format!("config:{label}").as_bytes(),
-        ));
+        let config_digest =
+            ConfigDigest::from(Sha256Digest::digest_bytes(format!("config:{label}").as_bytes()));
         let analysis_version_digest = AnalysisVersionDigest::from(Sha256Digest::digest_bytes(
             format!("analysis-version:{label}").as_bytes(),
         ));
@@ -3027,18 +2980,9 @@ mod tests {
             &report_bytes,
         )
         .unwrap();
-        write_new_private(
-            &root,
-            &memory_artifact_path(&root, &memory_sha256),
-            &memory_bytes,
-        )
-        .unwrap();
-        write_new_private(
-            &root,
-            &root.join("state/memory/current.json"),
-            &memory_bytes,
-        )
-        .unwrap();
+        write_new_private(&root, &memory_artifact_path(&root, &memory_sha256), &memory_bytes)
+            .unwrap();
+        write_new_private(&root, &root.join("state/memory/current.json"), &memory_bytes).unwrap();
         write_new_private(
             &root,
             &root
@@ -3067,12 +3011,8 @@ mod tests {
                 bytes,
             )
             .unwrap();
-            write_new_private(
-                &root,
-                &root.join("state/sleep_evidence/current.json"),
-                bytes,
-            )
-            .unwrap();
+            write_new_private(&root, &root.join("state/sleep_evidence/current.json"), bytes)
+                .unwrap();
         }
 
         let event = ledger::append(
@@ -3225,14 +3165,9 @@ mod tests {
             .join("state/sleep_receipts")
             .join(format!("{}.json", receipt.operation_key));
         let mut invalid_receipt = receipt.clone();
-        invalid_receipt.active_bank_sha256 = Some(SkillBankDigest::from(
-            Sha256Digest::digest_bytes(b"different-bank"),
-        ));
-        fs::write(
-            &receipt_path,
-            serialize_pretty_line(&invalid_receipt).unwrap(),
-        )
-        .unwrap();
+        invalid_receipt.active_bank_sha256 =
+            Some(SkillBankDigest::from(Sha256Digest::digest_bytes(b"different-bank")));
+        fs::write(&receipt_path, serialize_pretty_line(&invalid_receipt).unwrap()).unwrap();
         assert!(matches!(
             engine.authorize_empty_bank_bootstrap(true, &state),
             Err(BrainError::Integrity(message))
@@ -3343,11 +3278,7 @@ mod tests {
             fields: vec![field],
         };
         fs::create_dir_all(root.join("state")).unwrap();
-        fs::write(
-            engine.bank_path(),
-            serde_json::to_vec_pretty(&bank).unwrap(),
-        )
-        .unwrap();
+        fs::write(engine.bank_path(), serde_json::to_vec_pretty(&bank).unwrap()).unwrap();
 
         let err = engine.search_by_function(&[1.0, 0.0], 5).unwrap_err();
         assert!(matches!(

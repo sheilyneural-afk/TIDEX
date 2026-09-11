@@ -1,7 +1,7 @@
-use cerebro_tidex::contracts::BrainConfig;
-use cerebro_tidex::engine::BrainEngine;
-use cerebro_tidex::learning_finalization::prepare_learning_finalization;
-use cerebro_tidex::security::configured_private_root;
+use tidex::engine::BrainEngine;
+use tidex::foundation::contracts::BrainConfig;
+use tidex::foundation::security::configured_private_root;
+use tidex::learning::learning_finalization::prepare_learning_finalization;
 
 fn parse_arguments(args: &[String]) -> Result<(&str, &str), String> {
     match args {

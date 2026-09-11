@@ -64,7 +64,7 @@ impl CandleMistralModel {
             != ArchitectureFamily::Mistral
         {
             return Err(
-                format!("candle_mistral_architecture_mismatch:{runtime_architecture}").into(),
+                format!("candle_mistral_architecture_mismatch:{runtime_architecture}").into()
             );
         }
         let eos_token_ids = parse_token_ids(generic.get("eos_token_id"))?;
@@ -196,9 +196,7 @@ fn parse_token_ids(
         None | Some(serde_json::Value::Null) => Ok(Vec::new()),
         Some(serde_json::Value::Number(number)) => {
             let raw = number.as_u64().ok_or("mistral_eos_token_invalid")?;
-            Ok(vec![
-                u32::try_from(raw).map_err(|_| "mistral_eos_token_overflow")?
-            ])
+            Ok(vec![u32::try_from(raw).map_err(|_| "mistral_eos_token_overflow")?])
         }
         Some(serde_json::Value::Array(values)) => values
             .iter()

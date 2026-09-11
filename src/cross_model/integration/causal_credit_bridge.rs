@@ -1,7 +1,9 @@
 //! Thin adapter to the canonical causal-credit reducer.
 
-use crate::causal_credit::{estimate_causal_credit, CausalCreditReport, CounterfactualEvaluation};
-use crate::error::BrainResult;
+use crate::foundation::error::BrainResult;
+use crate::learning::causal_credit::{
+    estimate_causal_credit, CausalCreditReport, CounterfactualEvaluation,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct CausalCreditBridgeConfig;

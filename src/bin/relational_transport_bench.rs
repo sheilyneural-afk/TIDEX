@@ -1,8 +1,8 @@
-use cerebro_tidex::transport::learn_relational_transport;
 use serde::Deserialize;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
+use tidex::analysis::transport::learn_relational_transport;
 
 #[derive(Debug, Deserialize)]
 struct Input {

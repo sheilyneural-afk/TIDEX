@@ -3,7 +3,7 @@
 //! The module separates behavioral evaluation, measured internal activations,
 //! calibrated representation transport, activation intervention, physical weight
 //! materialization, and production authorization. No phase fabricates evidence
-//! for the next one, and production activation remains a core CEREBRO3 authority.
+//! for the next one, and production activation remains a core TIDE-X authority.
 
 pub mod co_evolution;
 pub mod discovery;

@@ -1,12 +1,12 @@
-use cerebro_tidex::contracts::{BrainConfig, DeltaObservation};
-use cerebro_tidex::dual_space::{
-    analyze_dual_space, DualSpaceAnalysisConfig, DualSpaceModel, RepresentationObservation,
-};
-use cerebro_tidex::engine::ReconstructionReport;
 use serde::Deserialize;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
+use tidex::analysis::dual_space::{
+    analyze_dual_space, DualSpaceAnalysisConfig, DualSpaceModel, RepresentationObservation,
+};
+use tidex::engine::ReconstructionReport;
+use tidex::foundation::contracts::{BrainConfig, DeltaObservation};
 
 #[derive(Debug, Deserialize)]
 struct RepresentationPayload {

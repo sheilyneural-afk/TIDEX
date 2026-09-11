@@ -2,16 +2,14 @@
 set -euo pipefail
 ROOT="$(dirname "$(readlink -f "$0")")"
 cd "$ROOT"
-FUTURE_ROOT="$(dirname "$ROOT")"
-RUNTIME_ROOT="${TIDEX_RUNTIME_ROOT:-$FUTURE_ROOT/cerebro3-runtime}"
-mkdir -p "$RUNTIME_ROOT/tidex" "$RUNTIME_ROOT/private" "$RUNTIME_ROOT/llms/huggingface/hub" "$RUNTIME_ROOT/python" "$RUNTIME_ROOT/cargo-target"
-chmod 700 "$RUNTIME_ROOT" "$RUNTIME_ROOT/tidex" "$RUNTIME_ROOT/private" "$RUNTIME_ROOT/llms" "$RUNTIME_ROOT/llms/huggingface" "$RUNTIME_ROOT/llms/huggingface/hub" "$RUNTIME_ROOT/python" "$RUNTIME_ROOT/cargo-target" 2>/dev/null || true
+RUNTIME_ROOT="${TIDEX_RUNTIME_ROOT:-$ROOT/runtime}"
+mkdir -p "$RUNTIME_ROOT/tidex" "$RUNTIME_ROOT/private" "$RUNTIME_ROOT/llms/huggingface/hub" "$RUNTIME_ROOT/python"
+chmod 700 "$RUNTIME_ROOT" "$RUNTIME_ROOT/tidex" "$RUNTIME_ROOT/private" "$RUNTIME_ROOT/llms" "$RUNTIME_ROOT/llms/huggingface" "$RUNTIME_ROOT/llms/huggingface/hub" "$RUNTIME_ROOT/python" 2>/dev/null || true
 export TIDEX_HOME="${TIDEX_HOME:-$RUNTIME_ROOT/tidex}"
 export TIDEX_PRIVATE_ROOT="${TIDEX_PRIVATE_ROOT:-$RUNTIME_ROOT/private}"
-export TIDEX_HF_PYTHON="${TIDEX_HF_PYTHON:-$RUNTIME_ROOT/python/cerebro3-mechinterp/bin/python}"
+export TIDEX_HF_PYTHON="${TIDEX_HF_PYTHON:-$RUNTIME_ROOT/python/tidex-mechinterp/bin/python}"
 export HF_HOME="${HF_HOME:-$RUNTIME_ROOT/llms/huggingface}"
 export HUGGINGFACE_HUB_CACHE="${HUGGINGFACE_HUB_CACHE:-$RUNTIME_ROOT/llms/huggingface/hub}"
-export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$RUNTIME_ROOT/llms/huggingface/hub}"
 TARGET_DIR="$(cargo metadata --locked --offline --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
 BIN="$TARGET_DIR/debug/tidex"
 needs_build=0
@@ -20,8 +18,8 @@ if [[ ! -x "$BIN" ]]; then
 elif find src Cargo.toml Cargo.lock build.rs -type f -newer "$BIN" -print -quit | grep -q .; then
   needs_build=1
 fi
-if [[ "${1-}" == "lab" || "${1-}" == "interface" || "${1-}" == "ui" ]]; then
-  for helper in plasticity-daemon tidex-lab-runner universal-shadow-runner cerebro-tidex autonomous-learning-plan; do
+if [[ "${1-}" == "serve" || "${1-}" == "operator" || "${1-}" == "interface" || "${1-}" == "ui" ]]; then
+  for helper in plasticity-daemon tidex-operator-runner universal-shadow-runner tidex-engine autonomous-learning-plan; do
     if [[ ! -x "$TARGET_DIR/debug/$helper" ]]; then needs_build=1; fi
   done
   if (( needs_build )); then cargo build --locked --offline --all-features --bins --quiet; fi

@@ -5,8 +5,8 @@ fn main() {
     }
 }
 
-fn run() -> Result<(), cerebro_tidex::BrainError> {
-    cerebro_tidex::pure_capability_e2e::run_pure_linear_runner()
+fn run() -> Result<(), tidex::foundation::error::BrainError> {
+    tidex::runtime::pure_capability_e2e::run_pure_linear_runner()
 }
 
 #[cfg(test)]

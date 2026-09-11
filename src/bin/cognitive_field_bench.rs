@@ -1,15 +1,15 @@
-use cerebro_tidex::artifact::sha256_file;
-use cerebro_tidex::causal_credit::CausalCreditReport;
-use cerebro_tidex::cognitive_field::{
-    CognitiveFieldConfig, CognitiveFieldDrive, DynamicCognitiveField,
-};
-use cerebro_tidex::engine::ReconstructionReport;
-use cerebro_tidex::identity::SkillId;
-use cerebro_tidex::linalg::Matrix;
 use serde::Deserialize;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
+use tidex::engine::cognitive_field::{
+    CognitiveFieldConfig, CognitiveFieldDrive, DynamicCognitiveField,
+};
+use tidex::engine::ReconstructionReport;
+use tidex::foundation::artifact::sha256_file;
+use tidex::foundation::identity::SkillId;
+use tidex::foundation::linalg::Matrix;
+use tidex::learning::causal_credit::CausalCreditReport;
 
 #[derive(Debug, Deserialize)]
 struct TrustArtifact {

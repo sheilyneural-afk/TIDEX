@@ -1,11 +1,11 @@
-use cerebro_tidex::artifact::sha256_file;
-use cerebro_tidex::causal_credit::{estimate_causal_credit, CounterfactualEvaluation};
-use cerebro_tidex::identity::SkillId;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
+use tidex::foundation::artifact::sha256_file;
+use tidex::foundation::identity::SkillId;
+use tidex::learning::causal_credit::{estimate_causal_credit, CounterfactualEvaluation};
 
 #[derive(Debug, Deserialize)]
 struct ReplayPayload {
@@ -23,10 +23,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("usage: causal_credit_bench <replay.json>")?;
     let replay_path = Path::new(&path);
     let payload: ReplayPayload = serde_json::from_slice(&fs::read(replay_path)?)?;
-    if !matches!(
-        payload.schema.as_str(),
-        "cerebro.tidex.counterfactual_replay/v3"
-    ) || payload.blind_data_accessed
+    if !matches!(payload.schema.as_str(), "cerebro.tidex.counterfactual_replay/v3")
+        || payload.blind_data_accessed
         || payload.report_sha256.len() != 64
         || payload.plan_sha256.len() != 64
         || payload.field_ids.is_empty()

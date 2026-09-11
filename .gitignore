@@ -22,3 +22,10 @@
 # Local editor/MCP residue.
 /.vscode/
 /.mcp-trash/
+
+# Operator env and generated runtime (models, cargo-target, private state).
+.env
+.env.*
+!.env.example
+/runtime/
+

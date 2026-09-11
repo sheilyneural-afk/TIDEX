@@ -1,9 +1,9 @@
-collected_receipts/cerebro3-v67-real-11kb4b6z-receipt.json
-collected_receipts/cerebro3-v67-real-_40ahijl-receipt.json
-collected_receipts/cerebro3-v67-real-42kspxpb-receipt.json
-collected_receipts/cerebro3-v67-real-_78a_ttp-receipt.json
-collected_receipts/cerebro3-v67-real-_kvjhfje-receipt.json
-collected_receipts/cerebro3-v67-real-vg_pgd9g-receipt.json
+collected_receipts/tidex-v67-real-11kb4b6z-receipt.json
+collected_receipts/tidex-v67-real-_40ahijl-receipt.json
+collected_receipts/tidex-v67-real-42kspxpb-receipt.json
+collected_receipts/tidex-v67-real-_78a_ttp-receipt.json
+collected_receipts/tidex-v67-real-_kvjhfje-receipt.json
+collected_receipts/tidex-v67-real-vg_pgd9g-receipt.json
 /tmp/cerebro3-v67-real-0n753q6_/receipt.json
 /tmp/cerebro3-v67-real-11kb4b6z/receipt.json
 /tmp/cerebro3-v67-real-_40ahijl/receipt.json

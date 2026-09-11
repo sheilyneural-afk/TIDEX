@@ -1,41 +1,6 @@
 //! Production-binary integration: physical profile -> alternative plan ->
 //! existing actuator -> standalone checkpoint -> read-only arithmetic replay.
 //! Small numerical fixtures test interoperability, not LLM capability transfer.
-use cerebro_tidex::acquisition_contract::{
-    AcquisitionBudget, AcquisitionRequest, AcquisitionScope, NoisePolicy, RequestedResidency,
-    SystemEnvelope,
-};
-use cerebro_tidex::capability_ir::{
-    CapabilityIr, IrNode, OperationalCapabilityContract, OperatorIrTransition, OutputBinding,
-    PrimitiveSet, StateIrAnchor, TypedPort, ValueReference,
-};
-use cerebro_tidex::checkpoint_adapter::{
-    InspectedReceiverArtifacts, PhysicalPlanningProfileRequest,
-};
-use cerebro_tidex::contracts::ProtectedCortex;
-use cerebro_tidex::identity::{
-    AcquisitionId, ArchitectureId, CapabilityId, CapabilityNodeId, ModelId, PortId, PrimitiveId,
-    TensorId,
-};
-use cerebro_tidex::low_rank_shadow_materializer::LowRankShadowPolicy;
-use cerebro_tidex::materialization_pipeline::{
-    CompiledMaterializationSource, PhysicalMaterializationBackend, PhysicalMaterializationOutcome,
-    PhysicalMaterializationReceipt, PhysicalMaterializationRequest,
-};
-use cerebro_tidex::model_adaptation::{ReceiverModelProfileInput, ReceiverModelProfileReceipt};
-use cerebro_tidex::receiver_compiler::{
-    freeze_receiver_compiler, FrozenReceiverCompilerInput, ReceiverCalibrationSet,
-    ReceiverCompilerPolicy, ReceiverProposalMethod,
-};
-use cerebro_tidex::receiver_profile::{
-    CapabilityModality, CapabilityRequirements, MaterializationStrategy,
-};
-use cerebro_tidex::sparse_shadow_materializer::SparseShadowPolicy;
-use cerebro_tidex::universal_capability_compiler::{
-    UniversalCapabilityCompilationRequest, UniversalCapabilityPlanningRequest,
-    UniversalCapabilityShadowPlanReceipt,
-};
-use cerebro_tidex::weight_actuator::read_model_tensor_f32;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::BTreeSet;
 use std::fs;
@@ -43,6 +8,41 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tidex::capability::acquisition_contract::{
+    AcquisitionBudget, AcquisitionRequest, AcquisitionScope, NoisePolicy, RequestedResidency,
+    SystemEnvelope,
+};
+use tidex::capability::capability_ir::{
+    CapabilityIr, IrNode, OperationalCapabilityContract, OperatorIrTransition, OutputBinding,
+    PrimitiveSet, StateIrAnchor, TypedPort, ValueReference,
+};
+use tidex::foundation::contracts::ProtectedCortex;
+use tidex::foundation::identity::{
+    AcquisitionId, ArchitectureId, CapabilityId, CapabilityNodeId, ModelId, PortId, PrimitiveId,
+    TensorId,
+};
+use tidex::materialization::low_rank_shadow_materializer::LowRankShadowPolicy;
+use tidex::materialization::materialization_pipeline::{
+    CompiledMaterializationSource, PhysicalMaterializationBackend, PhysicalMaterializationOutcome,
+    PhysicalMaterializationReceipt, PhysicalMaterializationRequest,
+};
+use tidex::materialization::sparse_shadow_materializer::SparseShadowPolicy;
+use tidex::materialization::universal_capability_compiler::{
+    UniversalCapabilityCompilationRequest, UniversalCapabilityPlanningRequest,
+    UniversalCapabilityShadowPlanReceipt,
+};
+use tidex::receiver::checkpoint_adapter::{
+    InspectedReceiverArtifacts, PhysicalPlanningProfileRequest,
+};
+use tidex::receiver::model_adaptation::{ReceiverModelProfileInput, ReceiverModelProfileReceipt};
+use tidex::receiver::receiver_compiler::{
+    freeze_receiver_compiler, FrozenReceiverCompilerInput, ReceiverCalibrationSet,
+    ReceiverCompilerPolicy, ReceiverProposalMethod,
+};
+use tidex::receiver::receiver_profile::{
+    CapabilityModality, CapabilityRequirements, MaterializationStrategy,
+};
+use tidex::receiver::weight_actuator::read_model_tensor_f32;
 
 struct Fixture {
     root: PathBuf,
@@ -60,10 +60,8 @@ impl Fixture {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "tidex-convergence-cli-{}-{nonce}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir()
+            .join(format!("tidex-convergence-cli-{}-{nonce}", std::process::id()));
         let source = root.with_extension("source");
         fs::create_dir(&root).unwrap();
         fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
@@ -102,7 +100,7 @@ fn write_base(path: &Path) {
         "model.keep.weight":{"dtype":"F32","shape":[2],"data_offsets":[64,72]}
     }))
     .unwrap();
-    while header.len() % 8 != 0 {
+    while !header.len().is_multiple_of(8) {
         header.push(b' ');
     }
     let mut bytes = (header.len() as u64).to_le_bytes().to_vec();
@@ -243,7 +241,7 @@ fn planning_request(
         ]),
     };
     let wrong_functional_signatures = vec![functions[1].clone(), functions[2].clone()];
-    let frozen_compiler = freeze_receiver_compiler(&FrozenReceiverCompilerInput {
+    let frozen_receiver_compiler = freeze_receiver_compiler(&FrozenReceiverCompilerInput {
         schema: "cerebro.tidex.frozen_receiver_compiler_input/v1".into(),
         calibration_capability_ids: (0..functions.len())
             .map(|index| {
@@ -284,7 +282,7 @@ fn planning_request(
             system_envelope: envelope,
             capability_ir: ir,
             operational_contract: operational,
-            frozen_compiler,
+            frozen_receiver_compiler,
             wrong_functional_signatures,
         },
         receiver_profile: profile.profile.clone(),
@@ -328,14 +326,8 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
     );
     let planning: InspectedReceiverArtifacts =
         f.run("receiver", "planning-profile", &projection_input);
-    assert_eq!(
-        planning.snapshot.model_snapshot_sha256,
-        physical.profile.checkpoint.sha256
-    );
-    assert_eq!(
-        planning.layout.geometry.layout.blocks[0].name,
-        "model.keep.weight"
-    );
+    assert_eq!(planning.snapshot.model_snapshot_sha256, physical.profile.checkpoint.sha256);
+    assert_eq!(planning.layout.geometry.layout.blocks[0].name, "model.keep.weight");
     let mut request = planning_request(&f, &planning);
     let before = fs::read(&base).unwrap();
     let mut outputs = Vec::new();
@@ -378,10 +370,7 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
         let materialize_input = f.put(&format!("{label}-input.json"), &input);
         let outcome: PhysicalMaterializationOutcome =
             f.run("materialize", "compiled", &materialize_input);
-        let replay_input = f.put(
-            &format!("{label}-reference.json"),
-            &outcome.receipt_reference,
-        );
+        let replay_input = f.put(&format!("{label}-reference.json"), &outcome.receipt_reference);
         let replay: PhysicalMaterializationReceipt =
             f.run("materialize", "verify-compiled", &replay_input);
         assert_eq!(replay, outcome.receipt);
@@ -433,11 +422,8 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
     }
     assert_eq!(outputs[0], outputs[1]);
     request.requested_strategy = MaterializationStrategy::SparseDelta;
-    let plan: UniversalCapabilityShadowPlanReceipt = f.run(
-        "compile",
-        "universal-plan",
-        &f.put("lossy-plan.json", &request),
-    );
+    let plan: UniversalCapabilityShadowPlanReceipt =
+        f.run("compile", "universal-plan", &f.put("lossy-plan.json", &request));
     let lossy = PhysicalMaterializationRequest {
         schema: "cerebro.tidex.physical_materialization_request/v1".into(),
         physical_profile: physical.profile_reference,
@@ -459,11 +445,7 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
         },
         output_path: f.root.join("lossy.safetensors"),
     };
-    let error = f.command(
-        "materialize",
-        "compiled",
-        &f.put("lossy-input.json", &lossy),
-    );
+    let error = f.command("materialize", "compiled", &f.put("lossy-input.json", &lossy));
     assert!(!error.status.success());
     assert!(String::from_utf8_lossy(&error.stderr).contains("requires_fresh_validation"));
     assert!(!lossy.output_path.exists());
