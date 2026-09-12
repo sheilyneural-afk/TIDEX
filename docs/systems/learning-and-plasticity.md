@@ -12,6 +12,7 @@ Ciclo de aprendizaje adaptativo, evidencias de representación, memoria procedim
 | Módulo | Rol |
 |--------|-----|
 | `learning_orchestrator.rs` | Política y sesión de learning secuencial real |
+| `experimental_evidence_admission.rs` | Admisión fail-closed Vxx → evidencia de learning ([VXX_LEARNING_ADMISSION](../VXX_LEARNING_ADMISSION.md)) |
 | `learning_finalization.rs` | Hand-off a autoridad de reconstrucción (no reconstruye aquí) |
 | `representation_evidence.rs` | Instala evidencia sellada task-agnostic |
 | `numerical_evolution.rs` | Evolución de candidatos least-squares + holdout |

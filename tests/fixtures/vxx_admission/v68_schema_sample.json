@@ -1,0 +1,42 @@
+{
+  "schema": "tidex.v68_receiver_response_probe/v1",
+  "complete": true,
+  "pass": false,
+  "stage": "standalone_forward_evaluated",
+  "scope": "schema sample only; dense_delta.path must resolve for admission",
+  "actual_target_relative_error": 0.5,
+  "wrong_target_relative_error": 0.8,
+  "correct_wrong_error_ratio": 1.2,
+  "unseen_control_margin_rms_change": 0.01,
+  "dense_delta": {
+    "path": "/nonexistent/tidex-v68-sample.dvec",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "parameter_count": 2
+  },
+  "parameter_layout": {
+    "schema": "tidex.parameter_block_layout/v1",
+    "blocks": [
+      {
+        "name": "block0",
+        "shape": [
+          2
+        ],
+        "offset": 0,
+        "count": 2
+      }
+    ],
+    "total_parameter_count": 2
+  },
+  "claim_boundary": {
+    "rust_generated_delta_from_measured_responses": true,
+    "lora_delta_source_used": false,
+    "receiver_optimizer_steps": 0,
+    "backpropagation_used": false,
+    "fresh_process_checkpoint_execution": true,
+    "donor_model_used": false,
+    "new_semantic_capability_transfer_established": false,
+    "mbpp_transfer_established": false,
+    "general_language_preservation_established": false,
+    "authorizes_promotion": false
+  }
+}

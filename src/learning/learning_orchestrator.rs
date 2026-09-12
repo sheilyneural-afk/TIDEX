@@ -1499,7 +1499,7 @@ fn persist_experiment_evidence(
     write_new_private(root, &path, raw)
 }
 
-fn assimilate_persistent_learning_evidence_under_root(
+pub(crate) fn assimilate_persistent_learning_evidence_under_root(
     root: &Path,
     session_id: &str,
     evidence_path: &Path,

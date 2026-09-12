@@ -1,4 +1,5 @@
 pub mod causal_credit;
+pub mod experimental_evidence_admission;
 pub mod learning_finalization;
 pub mod learning_orchestrator;
 pub mod memory;

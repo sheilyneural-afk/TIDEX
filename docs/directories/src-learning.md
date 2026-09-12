@@ -13,6 +13,7 @@ Conecta observación → candidatos → evidencias selladas sin auto-promocionar
 
 | Archivo | Líneas | Qué hace (desde docs del código) |
 |---------|--------|----------------------------------|
+| `experimental_evidence_admission.rs` | Fail-closed Vxx receipt → `LearningExperimentEvidence` / `DeltaObservation` (see `docs/VXX_LEARNING_ADMISSION.md`) |
 | `causal_credit.rs` | 556 | Return the conservative, evidence-backed causal utility weight for every runtime field in the caller's canonical order. The lower confidence bound, rather than the point estimat… |
 | `learning_finalization.rs` | 704 | Canonical hand-off from a completed adaptive-learning session to the TIDE-X reconstruction authority. This module deliberately does not reconstruct, replace an active corpus, co… |
 | `learning_orchestrator.rs` | 1923 | Explicit policy for a real sequential learning cycle. The policy is kept separate from `LearningTarget` so an offline prospective design remains a pure information-design artifa… |
@@ -28,6 +29,7 @@ Conecta observación → candidatos → evidencias selladas sin auto-promocionar
 ## Árbol (archivos)
 
 - `causal_credit.rs`
+- `experimental_evidence_admission.rs`
 - `learning_finalization.rs`
 - `learning_orchestrator.rs`
 - `memory.rs`

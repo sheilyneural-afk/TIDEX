@@ -58,6 +58,9 @@ use tidex::learning::procedural_memory::{CapabilityContext, ProceduralMemory, Re
 use tidex::learning::procedural_replay::{
     rebuild_from_authenticated_stdout, retrieve_procedural_advice,
 };
+use tidex::learning::experimental_evidence_admission::{
+    admit_and_assimilate_vxx_receipt_under_root, admit_vxx_receipt_under_root, read_vxx_receipt_file,
+};
 use tidex::learning::solver_portfolio::{
     CandidateRepresentation, LeastSquaresProblem, PortfolioPolicy,
 };
@@ -378,6 +381,30 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
                     "authorizes_production":false,
                     "paso3_hook":"retrieve_procedural_advice -> procedural_hint_from_retrieval -> decide_next_action -> invoke_next_action (tidex workflow decide)"
                 }))?
+            );
+        }
+        [area, command, session, receipt]
+            if area == "learning" && command == "admit-vxx" =>
+        {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_learning_admit_vxx(
+                    session,
+                    Path::new(receipt),
+                    false,
+                )?)?
+            );
+        }
+        [area, command, session, receipt, flag]
+            if area == "learning" && command == "admit-vxx" && flag == "--assimilate" =>
+        {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&execute_learning_admit_vxx(
+                    session,
+                    Path::new(receipt),
+                    true,
+                )?)?
             );
         }
         [area, command, path] if area == "analysis" && command == "tomography" => {
@@ -1297,6 +1324,36 @@ fn numerical_disposition_name(value: NumericalEvolutionDisposition) -> &'static 
 ///
 /// Paso 2B: call [`retrieve_procedural_advice`] with a [`RetrievalQuery`].
 /// Paso 3 will fold that advice into `NextAction` (not implemented here).
+fn execute_learning_admit_vxx(
+    session_id: &str,
+    receipt_path: &Path,
+    assimilate: bool,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let root = configured_private_root()?;
+    let bytes = read_vxx_receipt_file(receipt_path)?;
+    if assimilate {
+        let (admitted, loaded) =
+            admit_and_assimilate_vxx_receipt_under_root(&root, session_id, &bytes)?;
+        Ok(json!({
+            "schema": "tidex.learning_admit_vxx_cli_output/v1",
+            "assimilated": true,
+            "admission": admitted,
+            "receipt_sha256": loaded.receipt_sha256,
+            "pending_step": loaded.receipt.cycle.pending_step,
+            "completed_evidence_count": loaded.receipt.cycle.completed_evidence.len(),
+        }))
+    } else {
+        let admitted = admit_vxx_receipt_under_root(&root, session_id, &bytes)?;
+        Ok(json!({
+            "schema": "tidex.learning_admit_vxx_cli_output/v1",
+            "assimilated": false,
+            "admission": admitted,
+            "evidence_path": admitted.evidence_path,
+            "note": "evidence written; pass --assimilate to fold into the pending aperture",
+        }))
+    }
+}
+
 fn rebuild_procedural_memory_from_operator_run(
     receipt: &OperatorRunReceipt,
 ) -> Result<ProceduralMemory, Box<dyn std::error::Error>> {
@@ -1472,7 +1529,7 @@ fn usage() -> &'static str {
         "  tidex acquire [--path <relative-project-path>]\n",
         "  tidex knowledge plan <input.json>\n",
         "  tidex knowledge staircase <input.json>\n",
-        "  tidex numerical evolve <input.json>\n  tidex procedural replay-from-run-receipt <operator-run-receipt.json>\n  tidex workflow decide <workflow-decision-input.json>\n",
+        "  tidex numerical evolve <input.json>\n  tidex procedural replay-from-run-receipt <operator-run-receipt.json>\n  tidex learning admit-vxx <session-id> <receipt.json> [--assimilate]\n  tidex workflow decide <workflow-decision-input.json>\n",
         "  tidex analysis tomography <observations.json>\n",
         "  tidex analysis protected-map <input.json>\n",
         "  tidex analysis geometry <input.json>\n",
