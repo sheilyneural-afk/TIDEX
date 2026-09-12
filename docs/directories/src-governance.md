@@ -13,6 +13,7 @@ Autoridad de lifecycle y readiness. Ver sistema authority-and-receipts.
 
 | Archivo | Líneas | Qué hace (desde docs del código) |
 |---------|--------|----------------------------------|
+| `authenticated_capacity_residency.rs` | — | Paso 5: authenticated capacity → ResidencyDecision + CapabilityIR gate (never code→IR) |
 | `adapter_bank.rs` | 4051 | Modular, content-addressed receiver-adapter bank. Registered manifests are immutable candidates. Dynamic capability/model indexes are regenerated from the primary table and auth… |
 | `residency_decision.rs` | 2316 | Universal, fail-closed residency decisions. Residency is an authority decision, not a caller preference. A caller may precommit a target and authenticated input references, but … |
 | `universal_promotion_gate.rs` | 405 | Final evidence gate. A passing result is readiness for a separate promotion authority; this module has no activation or model-writing capability. Self-consistent input hashes ar… |
@@ -20,6 +21,7 @@ Autoridad de lifecycle y readiness. Ver sistema authority-and-receipts.
 ## Árbol (archivos)
 
 - `adapter_bank.rs`
+- `authenticated_capacity_residency.rs`
 - `mod.rs`
 - `residency_decision.rs`
 - `universal_promotion_gate.rs`

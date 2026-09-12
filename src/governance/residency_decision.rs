@@ -1562,6 +1562,64 @@ fn parse_observability(value: &str) -> Option<ObservabilitySemantics> {
     }
 }
 
+/// Caller-facing fact matrix for residency classification.
+///
+/// This is not a preference for Software/Weights/Hybrid. Callers attest
+/// established semantic facts and candidate evidence only; policy selects.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResidencyFactInputs {
+    pub requirements: ExecutionRequirements,
+    pub effects: EffectSemantics,
+    pub external_state: ExternalStateSemantics,
+    pub observability: ObservabilitySemantics,
+    /// `None` means representability was not established for that candidate.
+    pub weights_representable: Option<bool>,
+    pub hybrid_representable: Option<bool>,
+    pub software_representable: Option<bool>,
+    /// `None` means target compatibility was not established for that candidate.
+    pub weights_target_compatible: Option<bool>,
+    pub hybrid_target_compatible: Option<bool>,
+    pub software_target_compatible: Option<bool>,
+}
+
+impl ResidencyFactInputs {
+    fn to_evaluated(&self) -> EvaluatedFacts {
+        EvaluatedFacts {
+            requirements: self.requirements,
+            effects: self.effects,
+            external_state: self.external_state,
+            observability: self.observability,
+            representability: CandidateFacts {
+                weights: option_to_candidate_status(self.weights_representable),
+                hybrid: option_to_candidate_status(self.hybrid_representable),
+                software: option_to_candidate_status(self.software_representable),
+            },
+            target_compatibility: CandidateFacts {
+                weights: option_to_candidate_status(self.weights_target_compatible),
+                hybrid: option_to_candidate_status(self.hybrid_target_compatible),
+                software: option_to_candidate_status(self.software_target_compatible),
+            },
+        }
+    }
+}
+
+fn option_to_candidate_status(value: Option<bool>) -> CandidateFactStatus {
+    match value {
+        Some(established) => CandidateFactStatus::Established(established),
+        None => CandidateFactStatus::NotEstablished(CandidateEvidenceGap::Missing),
+    }
+}
+
+/// Classify residency from an attested fact matrix using the sole active policy.
+///
+/// Reuses the same fail-closed selection rules as [`ResidencyDecisionAuthority`].
+pub fn decide_from_fact_inputs(
+    inputs: &ResidencyFactInputs,
+) -> BrainResult<(ResidencyDecision, ResidencySelectionBasis)> {
+    let policy = ResidencyPolicy::current()?;
+    Ok(evaluate_fact_matrix(&policy, &inputs.to_evaluated()))
+}
+
 fn evaluate_fact_matrix(
     policy: &ResidencyPolicy,
     facts: &EvaluatedFacts,
