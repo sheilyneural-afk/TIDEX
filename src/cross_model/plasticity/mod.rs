@@ -14,7 +14,9 @@ pub mod pi_controller;
 pub mod routing_plasticity;
 
 pub use bcm_metaplasticity::{BCMConfig, BCMMetaplasticity, BCMState};
-pub use content_plasticity::{ContentPlasticity, ContentPlasticityConfig, ContentPlasticityMatrix, ContentPlasticityState};
+pub use content_plasticity::{
+    ContentPlasticity, ContentPlasticityConfig, ContentPlasticityMatrix, ContentPlasticityState,
+};
 pub use eligibility_traces::{EligibilityTrace, EligibilityTraceConfig, EligibilityTraces};
 pub use elo_system::{ELOConfig, ELOState, ELOSystem};
 pub use neuromodulation::{
@@ -81,7 +83,13 @@ pub fn parse_plasticity_control_plane_toml(
             if name.is_empty()
                 || !matches!(
                     name,
-                    "bcm" | "eligibility" | "modulation" | "routing" | "content_drift" | "pi" | "elo"
+                    "bcm"
+                        | "eligibility"
+                        | "modulation"
+                        | "routing"
+                        | "content_drift"
+                        | "pi"
+                        | "elo"
                 )
             {
                 return Err(format!("plasticity_toml_unknown_section:{name}"));
@@ -120,7 +128,16 @@ pub fn parse_plasticity_control_plane_toml(
         learning_rate: required_f64(&sections, "bcm", "learning_rate")?,
         theta_decay: required_f64(&sections, "bcm", "theta_decay")?,
     };
-    expect_exact_keys(&sections, "bcm", &["initial_theta", "window_size", "learning_rate", "theta_decay"])?;
+    expect_exact_keys(
+        &sections,
+        "bcm",
+        &[
+            "initial_theta",
+            "window_size",
+            "learning_rate",
+            "theta_decay",
+        ],
+    )?;
 
     let eligibility = EligibilityTraceConfig {
         initial_trace: required_f64(&sections, "eligibility", "initial_trace")?,
@@ -140,10 +157,7 @@ pub fn parse_plasticity_control_plane_toml(
     )?;
 
     let mut weights = BTreeMap::new();
-    weights.insert(
-        Neuromodulator::Reward,
-        required_f64(&sections, "modulation", "reward_weight")?,
-    );
+    weights.insert(Neuromodulator::Reward, required_f64(&sections, "modulation", "reward_weight")?);
     weights.insert(
         Neuromodulator::Attention,
         required_f64(&sections, "modulation", "attention_weight")?,
@@ -176,11 +190,7 @@ pub fn parse_plasticity_control_plane_toml(
         uncertainty_weight: required_f64(&sections, "routing", "uncertainty_weight")?,
         minimum_measured_score: required_f64(&sections, "routing", "minimum_measured_score")?,
     };
-    expect_exact_keys(
-        &sections,
-        "routing",
-        &["uncertainty_weight", "minimum_measured_score"],
-    )?;
+    expect_exact_keys(&sections, "routing", &["uncertainty_weight", "minimum_measured_score"])?;
 
     let content = ContentPlasticityConfig {
         similarity_threshold: required_f64(&sections, "content_drift", "similarity_threshold")?,
@@ -190,7 +200,11 @@ pub fn parse_plasticity_control_plane_toml(
     expect_exact_keys(
         &sections,
         "content_drift",
-        &["similarity_threshold", "adaptation_rate", "maximum_pressure"],
+        &[
+            "similarity_threshold",
+            "adaptation_rate",
+            "maximum_pressure",
+        ],
     )?;
 
     let pi = PIControllerConfig {
@@ -339,10 +353,7 @@ mod tests {
         assert!(!bytes.is_empty());
         assert_eq!(configs.bcm.learning_rate, 0.01);
         assert_eq!(configs.elo.k_factor, 32.0);
-        assert_eq!(
-            configs.neuromodulation.weights[&Neuromodulator::Reward],
-            0.4
-        );
+        assert_eq!(configs.neuromodulation.weights[&Neuromodulator::Reward], 0.4);
     }
 
     #[test]

@@ -161,7 +161,10 @@ impl EligibilityTraces {
         self.traces.clone()
     }
 
-    pub fn import_traces(&mut self, traces: HashMap<String, EligibilityTrace>) -> Result<(), String> {
+    pub fn import_traces(
+        &mut self,
+        traces: HashMap<String, EligibilityTrace>,
+    ) -> Result<(), String> {
         for (name, trace) in &traces {
             if name.trim().is_empty()
                 || !trace.trace_value.is_finite()

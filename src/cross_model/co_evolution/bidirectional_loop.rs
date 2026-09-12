@@ -258,22 +258,29 @@ impl BidirectionalLoop {
         let mean = ranked.iter().map(|(_, score)| *score).sum::<f64>() / ranked.len() as f64;
         let spread = (strong_score - weak_score).clamp(0.0, 1.0);
         let converged = self.check_convergence();
-        let (recommended_operation, source_model, target_model, capability_hint, routing_correlation, pi_setpoint, reason) =
-            if converged {
-                (
-                    "hold".to_string(),
-                    None,
-                    None,
-                    None,
-                    0.0,
-                    mean.clamp(0.0, 1.0),
-                    format!(
-                        "converged on {}; hold advisory plasticity and re-measure before new transfer",
-                        last.benchmark_id
-                    ),
-                )
-            } else if spread < self.config.convergence_threshold {
-                (
+        let (
+            recommended_operation,
+            source_model,
+            target_model,
+            capability_hint,
+            routing_correlation,
+            pi_setpoint,
+            reason,
+        ) = if converged {
+            (
+                "hold".to_string(),
+                None,
+                None,
+                None,
+                0.0,
+                mean.clamp(0.0, 1.0),
+                format!(
+                    "converged on {}; hold advisory plasticity and re-measure before new transfer",
+                    last.benchmark_id
+                ),
+            )
+        } else if spread < self.config.convergence_threshold {
+            (
                     "behavioral_discovery".to_string(),
                     Some(strong_model.clone()),
                     Some(weak_model.clone()),
@@ -285,8 +292,8 @@ impl BidirectionalLoop {
                         last.benchmark_id
                     ),
                 )
-            } else {
-                (
+        } else {
+            (
                     "activation_transfer_experiment".to_string(),
                     Some(strong_model.clone()),
                     Some(weak_model.clone()),
@@ -298,7 +305,7 @@ impl BidirectionalLoop {
                         last.benchmark_id
                     ),
                 )
-            };
+        };
         let unsigned = (
             CoEvolutionDirective::SCHEMA,
             last.iteration,
@@ -313,7 +320,8 @@ impl BidirectionalLoop {
             last.evidence_sha256.as_str(),
         );
         let evidence_sha256 = sha256_hex(
-            &serde_json::to_vec(&unsigned).map_err(|error| format!("coevolution_serialize:{error}"))?,
+            &serde_json::to_vec(&unsigned)
+                .map_err(|error| format!("coevolution_serialize:{error}"))?,
         );
         let directive = CoEvolutionDirective {
             schema: CoEvolutionDirective::SCHEMA.into(),
@@ -457,9 +465,8 @@ mod tests {
         };
         let mut unsigned = evaluation.clone();
         unsigned.evidence_sha256.clear();
-        evaluation.evidence_sha256 = sha256_hex(
-            &serde_json::to_vec(&unsigned).expect("evaluation serialize"),
-        );
+        evaluation.evidence_sha256 =
+            sha256_hex(&serde_json::to_vec(&unsigned).expect("evaluation serialize"));
         evaluation.validate().expect("sealed evaluation");
         evaluation
     }

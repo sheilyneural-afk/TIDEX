@@ -54,6 +54,6 @@ pub use plasticity::{
 pub use co_evolution::{
     intervention_causally_allowed_for_cycle, BidirectionalLoop, BidirectionalLoopConfig,
     CoEvolutionDirective, CoEvolutionProgress, CoEvolutionStep, ConsensusBuilder,
-    ConsensusBuilderConfig, ConsensusProposal, ConsensusState, ConsensusStatistics,
-    ProposalType, Vote,
+    ConsensusBuilderConfig, ConsensusProposal, ConsensusState, ConsensusStatistics, ProposalType,
+    Vote,
 };
