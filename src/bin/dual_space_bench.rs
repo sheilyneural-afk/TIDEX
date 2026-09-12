@@ -33,8 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_slice(&fs::read(Path::new(&args[3]))?)?;
     if !matches!(
         representations.schema.as_str(),
-        "cerebro.tidex.representation_observations/v1"
-            | "cerebro.tidex.representation_observations/v2"
+        "tidex.representation_observations/v1" | "tidex.representation_observations/v2"
     ) || representations.task_labels_used
         || representations.observations.len() != observations.len()
     {
@@ -64,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.dual_space_benchmark/v1",
+            "schema":"tidex.dual_space_benchmark/v1",
             "probe_count":representations.probe_count,
             "probe_sha256":representations.probe_sha256,
             "layer_count":representations.layer_count,

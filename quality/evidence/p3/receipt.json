@@ -85,7 +85,7 @@
     "engine::tests::transition_commit_after_verified_corpus_transition_invariants"
   ],
   "result": "passed",
-  "schema": "cerebro.tidex.quality_assurance_receipt/v1",
+  "schema": "tidex.quality_assurance_receipt/v1",
   "started_epoch": 1788715128,
   "toolchains": {
     "nightly_rustc_vv": "rustc 1.100.0-nightly (0ed41eb41 2026-09-04)\nbinary: rustc\ncommit-hash: 0ed41eb4142dda2df61eb1145a312c1a9d62eb56\ncommit-date: 2026-09-04\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",

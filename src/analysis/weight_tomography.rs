@@ -13,7 +13,7 @@ use crate::foundation::linalg::{compensated_sum, stable_rms};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const WEIGHT_TOMOGRAPHY_SCHEMA: &str = "cerebro.tidex.weight_tomography_observation/v1";
+pub const WEIGHT_TOMOGRAPHY_SCHEMA: &str = "tidex.weight_tomography_observation/v1";
 pub const TOMOGRAPHY_HISTORY_LIMIT: usize = 128;
 pub const TOMOGRAPHY_MIN_GENERATIONS: usize = 16;
 pub const TOMOGRAPHY_MAX_COORDINATES: usize = 64;

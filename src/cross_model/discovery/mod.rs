@@ -186,7 +186,7 @@ pub struct BehavioralBenchmark {
 
 impl BehavioralBenchmark {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.behavioral_benchmark/v1"
+        if self.schema != "tidex.cross_model.behavioral_benchmark/v1"
             || self.benchmark_id.trim().is_empty()
             || self.domain.trim().is_empty()
             || self.probes.len() < 2
@@ -248,7 +248,7 @@ pub struct ModelEvaluation {
 
 impl ModelEvaluation {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.model_evaluation/v1"
+        if self.schema != "tidex.cross_model.model_evaluation/v1"
             || self.benchmark_id.trim().is_empty()
             || self.model.trim().is_empty()
             || self.observations.is_empty()
@@ -310,7 +310,7 @@ pub fn evaluate_model(
         return Err("benchmark_total_weight_invalid".into());
     }
     let mut evaluation = ModelEvaluation {
-        schema: "cerebro.cross_model.model_evaluation/v1".into(),
+        schema: "tidex.cross_model.model_evaluation/v1".into(),
         benchmark_id: benchmark.benchmark_id.clone(),
         benchmark_sha256,
         model: model.name().to_string(),

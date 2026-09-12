@@ -211,7 +211,7 @@ pub fn resolution_map(
         .map(|row| covariance.row_vec(row))
         .collect::<Vec<_>>();
     Ok(ResolutionMap {
-        schema: "cerebro.tidex.resolution_map/v1".into(),
+        schema: "tidex.resolution_map/v1".into(),
         field_count: fields.len(),
         field_geometry_numerical_rank: geometry_rank,
         excitation_numerical_rank: excitation_rank,

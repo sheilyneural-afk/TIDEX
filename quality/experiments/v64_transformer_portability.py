@@ -315,7 +315,7 @@ def run() -> dict[str, object]:
         raise SystemExit("V64 rejected: frozen transformer backbone changed during skill training")
 
     benchmark_input = {
-        "schema": "cerebro.tidex.receiver_portability_benchmark_input/v1",
+        "schema": "tidex.receiver_portability_benchmark_input/v1",
         "ridge": 1e-8,
         "cases": benchmark_cases,
     }
@@ -420,7 +420,7 @@ def run() -> dict[str, object]:
         and bool(receiver_report["all_resolved"])
     )
     return {
-        "schema": "cerebro.tidex.v64_transformer_portability/v1",
+        "schema": "tidex.v64_transformer_portability/v1",
         "version": "V64",
         "method": "held-out donor functional signature -> TIDE-X ReceiverCompiler -> receiver-native operator coordinates",
         "pass": passed,

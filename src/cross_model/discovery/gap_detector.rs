@@ -48,7 +48,7 @@ pub struct CapabilityGap {
 
 impl CapabilityGap {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.capability_gap/v1"
+        if self.schema != "tidex.cross_model.capability_gap/v1"
             || self.capability_name.trim().is_empty()
             || self.domain.trim().is_empty()
             || self.source_model.trim().is_empty()
@@ -180,7 +180,7 @@ impl GapDetector {
         }
 
         let mut gap = CapabilityGap {
-            schema: "cerebro.cross_model.capability_gap/v1".into(),
+            schema: "tidex.cross_model.capability_gap/v1".into(),
             capability_name: benchmark.benchmark_id.clone(),
             domain: benchmark.domain.clone(),
             source_model: source.model.clone(),
@@ -221,7 +221,7 @@ mod tests {
 
     fn benchmark() -> BehavioralBenchmark {
         BehavioralBenchmark {
-            schema: "cerebro.cross_model.behavioral_benchmark/v1".into(),
+            schema: "tidex.cross_model.behavioral_benchmark/v1".into(),
             benchmark_id: "arithmetic".into(),
             domain: "mathematics".into(),
             probes: (0..64)
@@ -267,7 +267,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let mut value = ModelEvaluation {
-            schema: "cerebro.cross_model.model_evaluation/v1".into(),
+            schema: "tidex.cross_model.model_evaluation/v1".into(),
             benchmark_id: benchmark.benchmark_id.clone(),
             benchmark_sha256: benchmark.digest().unwrap(),
             model: name.into(),

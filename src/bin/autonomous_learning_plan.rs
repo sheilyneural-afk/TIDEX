@@ -60,6 +60,6 @@ mod tests {
 
         let output = run_from_path(&temp_target).unwrap();
         let _ = std::fs::remove_file(&temp_target);
-        assert!(output.contains("cerebro.tidex.autonomous_learning_plan/v1"));
+        assert!(output.contains("tidex.autonomous_learning_plan/v1"));
     }
 }

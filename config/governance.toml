@@ -1,4 +1,4 @@
-schema = "cerebro.cross_model.governance/v1"
+schema = "tidex.cross_model.governance/v1"
 
 [discovery]
 minimum_probes = 4

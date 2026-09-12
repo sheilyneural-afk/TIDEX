@@ -153,7 +153,7 @@ fn planning_request(
     )
     .unwrap();
     let mut operational = OperationalCapabilityContract {
-        schema: "cerebro.tidex.operational_capability/v1".into(),
+        schema: "tidex.operational_capability/v1".into(),
         capability_id: ir.capability_id().clone(),
         capability_ir_sha256: ir.manifest_digest().clone(),
         state_dimension: 2,
@@ -228,7 +228,7 @@ fn planning_request(
         })
         .collect();
     let requirement = CapabilityRequirements {
-        schema: "cerebro.tidex.capability_requirements/v1".into(),
+        schema: "tidex.capability_requirements/v1".into(),
         capability_id: ir.capability_id().clone(),
         capability_ir_sha256: ir.manifest_digest().clone(),
         required_modalities: BTreeSet::from([CapabilityModality::Text]),
@@ -242,7 +242,7 @@ fn planning_request(
     };
     let wrong_functional_signatures = vec![functions[1].clone(), functions[2].clone()];
     let frozen_receiver_compiler = freeze_receiver_compiler(&FrozenReceiverCompilerInput {
-        schema: "cerebro.tidex.frozen_receiver_compiler_input/v1".into(),
+        schema: "tidex.frozen_receiver_compiler_input/v1".into(),
         calibration_capability_ids: (0..functions.len())
             .map(|index| {
                 CapabilityId::parse(format!("convergence.calibration.{index}:v1")).unwrap()
@@ -263,7 +263,7 @@ fn planning_request(
             .map(|i| (0..18).map(|j| f64::from(i == j)).collect())
             .collect(),
         policy: ReceiverCompilerPolicy {
-            schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
+            schema: "tidex.receiver_compiler_policy/v1".into(),
             ridge: 1e-10,
             minimum_decoder_loo_r2: 0.999,
             minimum_encoder_loo_r2: 0.999,
@@ -276,9 +276,9 @@ fn planning_request(
     })
     .unwrap();
     UniversalCapabilityPlanningRequest {
-        schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+        schema: "tidex.universal_capability_planning_request/v2".into(),
         compilation: UniversalCapabilityCompilationRequest {
-            schema: "cerebro.tidex.universal_capability_compilation_request/v2".into(),
+            schema: "tidex.universal_capability_compilation_request/v2".into(),
             system_envelope: envelope,
             capability_ir: ir,
             operational_contract: operational,
@@ -305,7 +305,7 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
     let prof_input = f.put(
         "profile-input.json",
         &ReceiverModelProfileInput {
-            schema: "cerebro.tidex.receiver_model_profile_input/v1".into(),
+            schema: "tidex.receiver_model_profile_input/v1".into(),
             model_id: ModelId::parse("numerical.receiver").unwrap(),
             architecture_id: ArchitectureId::parse("numerical.matrix").unwrap(),
             source_revision: None,
@@ -318,7 +318,7 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
     let projection_input = f.put(
         "projection-input.json",
         &PhysicalPlanningProfileRequest {
-            schema: "cerebro.tidex.physical_planning_profile_request/v1".into(),
+            schema: "tidex.physical_planning_profile_request/v1".into(),
             physical_profile: physical.profile_reference.clone(),
             modalities: BTreeSet::from([CapabilityModality::Text]),
             supports_persistent_state: false,
@@ -342,7 +342,7 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
             MaterializationStrategy::LowRank,
             PhysicalMaterializationBackend::LowRank {
                 policy: LowRankShadowPolicy {
-                    schema: "cerebro.tidex.low_rank_shadow_policy/v1".into(),
+                    schema: "tidex.low_rank_shadow_policy/v1".into(),
                     maximum_rank: 1,
                     relative_reconstruction_tolerance: 1e-6,
                     absolute_reconstruction_tolerance: 1e-6,
@@ -357,7 +357,7 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
         let plan: UniversalCapabilityShadowPlanReceipt =
             f.run("compile", "universal-plan", &plan_input);
         let input = PhysicalMaterializationRequest {
-            schema: "cerebro.tidex.physical_materialization_request/v1".into(),
+            schema: "tidex.physical_materialization_request/v1".into(),
             physical_profile: physical.profile_reference.clone(),
             source: CompiledMaterializationSource::UniversalPlan {
                 request: Box::new(request.clone()),
@@ -425,7 +425,7 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
     let plan: UniversalCapabilityShadowPlanReceipt =
         f.run("compile", "universal-plan", &f.put("lossy-plan.json", &request));
     let lossy = PhysicalMaterializationRequest {
-        schema: "cerebro.tidex.physical_materialization_request/v1".into(),
+        schema: "tidex.physical_materialization_request/v1".into(),
         physical_profile: physical.profile_reference,
         source: CompiledMaterializationSource::UniversalPlan {
             request: Box::new(request),
@@ -434,7 +434,7 @@ fn both_architectures_produce_replayed_physical_checkpoints_through_production_c
         },
         backend: PhysicalMaterializationBackend::Sparse {
             policy: SparseShadowPolicy {
-                schema: "cerebro.tidex.sparse_shadow_policy/v1".into(),
+                schema: "tidex.sparse_shadow_policy/v1".into(),
                 maximum_nonzero_count: 8,
                 maximum_density: 0.5,
                 absolute_zero_threshold: 0.0,

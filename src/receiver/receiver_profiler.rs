@@ -36,7 +36,7 @@ impl ReceiverSnapshotBinding {
         profile.validate()?;
         let receiver_profile_sha256 = profile.digest()?;
         let mut binding = Self {
-            schema: "cerebro.tidex.receiver_snapshot_binding/v1".into(),
+            schema: "tidex.receiver_snapshot_binding/v1".into(),
             receiver_profile_sha256,
             model_snapshot_sha256,
             configuration_sha256,
@@ -50,7 +50,7 @@ impl ReceiverSnapshotBinding {
     }
 
     pub fn validate_for(&self, profile: &ReceiverProfile) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.receiver_snapshot_binding/v1"
+        if self.schema != "tidex.receiver_snapshot_binding/v1"
             || self.receiver_profile_sha256 != profile.digest()?
             || self.model_snapshot_sha256 == Sha256Digest::zero()
             || self.configuration_sha256 == Sha256Digest::zero()
@@ -74,7 +74,7 @@ impl ReceiverSnapshotBinding {
             parameter_layout_sha256: &'a Sha256Digest,
         }
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:RECEIVER-SNAPSHOT-BINDING:v1\0",
+            b"TIDEX:RECEIVER-SNAPSHOT-BINDING:v1\0",
             &serde_json::to_vec(&Projection {
                 schema: &self.schema,
                 receiver_profile_sha256: &self.receiver_profile_sha256,

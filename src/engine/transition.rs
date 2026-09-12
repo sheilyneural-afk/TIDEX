@@ -334,7 +334,7 @@ impl BrainEngine {
         let shadow_bank_sha256 =
             SkillBankDigest::from(Sha256Digest::digest_bytes(&staged_bank_bytes));
         let expected_intent = CommitTransactionIntent {
-            schema: "cerebro.tidex.commit_transaction_intent/v2".into(),
+            schema: "tidex.commit_transaction_intent/v2".into(),
             operation_key: operation_key.clone(),
             batch_digest: batch_digest.clone(),
             observation_digests: observation_digests.clone(),
@@ -358,7 +358,7 @@ impl BrainEngine {
         if fs::symlink_metadata(&receipt_path).is_ok() {
             let receipt: CommitReceipt =
                 read_private_json(&self.root, &receipt_path, MAX_ENGINE_JSON_BYTES)?;
-            if receipt.schema != "cerebro.tidex.commit_receipt/v2"
+            if receipt.schema != "tidex.commit_receipt/v2"
                 || receipt.legacy_recovery
                 || receipt.operation_key != expected_intent.operation_key
                 || receipt.batch_digest != expected_intent.batch_digest
@@ -563,7 +563,7 @@ impl BrainEngine {
         )?;
 
         let receipt = CommitReceipt {
-            schema: "cerebro.tidex.commit_receipt/v2".into(),
+            schema: "tidex.commit_receipt/v2".into(),
             operation_key: operation_key.clone(),
             batch_digest: batch_digest.clone(),
             report_sha256: intent.report_sha256.clone(),
@@ -697,7 +697,7 @@ impl BrainEngine {
                     ));
                 }
                 if let Some((path, digest, receipt)) = matching.pop() {
-                    if receipt.schema != "cerebro.tidex.learning_finalization_receipt/v1"
+                    if receipt.schema != "tidex.learning_finalization_receipt/v1"
                         || path.file_name().and_then(|value| value.to_str())
                             != Some(format!("{}.json", receipt.operation_key).as_str())
                     {
@@ -797,7 +797,7 @@ impl BrainEngine {
         ensure_private_directory(&self.root, &transitions_root.join("by-operation"))?;
         ensure_private_directory(&self.root, &transaction_dir)?;
         let intent = LearningCorpusTransitionIntent {
-            schema: "cerebro.tidex.learning_corpus_transition_intent/v1".into(),
+            schema: "tidex.learning_corpus_transition_intent/v1".into(),
             operation_key: operation_key.clone(),
             session_id: input.session_id.clone(),
             adaptive_receipt_sha256: input.adaptive_receipt_sha256.clone(),
@@ -908,7 +908,7 @@ impl BrainEngine {
             &self.root,
             "learning_corpus_transition",
             json!({
-                "schema":"cerebro.tidex.learning_corpus_transition/v1",
+                "schema":"tidex.learning_corpus_transition/v1",
                 "operation_key":operation_key,
                 "session_id":input.session_id,
                 "adaptive_receipt_sha256":input.adaptive_receipt_sha256,
@@ -928,7 +928,7 @@ impl BrainEngine {
             }),
         )?;
         let receipt = LearningFinalizationReceipt {
-            schema: "cerebro.tidex.learning_finalization_receipt/v1".into(),
+            schema: "tidex.learning_finalization_receipt/v1".into(),
             operation_key,
             session_id: input.session_id,
             adaptive_receipt_sha256: input.adaptive_receipt_sha256,
@@ -1157,7 +1157,7 @@ impl BrainEngine {
         if !has_prior_sleep_state {
             return Ok(());
         }
-        if required_sleep_state_string(previous, "schema")? != "cerebro.tidex.sleep_state/v5"
+        if required_sleep_state_string(previous, "schema")? != "tidex.sleep_state/v5"
             || CertificationStatus::parse(required_sleep_state_string(
                 previous,
                 "certification_status",
@@ -1360,7 +1360,7 @@ impl BrainEngine {
             previous.clone()
         } else {
             json!({
-                "schema":"cerebro.tidex.sleep_state/v5",
+                "schema":"tidex.sleep_state/v5",
                 "operation_key":operation_key,
                 "analysis_key":analysis_key,
                 "corpus_digest":corpus_digest,
@@ -1467,7 +1467,7 @@ impl BrainEngine {
                 Some(report_sha256.clone()),
             )?;
             return Ok(SleepReport {
-                schema: "cerebro.tidex.sleep/v4".into(),
+                schema: "tidex.sleep/v4".into(),
                 corpus_digest,
                 observation_count: observations.len(),
                 promoted: false,
@@ -1488,7 +1488,7 @@ impl BrainEngine {
         let staged_state = transaction_dir.join("sleep_state.json");
         let staged_bank = transaction_dir.join("skill_bank.json");
         let intent = SleepTransactionIntent {
-            schema: "cerebro.tidex.sleep_transaction_intent/v1".into(),
+            schema: "tidex.sleep_transaction_intent/v1".into(),
             operation_key: operation_key.clone(),
             analysis_key: analysis_key.clone(),
             corpus_digest: corpus_digest.clone(),
@@ -1553,7 +1553,7 @@ impl BrainEngine {
                 &self.root,
                 "sleep_transaction",
                 json!({
-                    "schema":"cerebro.tidex.sleep_transaction/v1",
+                    "schema":"tidex.sleep_transaction/v1",
                     "operation_key":operation_key,
                     "analysis_key":analysis_key,
                     "corpus_digest":corpus_digest,
@@ -1616,7 +1616,7 @@ impl BrainEngine {
         replace_private_pointer_exact(&self.root, &sleep_path, &state_bytes, &state_sha256)?;
 
         let receipt = SleepReceipt {
-            schema: "cerebro.tidex.sleep_receipt/v1".into(),
+            schema: "tidex.sleep_receipt/v1".into(),
             operation_key,
             analysis_key,
             report_sha256: report_sha256.clone(),
@@ -1637,7 +1637,7 @@ impl BrainEngine {
             Some(report_sha256.clone()),
         )?;
         Ok(SleepReport {
-            schema: "cerebro.tidex.sleep/v4".into(),
+            schema: "tidex.sleep/v4".into(),
             corpus_digest,
             observation_count: observations.len(),
             promoted,

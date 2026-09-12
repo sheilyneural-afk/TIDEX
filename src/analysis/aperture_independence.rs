@@ -325,7 +325,7 @@ pub fn estimate_aperture_independence(
         .map(|row| matrix.row_vec(row))
         .collect::<Vec<_>>();
     Ok(ApertureIndependenceReport {
-        schema: "cerebro.tidex.aperture_independence/v4".into(),
+        schema: "tidex.aperture_independence/v4".into(),
         declared_groups,
         design_feature_count,
         active_design_features,

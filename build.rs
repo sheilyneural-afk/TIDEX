@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Component, Path};
 
-const DIGEST_DOMAIN: &[u8] = b"CEREBRO:TIDEX:COMPILED-INPUTS:v3\0";
+const DIGEST_DOMAIN: &[u8] = b"TIDEX:COMPILED-INPUTS:v3\0";
 
 #[derive(Clone, Copy)]
 enum CanonicalInput {

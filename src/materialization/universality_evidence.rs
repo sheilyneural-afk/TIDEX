@@ -47,7 +47,7 @@ impl UniversalityProtocol {
             self.minimum_preservation_score,
             self.minimum_success_probability,
         ];
-        if self.schema != "cerebro.tidex.universality_protocol/v1"
+        if self.schema != "tidex.universality_protocol/v1"
             || self.minimum_calibration_capabilities == 0
             || self.minimum_held_out_capabilities == 0
             || self.minimum_receivers_per_capability == 0
@@ -100,7 +100,7 @@ impl UniversalityTrial {
             self.random_delta_score,
             self.unmodified_receiver_score,
         ];
-        if self.schema != "cerebro.tidex.universality_trial/v1"
+        if self.schema != "tidex.universality_trial/v1"
             || [
                 &self.trial_id,
                 &self.capability_id,
@@ -191,7 +191,7 @@ pub struct UniversalityEvidenceInput {
 
 impl UniversalityEvidenceInput {
     pub fn execute(&self) -> BrainResult<UniversalityEvidenceReceipt> {
-        if self.schema != "cerebro.tidex.universality_evidence_input/v1" {
+        if self.schema != "tidex.universality_evidence_input/v1" {
             return Err(BrainError::Invalid("universality_evidence_input_invalid".into()));
         }
         measure_universality_n(&self.calibration_capabilities, &self.trials, &self.protocol)
@@ -416,15 +416,15 @@ pub fn measure_universality_n(
         .filter(|capability| capability.admitted)
         .count();
     let protocol_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSALITY-PROTOCOL:v1\0",
+        b"TIDEX:UNIVERSALITY-PROTOCOL:v1\0",
         &serde_json::to_vec(protocol)?,
     );
     let trials_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSALITY-TRIALS:v2\0",
+        b"TIDEX:UNIVERSALITY-TRIALS:v2\0",
         &serde_json::to_vec(&(calibration_capabilities, trials))?,
     );
     let mut receipt = UniversalityEvidenceReceipt {
-        schema: "cerebro.tidex.universality_evidence_receipt/v2".into(),
+        schema: "tidex.universality_evidence_receipt/v2".into(),
         protocol_sha256,
         trials_sha256,
         calibration_capability_count: calibration_capabilities.len(),
@@ -442,7 +442,7 @@ pub fn measure_universality_n(
     let mut unsigned = receipt.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     receipt.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSALITY-EVIDENCE-RECEIPT:v2\0",
+        b"TIDEX:UNIVERSALITY-EVIDENCE-RECEIPT:v2\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(receipt)
@@ -454,7 +454,7 @@ mod tests {
 
     fn protocol() -> UniversalityProtocol {
         UniversalityProtocol {
-            schema: "cerebro.tidex.universality_protocol/v1".into(),
+            schema: "tidex.universality_protocol/v1".into(),
             minimum_calibration_capabilities: 1,
             minimum_held_out_capabilities: 1,
             minimum_receivers_per_capability: 2,
@@ -473,7 +473,7 @@ mod tests {
 
     fn trial(id: &str, receiver: &str, family: &str, seed: u64) -> UniversalityTrial {
         UniversalityTrial {
-            schema: "cerebro.tidex.universality_trial/v1".into(),
+            schema: "tidex.universality_trial/v1".into(),
             trial_id: id.into(),
             capability_id: "held.out".into(),
             task_family_id: "symbolic_transform".into(),
@@ -493,7 +493,7 @@ mod tests {
 
     fn calibration_trial() -> UniversalityTrial {
         UniversalityTrial {
-            schema: "cerebro.tidex.universality_trial/v1".into(),
+            schema: "tidex.universality_trial/v1".into(),
             trial_id: "calibration-trial".into(),
             capability_id: "calibration".into(),
             task_family_id: "calibration_family".into(),
@@ -521,7 +521,7 @@ mod tests {
             trial("3", "unseen", "b", 3),
         ];
         let receipt = measure_universality_n(&calibration, &trials, &protocol()).unwrap();
-        assert_eq!(receipt.schema, "cerebro.tidex.universality_evidence_receipt/v2");
+        assert_eq!(receipt.schema, "tidex.universality_evidence_receipt/v2");
         assert_eq!(receipt.universality_n, 1);
         let mut reversed = trials.clone();
         reversed.reverse();

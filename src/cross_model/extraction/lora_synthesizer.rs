@@ -105,7 +105,7 @@ impl LoRASynthesisResult {
     pub fn validate(&self) -> Result<(), String> {
         self.capability.validate()?;
         self.lora_weights.validate()?;
-        if self.schema != "cerebro.cross_model.verified_lora_factorization/v1"
+        if self.schema != "tidex.cross_model.verified_lora_factorization/v1"
             || self.capability.evidence_kind != CapabilityEvidenceKind::WeightDelta
             || !self.absolute_reconstruction_error.is_finite()
             || self.absolute_reconstruction_error < 0.0
@@ -215,7 +215,7 @@ impl LoRASynthesizer {
             return Err("lora_peft_scaling_reconstruction_mismatch".into());
         }
         let mut result = LoRASynthesisResult {
-            schema: "cerebro.cross_model.verified_lora_factorization/v1".into(),
+            schema: "tidex.cross_model.verified_lora_factorization/v1".into(),
             capability,
             lora_weights: weights,
             absolute_reconstruction_error: factors.absolute_reconstruction_error,

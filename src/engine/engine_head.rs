@@ -13,10 +13,10 @@ use crate::foundation::digest::{
 use crate::foundation::error::{BrainError, BrainResult};
 use serde::{Deserialize, Serialize};
 
-pub const CANONICAL_ENGINE_HEAD_SCHEMA: &str = "cerebro.tidex.canonical_engine_head/v1";
-pub const CANONICAL_ENGINE_HEAD_DOMAIN: &[u8] = b"CEREBRO:TIDEX:CANONICAL-ENGINE-HEAD:v1\0";
+pub const CANONICAL_ENGINE_HEAD_SCHEMA: &str = "tidex.canonical_engine_head/v1";
+pub const CANONICAL_ENGINE_HEAD_DOMAIN: &[u8] = b"TIDEX:CANONICAL-ENGINE-HEAD:v1\0";
 pub const CANONICAL_ENGINE_HEAD_MAX_BYTES: u64 = 1 << 20;
-pub const CORPUS_TRANSITION_JOURNAL_SCHEMA: &str = "cerebro.tidex.corpus_transition_journal/v1";
+pub const CORPUS_TRANSITION_JOURNAL_SCHEMA: &str = "tidex.corpus_transition_journal/v1";
 pub const CORPUS_TRANSITION_JOURNAL_MAX_BYTES: u64 = 1 << 20;
 pub const HARD_MAX_ENGINE_REVISION: u64 = 1_048_576;
 
@@ -164,7 +164,7 @@ impl CorpusTransitionRecovery {
         phase: Option<CorpusTransitionPhase>,
     ) -> Self {
         Self {
-            schema: "cerebro.tidex.corpus_transition_recovery/v1".into(),
+            schema: "tidex.corpus_transition_recovery/v1".into(),
             outcome,
             operation_key,
             phase,

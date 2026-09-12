@@ -90,7 +90,7 @@ pub struct BackendSelectionPolicy {
 impl BackendSelectionPolicy {
     pub fn rigorous_default(maximum_latency_micros: u64, maximum_resident_bytes: u64) -> Self {
         Self {
-            schema: "cerebro.tidex.backend_selection_policy/v1".into(),
+            schema: "tidex.backend_selection_policy/v1".into(),
             minimum_functional_ci_lower: 0.8,
             minimum_preservation_score: 0.95,
             minimum_identity_margin: 0.05,
@@ -138,7 +138,7 @@ impl BackendSelectionPolicy {
             self.latency_weight,
             self.memory_weight,
         ];
-        if self.schema != "cerebro.tidex.backend_selection_policy/v1"
+        if self.schema != "tidex.backend_selection_policy/v1"
             || bounded
                 .iter()
                 .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
@@ -208,7 +208,7 @@ pub struct BackendSelectionInput {
 
 impl BackendSelectionInput {
     pub fn execute(&self) -> BrainResult<BackendSelectionReceipt> {
-        if self.schema != "cerebro.tidex.backend_selection_input/v1" {
+        if self.schema != "tidex.backend_selection_input/v1" {
             return Err(BrainError::Invalid("backend_selection_input_invalid".into()));
         }
         select_materialization_backend(&self.evaluations, &self.complementarity, &self.policy)
@@ -223,7 +223,7 @@ pub(crate) fn validate_evaluation(e: &BackendEvaluation) -> BrainResult<()> {
         e.numerical_stability,
         e.normalized_risk,
     ];
-    if e.schema != "cerebro.tidex.backend_evaluation/v1"
+    if e.schema != "tidex.backend_evaluation/v1"
         || e.candidate_sha256 == Sha256Digest::zero()
         || e.functional_ci_lower > e.functional_score
         || unit
@@ -422,15 +422,15 @@ pub fn select_materialization_backend(
         }
     }
     let policy_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:BACKEND-SELECTION-POLICY:v1\0",
+        b"TIDEX:BACKEND-SELECTION-POLICY:v1\0",
         &serde_json::to_vec(policy)?,
     );
     let evidence_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:BACKEND-SELECTION-EVIDENCE:v1\0",
+        b"TIDEX:BACKEND-SELECTION-EVIDENCE:v1\0",
         &serde_json::to_vec(&(evaluations, complementarity))?,
     );
     let mut receipt = BackendSelectionReceipt {
-        schema: "cerebro.tidex.backend_selection_receipt/v1".into(),
+        schema: "tidex.backend_selection_receipt/v1".into(),
         policy_sha256,
         evidence_sha256,
         ranked,
@@ -441,7 +441,7 @@ pub fn select_materialization_backend(
     let mut unsigned = receipt.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     receipt.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:BACKEND-SELECTION-RECEIPT:v1\0",
+        b"TIDEX:BACKEND-SELECTION-RECEIPT:v1\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(receipt)
@@ -452,7 +452,7 @@ mod tests {
     use super::*;
     fn evaluation(id: &[u8], strategy: MaterializationStrategy, score: f64) -> BackendEvaluation {
         BackendEvaluation {
-            schema: "cerebro.tidex.backend_evaluation/v1".into(),
+            schema: "tidex.backend_evaluation/v1".into(),
             candidate_sha256: Sha256Digest::digest_bytes(id),
             strategy,
             functional_score: score,

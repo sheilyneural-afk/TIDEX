@@ -292,7 +292,7 @@ mod tests {
         let fields_json = serde_json::to_string(&fields).unwrap();
         let raw = format!(
             r#"{{
-            "schema": "cerebro.tidex.reconstruction/v7",
+            "schema": "tidex.reconstruction/v7",
             "source_tree_digest": "0000000000000000000000000000000000000000000000000000000000000000",
             "config_digest": "0000000000000000000000000000000000000000000000000000000000000000",
             "analysis_version_digest": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -301,7 +301,7 @@ mod tests {
             "parameter_dimension": 4,
             "independence_groups": 1,
             "aperture_independence": {{
-                "schema": "cerebro.tidex.aperture_independence/v1",
+                "schema": "tidex.aperture_independence/v1",
                 "declared_groups": 1,
                 "design_feature_count": 1,
                 "active_design_features": 1,
@@ -320,7 +320,7 @@ mod tests {
                 "independent_enough": true
             }},
             "resolution_map": {{
-                "schema": "cerebro.tidex.resolution_map/v1",
+                "schema": "tidex.resolution_map/v1",
                 "field_count": 0,
                 "field_geometry_numerical_rank": 0,
                 "excitation_numerical_rank": 0,

@@ -28,11 +28,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const REPRESENTATION_EVIDENCE_REQUEST_SCHEMA: &str =
-    "cerebro.tidex.representation_evidence_install_request/v1";
-pub const REPRESENTATION_CAPTURE_SCHEMA: &str = "cerebro.tidex.representation_capture/v1";
-pub const REPRESENTATION_PROTOCOL_SCHEMA: &str = "cerebro.tidex.representation_protocol/v1";
-pub const REPRESENTATION_EVIDENCE_RECEIPT_SCHEMA: &str =
-    "cerebro.tidex.representation_evidence_receipt/v1";
+    "tidex.representation_evidence_install_request/v1";
+pub const REPRESENTATION_CAPTURE_SCHEMA: &str = "tidex.representation_capture/v1";
+pub const REPRESENTATION_PROTOCOL_SCHEMA: &str = "tidex.representation_protocol/v1";
+pub const REPRESENTATION_EVIDENCE_RECEIPT_SCHEMA: &str = "tidex.representation_evidence_receipt/v1";
 
 const INSTALLED_OBSERVATIONS_RELATIVE: &str =
     "state/representation_evidence/installed-observations";
@@ -308,7 +307,7 @@ fn receipt_path(root: &Path, request_sha256: &RepresentationRequestDigest) -> Pa
 
 fn ledger_payload(receipt: &RepresentationEvidenceReceipt) -> Value {
     json!({
-        "schema": "cerebro.tidex.representation_evidence_recorded/v1",
+        "schema": "tidex.representation_evidence_recorded/v1",
         "source_tree_digest": receipt.source_tree_digest,
         "request_sha256": receipt.request_sha256,
         "source_representation_sha256": receipt.source_representation_sha256,

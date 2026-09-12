@@ -266,7 +266,7 @@ impl BrainEngine {
             Ok(value.to_string())
         };
         if protocol.get("schema").and_then(serde_json::Value::as_str)
-            != Some("cerebro.tidex.representation_protocol/v1")
+            != Some("tidex.representation_protocol/v1")
             || protocol
                 .get("task_labels_used")
                 .and_then(serde_json::Value::as_bool)
@@ -984,7 +984,7 @@ impl BrainEngine {
         promotion.validate()?;
 
         Ok(ReconstructionReport {
-            schema: "cerebro.tidex.reconstruction/v8".into(),
+            schema: "tidex.reconstruction/v8".into(),
             source_tree_digest,
             config_digest,
             analysis_version_digest,

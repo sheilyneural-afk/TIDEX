@@ -152,7 +152,7 @@ p=sys.argv[1]
 st=os.lstat(p) if os.path.exists(p) else None
 if st is None or stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode)&0o022: raise SystemExit(2)
 x=json.load(open(p,encoding='utf-8'))
-if x.get('schema')!='cerebro.tidex.installation/v1': raise SystemExit(2)
+if x.get('schema')!='tidex.installation/v1': raise SystemExit(2)
 if not isinstance(x.get('state_root'),str) or not isinstance(x.get('target'),str): raise SystemExit(2)
 print(x['state_root']); print(x['target'])
 PY
@@ -166,7 +166,7 @@ p=sys.argv[1]
 st=os.lstat(p) if os.path.exists(p) else None
 if st is None or stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode)&0o022: raise SystemExit(2)
 x=json.load(open(p,encoding='utf-8'))
-if x.get('schema')!='cerebro.tidex.activation/v1': raise SystemExit(2)
+if x.get('schema')!='tidex.activation/v1': raise SystemExit(2)
 active=x.get('active'); previous=x.get('previous'); revision=x.get('revision')
 for v in (active,previous):
     if v is not None and (not isinstance(v,str) or '/' in v or v in ('','.','..')): raise SystemExit(2)
@@ -200,7 +200,7 @@ write_activation(){
     local active_json previous_json payload
     [[ "$active" == - ]] && active_json=null || active_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$active")
     [[ "$previous" == - ]] && previous_json=null || previous_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$previous")
-    payload="{\"schema\":\"cerebro.tidex.activation/v1\",\"active\":$active_json,\"previous\":$previous_json,\"revision\":$revision}"
+    payload="{\"schema\":\"tidex.activation/v1\",\"active\":$active_json,\"previous\":$previous_json,\"revision\":$revision}"
     write_json_atomic "$root/activation.json" "$payload"
 }
 
@@ -305,7 +305,7 @@ initialize_installation(){
     local root=$1 state=$2 target=$3
     install -d -m 0755 "$root/releases"
     if [[ ! -e "$root/installation.json" ]]; then
-        write_json_atomic "$root/installation.json" "{\"schema\":\"cerebro.tidex.installation/v1\",\"state_root\":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$state"),\"target\":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$target")}"
+        write_json_atomic "$root/installation.json" "{\"schema\":\"tidex.installation/v1\",\"state_root\":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$state"),\"target\":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$target")}"
     fi
     read_installation_authority "$root"
     [[ "${INSTALLATION_AUTHORITY[0]}" == "$state" && "${INSTALLATION_AUTHORITY[1]}" == "$target" ]] || fail 'installation_authority_mismatch'

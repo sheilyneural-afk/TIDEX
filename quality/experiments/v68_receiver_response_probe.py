@@ -35,7 +35,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 SOURCE = Path(__file__).resolve()
 REPO = SOURCE.parents[2]
 BASE_SHA = "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8"
-SCHEMA = "cerebro.tidex.v68_receiver_response_probe/v1"
+SCHEMA = "tidex.v68_receiver_response_probe/v1"
 MODEL_FILES = ("config.json", "generation_config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "merges.txt", "vocab.json")
 
 
@@ -118,7 +118,7 @@ def freeze_reproducibility_bundle(
         ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True
     ).stdout.strip()
     manifest = {
-        "schema": "cerebro.tidex.experiment_reproducibility_bundle/v1",
+        "schema": "tidex.experiment_reproducibility_bundle/v1",
         "git_head": head,
         "source_file_count": len(source_hashes),
         "source_sha256": source_hashes,
@@ -181,7 +181,7 @@ def verify_original_implementation_binding(root: Path, precommit: dict[str, Any]
     if not isinstance(bundle_reference, dict):
         raise RuntimeError("reproducibility bundle is required")
     manifest = read_reference(bundle_reference)
-    if manifest.get("schema") != "cerebro.tidex.experiment_reproducibility_bundle/v1":
+    if manifest.get("schema") != "tidex.experiment_reproducibility_bundle/v1":
         raise RuntimeError("original reproducibility manifest schema mismatch")
     relative_collector = str(SOURCE.relative_to(REPO))
     if manifest.get("collector_sha256") != precommit["collector_sha256"]:
@@ -259,7 +259,7 @@ def plan_value() -> dict[str, Any]:
             "maximum_unseen_control_margin_rms_change": 0.1,
         },
         "policy": {
-            "schema": "cerebro.tidex.receiver_compiler_policy/v1",
+            "schema": "tidex.receiver_compiler_policy/v1",
             "ridge": 1e-10,
             "minimum_decoder_loo_r2": 0.99,
             "minimum_encoder_loo_r2": 0.99,
@@ -283,7 +283,7 @@ def replay(model_dir: Path, package_path: Path, output: Path, threads: int) -> N
     model, tokenizer = load_model(model_dir, threads)
     result = margins(model, tokenizer, package["prompts"], package["label_ids"])
     write_new(output, canonical({
-        "schema": "cerebro.tidex.v68_native_forward_replay/v1",
+        "schema": "tidex.v68_native_forward_replay/v1",
         "checkpoint_sha256": package["checkpoint_sha256"],
         "margins": result.tolist(),
         "model_class": type(model).__name__,
@@ -364,16 +364,16 @@ def run(base_dir: Path, binary: Path, root: Path, threads: int) -> dict[str, Any
             delta = tidex(binary, root, "import-axis", str(value_file))
             axis_records.append({"axis_id": f"norm-axis-{index}", "delta": delta})
         basis = put(root, {
-            "schema": "cerebro.tidex.receiver_weight_basis/v1",
+            "schema": "tidex.receiver_weight_basis/v1",
             "base_model_sha256": BASE_SHA,
-            "layout": {"schema": "cerebro.tidex.parameter_block_layout/v1", "blocks": [
+            "layout": {"schema": "tidex.parameter_block_layout/v1", "blocks": [
                 {"name": "model.norm.weight", "shape": [2048], "offset": 0, "count": 2048}], "total_parameter_count": 2048},
             "axes": axis_records,
             "construction_capability_ids": ["receiver.system-identification:v1"],
             "construction_evidence": construction,
         })
         protocol = put(root, {
-            "schema": "cerebro.tidex.receiver_response_protocol/v1",
+            "schema": "tidex.receiver_response_protocol/v1",
             "measure": "next_token_logit_margin_change", "base_model_sha256": BASE_SHA,
             "model_config_sha256": files_sha["config.json"], "tokenizer_sha256": files_sha["tokenizer.json"],
             "collector_sha256": source_sha, "coordinate_ids": [f"probe.{i}" for i in range(4)],
@@ -391,7 +391,7 @@ def run(base_dir: Path, binary: Path, root: Path, threads: int) -> dict[str, Any
                 changed = margins(model, tokenizer, all_prompts[:8], labels) - baseline[:8]
                 control_changes.append(changed[4:])
                 observation_refs.append(put(root, {
-                    "schema": "cerebro.tidex.receiver_response_observation/v1",
+                    "schema": "tidex.receiver_response_observation/v1",
                     "observation_id": f"native-norm-{index:03}",
                     "capability_id": "receiver.system-identification:v1",
                     "basis_sha256": basis["sha256"], "protocol_sha256": protocol["sha256"],
@@ -416,10 +416,10 @@ def run(base_dir: Path, binary: Path, root: Path, threads: int) -> dict[str, Any
         })
         del model, tokenizer, original, hidden, normalized, head_difference
         gc.collect()
-        target = put(root, {"schema": "cerebro.tidex.functional_response_target/v1", "capability_id": "requested.margin-profile:v1", "protocol_sha256": protocol["sha256"], "values": plan["requested_response"]})
-        wrong = put(root, {"schema": "cerebro.tidex.functional_response_target/v1", "capability_id": "wrong.margin-profile:v1", "protocol_sha256": protocol["sha256"], "values": [-v for v in plan["requested_response"]]})
+        target = put(root, {"schema": "tidex.functional_response_target/v1", "capability_id": "requested.margin-profile:v1", "protocol_sha256": protocol["sha256"], "values": plan["requested_response"]})
+        wrong = put(root, {"schema": "tidex.functional_response_target/v1", "capability_id": "wrong.margin-profile:v1", "protocol_sha256": protocol["sha256"], "values": [-v for v in plan["requested_response"]]})
         request = {
-            "schema": "cerebro.tidex.receiver_weight_request/v1", "basis": basis, "protocol": protocol,
+            "schema": "tidex.receiver_weight_request/v1", "basis": basis, "protocol": protocol,
             "target": target, "observations": observation_refs, "wrong_targets": [wrong],
             "safety": {"protected_cortex": {"parameter_importance": metric.diag().tolist(), "directions": [], "max_damage_ratio": 0.15}, "risk_metric": metric.tolist(), "evidence": safety_evidence},
             "policy": plan["policy"],

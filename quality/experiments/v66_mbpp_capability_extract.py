@@ -46,8 +46,8 @@ ANCHOR_TARGET = 40
 ANCHOR_CANDIDATES = 110
 EVALUATION_TARGET = 30
 DONOR_MAX_TOKENS = 120
-CAPABILITY_SCHEMA = "cerebro.tidex.code_capability_ir/v1"
-DONOR_RECEIPT_SCHEMA = "cerebro.tidex.v66_donor_code_capability/v1"
+CAPABILITY_SCHEMA = "tidex.code_capability_ir/v1"
+DONOR_RECEIPT_SCHEMA = "tidex.v66_donor_code_capability/v1"
 
 SAFE_BUILTINS = (
     "abs",

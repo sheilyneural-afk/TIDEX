@@ -1,4 +1,4 @@
-schema = "cerebro.cross_model.models/v2"
+schema = "tidex.cross_model.models/v2"
 
 [[models]]
 name = "smollm2:135m"

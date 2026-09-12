@@ -44,7 +44,7 @@ impl ShadowEvaluationBundle {
         evaluation_payload: Vec<u8>,
     ) -> BrainResult<Self> {
         let bundle = Self {
-            schema: "cerebro.tidex.shadow_evaluation_bundle/v1".into(),
+            schema: "tidex.shadow_evaluation_bundle/v1".into(),
             receiver_snapshot_sha256,
             candidate_sha256,
             strategy,
@@ -66,7 +66,7 @@ impl ShadowEvaluationBundle {
             .checked_add(self.candidate_payload.len())
             .and_then(|n| n.checked_add(self.evaluation_payload.len()))
             .ok_or_else(|| BrainError::Invalid("shadow_bundle_size_overflow".into()))?;
-        if self.schema != "cerebro.tidex.shadow_evaluation_bundle/v1"
+        if self.schema != "tidex.shadow_evaluation_bundle/v1"
             || self.receiver_snapshot_sha256 == Sha256Digest::zero()
             || self.candidate_sha256 == Sha256Digest::zero()
             || size > MAX_BUNDLE_BYTES
@@ -110,7 +110,7 @@ impl ShadowRuntimeMetrics {
             self.numerical_stability,
             self.normalized_risk,
         ];
-        if self.schema != "cerebro.tidex.shadow_runtime_metrics/v1"
+        if self.schema != "tidex.shadow_runtime_metrics/v1"
             || unit
                 .iter()
                 .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
@@ -163,10 +163,10 @@ impl ShadowEvaluationReceipt {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         let expected = Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
+            b"TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
             &serde_json::to_vec(&unsigned)?,
         );
-        if self.schema != "cerebro.tidex.shadow_evaluation_receipt/v1"
+        if self.schema != "tidex.shadow_evaluation_receipt/v1"
             || self.runner_sha256 == Sha256Digest::zero()
             || self.bundle_sha256 == Sha256Digest::zero()
             || self.isolated_request_sha256 == Sha256Digest::zero()
@@ -204,7 +204,7 @@ pub fn evaluate_shadow_bundle_payloads(
     }
     metrics.validate()?;
     Ok(ShadowRuntimeOutput {
-        schema: "cerebro.tidex.shadow_runtime_output/v1".into(),
+        schema: "tidex.shadow_runtime_output/v1".into(),
         receiver_snapshot_sha256: bundle.receiver_snapshot_sha256.clone(),
         candidate_sha256: bundle.candidate_sha256.clone(),
         receiver_payload_sha256: bundle.receiver_payload_sha256.clone(),
@@ -232,8 +232,7 @@ pub fn run_shadow_evaluation(
 ) -> BrainResult<ShadowEvaluationReceipt> {
     bundle.validate()?;
     let input = serde_json::to_vec(bundle)?;
-    let bundle_sha256 =
-        Sha256Digest::digest_domain(b"CEREBRO:TIDEX:SHADOW-EVALUATION-BUNDLE:v1\0", &input);
+    let bundle_sha256 = Sha256Digest::digest_domain(b"TIDEX:SHADOW-EVALUATION-BUNDLE:v1\0", &input);
     let runner_sha256 = runner.digest().clone();
     let report = run_isolated(&IsolatedExecutionRequest {
         program: runner,
@@ -254,7 +253,7 @@ pub fn run_shadow_evaluation(
         output.numerical_stability,
         output.normalized_risk,
     ];
-    if output.schema != "cerebro.tidex.shadow_runtime_output/v1"
+    if output.schema != "tidex.shadow_runtime_output/v1"
         || output.receiver_snapshot_sha256 != bundle.receiver_snapshot_sha256
         || output.candidate_sha256 != bundle.candidate_sha256
         || output.receiver_payload_sha256 != bundle.receiver_payload_sha256
@@ -270,7 +269,7 @@ pub fn run_shadow_evaluation(
         return Err(BrainError::Integrity("shadow_runtime_output_invalid".into()));
     }
     let evaluation = BackendEvaluation {
-        schema: "cerebro.tidex.backend_evaluation/v1".into(),
+        schema: "tidex.backend_evaluation/v1".into(),
         candidate_sha256: output.candidate_sha256,
         strategy: bundle.strategy,
         functional_score: output.functional_score,
@@ -285,7 +284,7 @@ pub fn run_shadow_evaluation(
     };
     crate::materialization::materialization_selector::validate_evaluation(&evaluation)?;
     let mut receipt = ShadowEvaluationReceipt {
-        schema: "cerebro.tidex.shadow_evaluation_receipt/v1".into(),
+        schema: "tidex.shadow_evaluation_receipt/v1".into(),
         runner_sha256,
         bundle_sha256,
         isolated_request_sha256: report.request_digest,
@@ -295,7 +294,7 @@ pub fn run_shadow_evaluation(
     let mut unsigned = receipt.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     receipt.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
+        b"TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(receipt)
@@ -324,7 +323,7 @@ mod tests {
 
     fn strict_metrics() -> ShadowRuntimeMetrics {
         ShadowRuntimeMetrics {
-            schema: "cerebro.tidex.shadow_runtime_metrics/v1".into(),
+            schema: "tidex.shadow_runtime_metrics/v1".into(),
             functional_score: 0.93,
             functional_ci_lower: 0.90,
             preservation_score: 0.99,

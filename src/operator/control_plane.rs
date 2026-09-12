@@ -672,7 +672,7 @@ fn model_candidate_identity(
         }
     }
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:OPERATOR-MODEL-CANDIDATE:v2\0",
+        b"TIDEX:OPERATOR-MODEL-CANDIDATE:v2\0",
         &serde_json::to_vec(&(layout, files))?,
     ))
 }
@@ -885,7 +885,7 @@ pub fn import_dataset_bytes(
         write_private_new(&artifact, bytes)?;
     }
     let manifest = OperatorDatasetManifest {
-        schema: "cerebro.tidex.operator_dataset/v1".into(),
+        schema: "tidex.operator_dataset/v1".into(),
         name: name.into(),
         format,
         content_sha256: content_sha256.clone(),
@@ -981,7 +981,7 @@ fn build_operator_job_evidence_receipt(
         None => None,
     };
     let mut receipt = OperatorJobEvidenceReceipt {
-        schema: "cerebro.tidex.operator_job_evidence_receipt/v1".into(),
+        schema: "tidex.operator_job_evidence_receipt/v1".into(),
         job_id: record.job_id.clone(),
         request_sha256: record.request_sha256.clone(),
         executor_id,
@@ -996,7 +996,7 @@ fn build_operator_job_evidence_receipt(
         evidence_sha256: Sha256Digest::zero(),
     };
     receipt.evidence_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:OPERATOR-JOB-EVIDENCE:v1\0",
+        b"TIDEX:OPERATOR-JOB-EVIDENCE:v1\0",
         &serde_json::to_vec(&(
             &receipt.schema,
             &receipt.job_id,
@@ -1020,7 +1020,7 @@ fn verify_operator_job_evidence_receipt(
 ) -> BrainResult<()> {
     let run = record.run.as_ref();
     let expected_digest = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:OPERATOR-JOB-EVIDENCE:v1\0",
+        b"TIDEX:OPERATOR-JOB-EVIDENCE:v1\0",
         &serde_json::to_vec(&(
             &receipt.schema,
             &receipt.job_id,
@@ -1047,7 +1047,7 @@ fn verify_operator_job_evidence_receipt(
                 && receipt.stderr_sha256.is_none()
         }
     };
-    if receipt.schema != "cerebro.tidex.operator_job_evidence_receipt/v1"
+    if receipt.schema != "tidex.operator_job_evidence_receipt/v1"
         || receipt.job_id != record.job_id
         || receipt.request_sha256 != record.request_sha256
         || receipt.state != record.state
@@ -1176,7 +1176,7 @@ fn runtime_profile_from_probe_job(
     let value: serde_json::Value = serde_json::from_str(&run.stdout)
         .map_err(|_| BrainError::Invalid("operator_runtime_probe_output_not_json".into()))?;
     if value.get("schema").and_then(serde_json::Value::as_str)
-        != Some("cerebro.tidex.operator_runtime_probe/v1")
+        != Some("tidex.operator_runtime_probe/v1")
     {
         return Ok(None);
     }
@@ -1197,7 +1197,7 @@ fn runtime_profile_from_probe_job(
             })
     };
     Ok(Some(OperatorModelRuntimeProfile {
-        schema: "cerebro.tidex.operator_model_runtime_profile/v1".into(),
+        schema: "tidex.operator_model_runtime_profile/v1".into(),
         model_id: run.receipt.selected_model_ids[0].clone(),
         source_job_id: record.job_id.clone(),
         source_run_id: run.receipt.run_id.clone(),
@@ -1288,7 +1288,7 @@ pub fn list_runtime_statuses(tidex_home: &Path) -> BrainResult<Vec<OperatorModel
                 None => None,
             };
             Ok(OperatorModelRuntimeStatus {
-                schema: "cerebro.tidex.operator_model_runtime_status/v1".into(),
+                schema: "tidex.operator_model_runtime_status/v1".into(),
                 model_id: model.model_id,
                 state: job
                     .map(|record| match record.state {
@@ -1353,7 +1353,7 @@ pub fn load_job_record(tidex_home: &Path, job_id: &Sha256Digest) -> BrainResult<
     let bytes = fs::read(job_status_path(tidex_home, job_id))
         .map_err(|_| BrainError::Invalid("operator_job_not_found".into()))?;
     let mut record: OperatorJobRecord = serde_json::from_slice(&bytes)?;
-    if record.job_id != *job_id || record.schema != "cerebro.tidex.operator_job/v1" {
+    if record.job_id != *job_id || record.schema != "tidex.operator_job/v1" {
         return Err(BrainError::Integrity("operator_job_identity_invalid".into()));
     }
     if let Some(receipt) = record.evidence_receipt.as_ref() {
@@ -1383,7 +1383,7 @@ fn collect_job_records(
         }
         let bytes = fs::read(status)?;
         let mut record: OperatorJobRecord = serde_json::from_slice(&bytes)?;
-        if record.schema != "cerebro.tidex.operator_job/v1" {
+        if record.schema != "tidex.operator_job/v1" {
             return Err(BrainError::Integrity("operator_job_schema_invalid".into()));
         }
         if entry.file_name().to_string_lossy() != record.job_id.as_str() {
@@ -1450,11 +1450,11 @@ fn start_operator_job(
         return Ok(existing);
     }
     let job_id = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:OPERATOR-JOB:v1\0",
+        b"TIDEX:OPERATOR-JOB:v1\0",
         &serde_json::to_vec(&(submitted_unix_ns, &operation, &request_digest))?,
     );
     let queued = OperatorJobRecord {
-        schema: "cerebro.tidex.operator_job/v1".into(),
+        schema: "tidex.operator_job/v1".into(),
         job_id: job_id.clone(),
         request_sha256: Some(request_digest.clone()),
         evidence_receipt: None,
@@ -1487,7 +1487,7 @@ fn start_operator_job(
         .name(format!("tidex-operator-{}", &job_id.as_str()[..12]))
         .spawn(move || {
             let mut record = OperatorJobRecord {
-                schema: "cerebro.tidex.operator_job/v1".into(),
+                schema: "tidex.operator_job/v1".into(),
                 job_id: thread_job_id,
                 request_sha256: Some(request_digest),
                 evidence_receipt: None,
@@ -1616,7 +1616,7 @@ fn resolve_assets(
     request: &OperatorRunRequest,
     recipe: &OperatorRecipe,
 ) -> BrainResult<Vec<PathBuf>> {
-    if request.schema != "cerebro.tidex.operator_run_request/v1"
+    if request.schema != "tidex.operator_run_request/v1"
         || request.assets.len() != recipe.asset_count
         || request.assets.len() > MAX_ASSETS
     {
@@ -1683,7 +1683,7 @@ fn execute_operator_run_cancelable(
     let argv = render_argv(&recipe, &assets)?;
     let source_tree_sha256 = Sha256Digest::parse(env!("TIDEX_SOURCE_TREE_DIGEST"))?;
     let run_id = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:OPERATOR-RUN:v1\0",
+        b"TIDEX:OPERATOR-RUN:v1\0",
         &serde_json::to_vec(&(
             &request.recipe_id,
             &argv,
@@ -1774,7 +1774,7 @@ fn execute_operator_run_cancelable(
     let executor_id =
         executor_for_operator_recipe(&recipe.id)?.map(|descriptor| descriptor.executor_id);
     let receipt = OperatorRunReceipt {
-        schema: "cerebro.tidex.operator_run_receipt/v1".into(),
+        schema: "tidex.operator_run_receipt/v1".into(),
         run_id: run_id.clone(),
         recipe_id: recipe.id,
         executor_id,
@@ -1969,7 +1969,7 @@ fn execute_behavioral_discovery_workflow_cancelable(
     request: &BehavioralDiscoveryWorkflowRequest,
     cancellation: Option<&AtomicBool>,
 ) -> BrainResult<OperatorRunReceipt> {
-    if request.schema != "cerebro.tidex.operator_behavioral_discovery/v1"
+    if request.schema != "tidex.operator_behavioral_discovery/v1"
         || request.model_ids.len() < 2
         || request.model_ids.len() > 64
         || request.max_new_tokens == 0
@@ -1992,7 +1992,7 @@ fn execute_behavioral_discovery_workflow_cancelable(
     let benchmark_bytes = fs::read(&dataset.artifact)?;
     let benchmark: serde_json::Value = serde_json::from_slice(&benchmark_bytes)?;
     if benchmark.get("schema").and_then(|v| v.as_str())
-        != Some("cerebro.cross_model.behavioral_benchmark/v1")
+        != Some("tidex.cross_model.behavioral_benchmark/v1")
     {
         return Err(BrainError::Invalid("dataset_is_not_behavioral_benchmark".into()));
     }
@@ -2041,7 +2041,7 @@ fn execute_behavioral_discovery_workflow_cancelable(
             .map(|o| o.remove("catalog_label"));
     }
     let runtime = serde_json::json!({
-        "schema":"cerebro.cross_model.runtime/v2",
+        "schema":"tidex.cross_model.runtime/v2",
         "models":models,
         "maximum_stored_capabilities":100000
     });
@@ -2056,7 +2056,7 @@ fn execute_behavioral_discovery_workflow_cancelable(
     execute_operator_run_cancelable(
         tidex_home,
         &OperatorRunRequest {
-            schema: "cerebro.tidex.operator_run_request/v1".into(),
+            schema: "tidex.operator_run_request/v1".into(),
             recipe_id: "cross_model.discovery_cycle".into(),
             assets: vec![runtime_path, dataset.artifact],
             selected_model_ids: request.model_ids.clone(),
@@ -2139,7 +2139,7 @@ pub fn operator_info(tidex_home: &Path) -> BrainResult<OperatorInfo> {
         .is_some_and(|python| python_module_available(python, "nnsight"));
     let bound_sparse_dictionary = false;
     Ok(OperatorInfo {
-        schema: "cerebro.tidex.operator_info/v1".into(),
+        schema: "tidex.operator_info/v1".into(),
         engine: env!("CARGO_PKG_NAME").into(),
         operator_home: tidex_home.to_path_buf(),
         default_model_scan_root,
@@ -2197,7 +2197,7 @@ fn execute_direct_workflow_cancelable(
     request: &OperatorDirectWorkflowRequest,
     cancellation: Option<&AtomicBool>,
 ) -> BrainResult<OperatorRunReceipt> {
-    if request.schema != "cerebro.tidex.operator_direct_workflow/v1" {
+    if request.schema != "tidex.operator_direct_workflow/v1" {
         return Err(BrainError::Invalid("operator_direct_workflow_schema_invalid".into()));
     }
     let expected_models = match request.operation {
@@ -2299,7 +2299,7 @@ fn execute_direct_workflow_cancelable(
         let bytes = fs::read(&dataset.artifact)?;
         let benchmark: serde_json::Value = serde_json::from_slice(&bytes)?;
         if benchmark.get("schema").and_then(|v| v.as_str())
-            != Some("cerebro.cross_model.behavioral_benchmark/v1")
+            != Some("tidex.cross_model.behavioral_benchmark/v1")
         {
             return Err(BrainError::Invalid("dataset_is_not_behavioral_benchmark".into()));
         }
@@ -2322,7 +2322,7 @@ fn execute_direct_workflow_cancelable(
     execute_operator_run_cancelable(
         tidex_home,
         &OperatorRunRequest {
-            schema: "cerebro.tidex.operator_run_request/v1".into(),
+            schema: "tidex.operator_run_request/v1".into(),
             recipe_id: "operator.direct_runner".into(),
             assets: vec![path],
             selected_model_ids: request.model_ids.clone(),
@@ -2408,7 +2408,7 @@ pub struct OperatorPlasticityAdvice {
 #[cfg(not(feature = "cross-model-plasticity"))]
 fn empty_plasticity_advice(notes: Vec<String>) -> OperatorPlasticityAdvice {
     OperatorPlasticityAdvice {
-        schema: "cerebro.tidex.operator_plasticity_advice/v2".into(),
+        schema: "tidex.operator_plasticity_advice/v2".into(),
         available: false,
         source_jobs: 0,
         elo_leaderboard: Vec::new(),
@@ -2465,10 +2465,10 @@ pub fn compute_operator_plasticity_advice(
             Err(_) => continue,
         };
         let schema = value.get("schema").and_then(serde_json::Value::as_str);
-        if schema == Some("cerebro.cross_model.discovery_cycle/v1") {
+        if schema == Some("tidex.cross_model.discovery_cycle/v1") {
             discovery_reports.push(value.clone());
         }
-        if schema == Some("cerebro.tidex.operator_activation_transfer/v1") {
+        if schema == Some("tidex.operator_activation_transfer/v1") {
             if let (Some(capability), Some(target), Some(receipt)) = (
                 value
                     .get("capability_name")
@@ -2486,13 +2486,13 @@ pub fn compute_operator_plasticity_advice(
                 });
             }
         }
-        let evaluations = if schema == Some("cerebro.cross_model.discovery_cycle/v1") {
+        let evaluations = if schema == Some("tidex.cross_model.discovery_cycle/v1") {
             value
                 .get("evaluations")
                 .and_then(serde_json::Value::as_array)
                 .cloned()
                 .unwrap_or_default()
-        } else if schema == Some("cerebro.cross_model.model_evaluation/v1") {
+        } else if schema == Some("tidex.cross_model.model_evaluation/v1") {
             vec![value]
         } else {
             Vec::new()
@@ -2599,7 +2599,7 @@ pub fn compute_operator_plasticity_advice(
                 }
                 let first_observed = (0.5 + (first.score - second.score) / 2.0).clamp(0.0, 1.0);
                 let evidence = Sha256Digest::digest_domain(
-                    b"CEREBRO:TIDEX:OPERATOR-ELO-PAIR:v1\0",
+                    b"TIDEX:OPERATOR-ELO-PAIR:v1\0",
                     &serde_json::to_vec(&(
                         benchmark,
                         &first.model,
@@ -2702,7 +2702,7 @@ pub fn compute_operator_plasticity_advice(
             let max_score = scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
             let spread = (max_score - min_score).clamp(0.0, 1.0);
             let evidence = Sha256Digest::digest_domain(
-                b"CEREBRO:TIDEX:OPERATOR-NEUROMODULATION:v1\0",
+                b"TIDEX:OPERATOR-NEUROMODULATION:v1\0",
                 &serde_json::to_vec(&(
                     benchmark,
                     rows.iter()
@@ -2870,7 +2870,7 @@ pub fn compute_operator_plasticity_advice(
     let available = !elo_entities.is_empty() || !routing_decisions.is_empty();
 
     Ok(OperatorPlasticityAdvice {
-        schema: "cerebro.tidex.operator_plasticity_advice/v2".into(),
+        schema: "tidex.operator_plasticity_advice/v2".into(),
         available,
         source_jobs,
         elo_leaderboard,
@@ -2893,8 +2893,8 @@ pub fn compute_operator_plasticity_advice(
     Ok(empty_plasticity_advice(vec!["cross-model-plasticity feature disabled".into()]))
 }
 
-const OPERATOR_LIVING_STAIRCASE_SCHEMA: &str = "cerebro.tidex.operator_living_staircase/v1";
-const OPERATOR_LIVING_STAIRCASE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:OPERATOR-LIVING-STAIRCASE:v1\0";
+const OPERATOR_LIVING_STAIRCASE_SCHEMA: &str = "tidex.operator_living_staircase/v1";
+const OPERATOR_LIVING_STAIRCASE_DOMAIN: &[u8] = b"TIDEX:OPERATOR-LIVING-STAIRCASE:v1\0";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -2946,7 +2946,7 @@ fn empty_discovery_binding() -> OperatorDiscoveryBinding {
 
 fn discovery_binding_from_value(value: &serde_json::Value) -> OperatorDiscoveryBinding {
     if value.get("schema").and_then(serde_json::Value::as_str)
-        != Some("cerebro.cross_model.discovery_cycle/v1")
+        != Some("tidex.cross_model.discovery_cycle/v1")
     {
         return empty_discovery_binding();
     }
@@ -3478,7 +3478,7 @@ const OPERATOR_HTML: &str = r#"<!doctype html>
 <option value="calibrate_alignment">Calibrar alineamiento entre dos LLM</option>
 <option value="activation_transfer_experiment">Experimento real de transferencia por steering A→B</option>
 </select><div id="params" class="work"></div><button id="runBtn" class="primary" data-i18n-key="runWork" onclick="runWorkflow()">Ejecutar workflow</button><button id="cancelBtn" data-i18n-key="cancelJob" onclick="cancelActiveJob()" disabled>Cancelar job activo</button></section>
-<section class="panel"><h2 data-i18n-key="datasetTitle">3 · Artefactos y datasets</h2><div class="muted" data-i18n-key="datasetHelp">Para benchmarks usa el schema <code>cerebro.cross_model.behavioral_benchmark/v1</code>. Los datasets generados quedan marcados como artefactos no independientes.</div><input id="datasetFile" type="file"><div class="row"><input id="dsName" placeholder="nombre del dataset"><select id="dsGenerated"><option value="false">externo / independiente</option><option value="true">generado / no independiente</option></select></div><button onclick="importFileDataset()">Importar artefacto</button><h3>Crear benchmark</h3><input id="benchId" placeholder="benchmark id"><input id="benchDomain" placeholder="dominio / capacidad"><textarea id="benchRows" placeholder="Una prueba por línea: prompt => respuesta esperada"></textarea><button onclick="createBenchmark()">Crear benchmark exacto</button><h3>Datasets disponibles</h3><div id="datasets"></div></section>
+<section class="panel"><h2 data-i18n-key="datasetTitle">3 · Artefactos y datasets</h2><div class="muted" data-i18n-key="datasetHelp">Para benchmarks usa el schema <code>tidex.cross_model.behavioral_benchmark/v1</code>. Los datasets generados quedan marcados como artefactos no independientes.</div><input id="datasetFile" type="file"><div class="row"><input id="dsName" placeholder="nombre del dataset"><select id="dsGenerated"><option value="false">externo / independiente</option><option value="true">generado / no independiente</option></select></div><button onclick="importFileDataset()">Importar artefacto</button><h3>Crear benchmark</h3><input id="benchId" placeholder="benchmark id"><input id="benchDomain" placeholder="dominio / capacidad"><textarea id="benchRows" placeholder="Una prueba por línea: prompt => respuesta esperada"></textarea><button onclick="createBenchmark()">Crear benchmark exacto</button><h3>Datasets disponibles</h3><div id="datasets"></div></section>
 </div>
 </section>
 <section class="panel result"><div class="tabs"><button onclick="showTab('result')">Resultado · evidencia</button><button onclick="showTab('history')">Historial · jobs</button><button onclick="showTab('executors')">Ejecutores · contratos</button><button onclick="showTab('plasticity')">Plasticidad · aprendizaje</button><button onclick="showTab('advanced')">Operaciones avanzadas · autorías</button></div><div id="resultTab"><div id="summary"><p class="muted">Selecciona modelos, workflow y artefactos. La salida representa la evidencia del trabajo real, no una promesa de producción.</p></div><details class="raw-toggle"><summary>JSON / evidencia cruda</summary><pre id="output">Sin ejecución.</pre></details></div><div id="historyTab" class="hidden"><div id="history" class="history"></div></div><div id="executorsTab" class="hidden"><div id="executors" class="history"></div></div><div id="plasticityTab" class="hidden"><div id="plasticity" class="history"></div></div><div id="advancedTab" class="hidden"><div class="muted">Autoridades canónicas del runtime: cada receta mantiene su propósito, su contrato y su ámbito de producción. Para casos normales usa el pipeline principal y su evidencia.</div><textarea id="assets" placeholder="Una ruta absoluta por línea para recetas de runtime"></textarea><div id="recipes" class="recipe-grid"></div></div></section>
@@ -3490,7 +3490,7 @@ const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'
 const pct=v=>`${(Number(v||0)*100).toFixed(1)}%`;
 const translations={
   es:{
-    operatorTitle:'TIDE-X',operatorSubtitle:'Modelos → objetivos → workflow real → evidencia y gobernanza',langButton:'English',ui:{modelsTitle:'1 · Modelos',modelsHelp:'Selecciona uno para análisis o dos o más para comparación, alineación o transferencia real.',modelRootPlaceholder:'directorio de modelos',scan:'Escanear',workTitle:'2 · Workflow / ejecución',runWork:'Ejecutar workflow',cancelJob:'Cancelar job activo',datasetTitle:'3 · Artefactos y datasets',datasetHelp:'Para benchmarks usa el schema cerebro.cross_model.behavioral_benchmark/v1. Los datasets generados quedan marcados como artefactos no independientes.'},
+    operatorTitle:'TIDE-X',operatorSubtitle:'Modelos → objetivos → workflow real → evidencia y gobernanza',langButton:'English',ui:{modelsTitle:'1 · Modelos',modelsHelp:'Selecciona uno para análisis o dos o más para comparación, alineación o transferencia real.',modelRootPlaceholder:'directorio de modelos',scan:'Escanear',workTitle:'2 · Workflow / ejecución',runWork:'Ejecutar workflow',cancelJob:'Cancelar job activo',datasetTitle:'3 · Artefactos y datasets',datasetHelp:'Para benchmarks usa el schema tidex.cross_model.behavioral_benchmark/v1. Los datasets generados quedan marcados como artefactos no independientes.'},
     states:{queued:'en cola',running:'ejecutando',completed:'completado',failed:'fallido',cancelled:'cancelado'},
     categories:{acquisition:'Adquisición',discovery:'Descubrimiento',learning:'Aprendizaje',benchmark:'Benchmark',receiver:'Receptor',materialization:'Materialización',evaluation:'Evaluación',governance:'Gobernanza',lifecycle:'Ciclo de vida'},
     operations:{behavioral_discovery:'descubrimiento conductual',probe_runtime:'comprobación de runtime',behavioral_evaluation:'evaluación conductual',extract_capability:'extracción de capacidad',deep_instrumentation:'instrumentación profunda',sparse_autoencoder_analysis:'análisis SAE',counterfactual_analysis:'análisis contrafactual',calibrate_alignment:'calibración de alineamiento',activation_transfer_experiment:'experimento de transferencia de activación',generate_behavioral_dataset:'generación de dataset conductual'},
@@ -3532,7 +3532,7 @@ const translations={
       'adapter.status':['Verificar historial de AdapterBank','Verifica el historial completo enlazado por hash de AdapterBank.']
     }
   },
-  en:{operatorTitle:'TIDE-X Control',operatorSubtitle:'Models → goals → workflow → real execution → evidence and governance',langButton:'Español',ui:{modelsTitle:'1 · Models',modelsHelp:'Select one for analysis or two or more for real comparison, alignment or transfer.',modelRootPlaceholder:'models directory',scan:'Scan',workTitle:'2 · Workflow / execution',runWork:'Run workflow',cancelJob:'Cancel active job',datasetTitle:'3 · Artifacts and datasets',datasetHelp:'For benchmarks use schema cerebro.cross_model.behavioral_benchmark/v1. Generated datasets are marked as non-independent artifacts.'},states:{queued:'queued',running:'running',completed:'completed',failed:'failed',cancelled:'cancelled'},categories:{acquisition:'Acquisition',discovery:'Discovery',learning:'Learning',benchmark:'Benchmark',receiver:'Receiver',materialization:'Materialization',evaluation:'Evaluation',governance:'Governance',lifecycle:'Lifecycle'},operations:{behavioral_discovery:'behavioral discovery',probe_runtime:'runtime probe',behavioral_evaluation:'behavioral evaluation',extract_capability:'capability extraction',deep_instrumentation:'deep instrumentation',sparse_autoencoder_analysis:'SAE analysis',counterfactual_analysis:'counterfactual analysis',calibrate_alignment:'alignment calibration',activation_transfer_experiment:'activation transfer experiment',generate_behavioral_dataset:'behavioral dataset generation'},recipes:{}}
+  en:{operatorTitle:'TIDE-X Control',operatorSubtitle:'Models → goals → workflow → real execution → evidence and governance',langButton:'Español',ui:{modelsTitle:'1 · Models',modelsHelp:'Select one for analysis or two or more for real comparison, alignment or transfer.',modelRootPlaceholder:'models directory',scan:'Scan',workTitle:'2 · Workflow / execution',runWork:'Run workflow',cancelJob:'Cancel active job',datasetTitle:'3 · Artifacts and datasets',datasetHelp:'For benchmarks use schema tidex.cross_model.behavioral_benchmark/v1. Generated datasets are marked as non-independent artifacts.'},states:{queued:'queued',running:'running',completed:'completed',failed:'failed',cancelled:'cancelled'},categories:{acquisition:'Acquisition',discovery:'Discovery',learning:'Learning',benchmark:'Benchmark',receiver:'Receiver',materialization:'Materialization',evaluation:'Evaluation',governance:'Governance',lifecycle:'Lifecycle'},operations:{behavioral_discovery:'behavioral discovery',probe_runtime:'runtime probe',behavioral_evaluation:'behavioral evaluation',extract_capability:'capability extraction',deep_instrumentation:'deep instrumentation',sparse_autoencoder_analysis:'SAE analysis',counterfactual_analysis:'counterfactual analysis',calibrate_alignment:'alignment calibration',activation_transfer_experiment:'activation transfer experiment',generate_behavioral_dataset:'behavioral dataset generation'},recipes:{}}
 };
 let currentLanguage=localStorage.getItem('tidex.operator.language')==='en'?'en':'es';
 const trState=v=>translations[currentLanguage].states[v]||v;
@@ -3587,7 +3587,7 @@ function renderRuntimeProbe(x){const a=x.access||{},m=x.model||{};return `<div c
 function renderGeneratedBenchmark(x){state.generatedBenchmark=x.benchmark||null;const probes=x.benchmark?.probes||[];return `<div class="metric-grid">${metric('generator',x.generator_model||'-')}${metric('probes',probes.length)}${metric('dominio',x.benchmark?.domain||'-')}${metric('independiente',x.independent_evidence?'SÍ':'NO',x.independent_evidence?'good':'warn')}</div><div class="result-card"><b>${esc(x.benchmark?.benchmark_id||'benchmark generado')}</b><div class="muted">${esc(x.generation_response_sha256||'')}</div></div><div class="section-title">Probes generados</div>${probes.slice(0,50).map(p=>`<div class="obs"><b>${esc(p.probe_id)}</b><div>${esc(p.prompt)}</div><div class="muted">verifier: ${esc(JSON.stringify(p.verifier))}</div></div>`).join('')}<button class="primary" onclick="saveGeneratedBenchmark()">Guardar benchmark generado</button>`}
 async function saveGeneratedBenchmark(){try{if(!state.generatedBenchmark)throw Error('No hay benchmark generado');const name=state.generatedBenchmark.benchmark_id||'generated-benchmark';const v=await jpost('/api/datasets/import',{name,format:'json',content:JSON.stringify(state.generatedBenchmark),generated:true});state.selectedDataset=v.content_sha256;await reload();const radio=document.querySelector(`input[name=ds][value="${v.content_sha256}"]`);if(radio)radio.checked=true;out(v)}catch(e){out(e.message)}}
 function renderGeneric(x){if(Array.isArray(x))return `<div class="metric-grid">${metric('resultados',x.length)}</div>${x.slice(0,50).map(v=>`<div class="result-card"><pre>${esc(JSON.stringify(v,null,2))}</pre></div>`).join('')}`;if(x?.steering_vector)return `<div class="metric-grid">${metric('capacidad',x.steering_vector?.metadata?.name||'-')}${metric('confianza',pct(x.steering_vector?.metadata?.confidence))}${metric('capa',x.steering_vector?.metadata?.source_layer??'-')}${metric('componentes',(x.components||[]).length)}</div>`;if(x?.calibration_sha256)return `<div class="metric-grid">${metric('source',x.source_model||'-')}${metric('target',x.target_model||'-')}${metric('source layer',x.source_layer)}${metric('target layer',x.target_layer)}${metric('calibration',String(x.calibration_sha256).slice(0,12)+'…')}</div>`;return `<div class="result-card"><pre>${esc(JSON.stringify(x,null,2))}</pre></div>`}
-function renderJob(job){raw(job);const box=$('summary');const stateLabel=currentLanguage==='es'?'estado':'state',operationLabel=currentLanguage==='es'?'operación':'operation';if(job.state==='queued'||job.state==='running'){box.innerHTML=`<div class="metric-grid">${metric(stateLabel,trState(job.state),'running')}${metric(operationLabel,trOperation(job.operation))}${metric('job',job.job_id.slice(0,12)+'…')}</div><div class="muted">${currentLanguage==='es'?'El trabajo sigue ejecutándose. El resultado persistirá aunque cierres esta pestaña.':'The job is still running. Its result will persist even if you close this tab.'}</div>`;return}if(job.state==='failed'){box.innerHTML=`<div class="metric-grid">${metric(stateLabel,trState(job.state),'bad')}${metric(operationLabel,trOperation(job.operation))}</div><div class="result-card bad">${esc(job.error||(currentLanguage==='es'?'error desconocido':'unknown error'))}</div>`;return}const x=parseRunStdout(job);if(!x){box.innerHTML=`<div class="metric-grid">${metric(stateLabel,trState(job.state),'good')}${metric(operationLabel,trOperation(job.operation))}</div><div class="muted">${currentLanguage==='es'?'La ejecución terminó, pero la salida no es JSON estructurado.':'Execution finished, but the output is not structured JSON.'}</div>`;return}if(x.schema==='cerebro.cross_model.discovery_cycle/v1')box.innerHTML=renderDiscovery(x);else if(x.schema==='cerebro.cross_model.model_evaluation/v1')box.innerHTML=renderEvaluation(x);else if(x.schema==='cerebro.tidex.operator_activation_transfer/v1')box.innerHTML=renderTransfer(x);else if(x.schema==='cerebro.tidex.operator_runtime_probe/v1')box.innerHTML=renderRuntimeProbe(x);else if(x.schema==='cerebro.tidex.operator_generated_benchmark/v1')box.innerHTML=renderGeneratedBenchmark(x);else box.innerHTML=renderGeneric(x)}
+function renderJob(job){raw(job);const box=$('summary');const stateLabel=currentLanguage==='es'?'estado':'state',operationLabel=currentLanguage==='es'?'operación':'operation';if(job.state==='queued'||job.state==='running'){box.innerHTML=`<div class="metric-grid">${metric(stateLabel,trState(job.state),'running')}${metric(operationLabel,trOperation(job.operation))}${metric('job',job.job_id.slice(0,12)+'…')}</div><div class="muted">${currentLanguage==='es'?'El trabajo sigue ejecutándose. El resultado persistirá aunque cierres esta pestaña.':'The job is still running. Its result will persist even if you close this tab.'}</div>`;return}if(job.state==='failed'){box.innerHTML=`<div class="metric-grid">${metric(stateLabel,trState(job.state),'bad')}${metric(operationLabel,trOperation(job.operation))}</div><div class="result-card bad">${esc(job.error||(currentLanguage==='es'?'error desconocido':'unknown error'))}</div>`;return}const x=parseRunStdout(job);if(!x){box.innerHTML=`<div class="metric-grid">${metric(stateLabel,trState(job.state),'good')}${metric(operationLabel,trOperation(job.operation))}</div><div class="muted">${currentLanguage==='es'?'La ejecución terminó, pero la salida no es JSON estructurado.':'Execution finished, but the output is not structured JSON.'}</div>`;return}if(x.schema==='tidex.cross_model.discovery_cycle/v1')box.innerHTML=renderDiscovery(x);else if(x.schema==='tidex.cross_model.model_evaluation/v1')box.innerHTML=renderEvaluation(x);else if(x.schema==='tidex.operator_activation_transfer/v1')box.innerHTML=renderTransfer(x);else if(x.schema==='tidex.operator_runtime_probe/v1')box.innerHTML=renderRuntimeProbe(x);else if(x.schema==='tidex.operator_generated_benchmark/v1')box.innerHTML=renderGeneratedBenchmark(x);else box.innerHTML=renderGeneric(x)}
 const out=v=>{raw(v);if(v&&typeof v==='object'&&v.state)renderJob(v);else $('summary').innerHTML=`<div class="result-card"><pre>${esc(typeof v==='string'?v:JSON.stringify(v,null,2))}</pre></div>`};
 async function jget(url){const r=await fetch(url);const t=await r.text();if(!r.ok)throw Error(t);return JSON.parse(t)}
 async function jpost(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const t=await r.text();let v;try{v=JSON.parse(t)}catch{v=t}if(!r.ok)throw Error(typeof v==='string'?v:JSON.stringify(v));return v}
@@ -3604,7 +3604,7 @@ function renderDatasets(){const box=$('datasets');box.innerHTML=state.datasets.m
 async function reload(){state.models=await jget('/api/models');state.profiles=await jget('/api/model-profiles');state.runtimeStatuses=await jget('/api/model-runtime-statuses');state.datasets=await jget('/api/datasets');state.executors=await jget('/api/executors');state.plasticity=await jget('/api/plasticity');state.graph=await jget('/api/graph');state.staircase=await jget('/api/staircase');renderModels();renderDatasets();renderExecutors();renderPlasticity();renderGraphStatus();renderStaircaseStatus();renderAreas();if(state.goalPipeline.length)buildGoalPipeline()}
 async function scanModels(){try{state.models=await jpost('/api/models/scan',{root:$('modelRoot').value});renderModels();out({modelos_encontrados:state.models.length})}catch(e){out(e.message)}}
 async function importFileDataset(){try{const f=$('datasetFile').files[0];if(!f)throw Error('Selecciona un archivo');const content=await f.text();const name=$('dsName').value.trim()||f.name.replace(/[^A-Za-z0-9_.-]/g,'_');const ext=f.name.split('.').pop().toLowerCase();const format=['json','jsonl','csv'].includes(ext)?ext:'text';const v=await jpost('/api/datasets/import',{name,format,content,generated:$('dsGenerated').value==='true'});state.selectedDataset=v.content_sha256;await reload();const radio=document.querySelector(`input[name=ds][value="${v.content_sha256}"]`);if(radio)radio.checked=true;out(v)}catch(e){out(e.message)}}
-async function createBenchmark(){try{const id=$('benchId').value.trim();const domain=$('benchDomain').value.trim();const rows=$('benchRows').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!id||!domain||rows.length<2)throw Error('Indica benchmark id, dominio y al menos 2 pruebas');const probes=rows.map((row,i)=>{const parts=row.split('=>');if(parts.length<2)throw Error(`Línea ${i+1}: usa prompt => respuesta`);const prompt=parts.shift().trim(),expected=parts.join('=>').trim();if(!prompt||!expected)throw Error(`Línea ${i+1}: prompt/respuesta vacíos`);return{probe_id:`p${i+1}`,prompt,verifier:{kind:'exact_text',expected,trim:true,case_sensitive:true},weight:1.0}});const content=JSON.stringify({schema:'cerebro.cross_model.behavioral_benchmark/v1',benchmark_id:id,domain,probes,minimum_mean_gap:0.0,significance_alpha:0.05});const v=await jpost('/api/datasets/import',{name:id,format:'json',content,generated:true});state.selectedDataset=v.content_sha256;await reload();const radio=document.querySelector(`input[name=ds][value="${v.content_sha256}"]`);if(radio)radio.checked=true;out(v)}catch(e){out(e.message)}}
+async function createBenchmark(){try{const id=$('benchId').value.trim();const domain=$('benchDomain').value.trim();const rows=$('benchRows').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!id||!domain||rows.length<2)throw Error('Indica benchmark id, dominio y al menos 2 pruebas');const probes=rows.map((row,i)=>{const parts=row.split('=>');if(parts.length<2)throw Error(`Línea ${i+1}: usa prompt => respuesta`);const prompt=parts.shift().trim(),expected=parts.join('=>').trim();if(!prompt||!expected)throw Error(`Línea ${i+1}: prompt/respuesta vacíos`);return{probe_id:`p${i+1}`,prompt,verifier:{kind:'exact_text',expected,trim:true,case_sensitive:true},weight:1.0}});const content=JSON.stringify({schema:'tidex.cross_model.behavioral_benchmark/v1',benchmark_id:id,domain,probes,minimum_mean_gap:0.0,significance_alpha:0.05});const v=await jpost('/api/datasets/import',{name:id,format:'json',content,generated:true});state.selectedDataset=v.content_sha256;await reload();const radio=document.querySelector(`input[name=ds][value="${v.content_sha256}"]`);if(radio)radio.checked=true;out(v)}catch(e){out(e.message)}}
 function input(id,label,value=''){return `<label class="muted">${label}<input id="${id}" value="${value}"></label>`}
 function area(id,label,ph=''){return `<label class="muted">${label}<textarea id="${id}" placeholder="${ph}"></textarea></label>`}
 function renderParams(){const op=$('operation').value;let h='<p class="muted">';
@@ -3623,15 +3623,15 @@ function parameters(op){if(op==='generate_behavioral_dataset')return{benchmark_i
 function ensureCompatible(op,models){const needs={behavioral_evaluation:['behavioral_inference'],behavioral_discovery_multi:['behavioral_inference'],extract_capability:['internal_activations'],deep_instrumentation:['deep_instrumentation'],sparse_autoencoder_analysis:['sparse_autoencoder_analysis'],counterfactual_analysis:['behavioral_inference'],calibrate_alignment:['internal_activations'],activation_transfer_experiment:['behavioral_inference','internal_activations','activation_intervention'],generate_behavioral_dataset:['behavioral_inference']};if(op==='probe_runtime')return;for(const id of models){const p=profileFor(id);if(!p)throw Error('Primero ejecuta Comprobar runtime para '+id.slice(0,12));for(const k of (needs[op]||[])){if(!p.access[k])throw Error(`Modelo ${id.slice(0,12)} no soporta ${k}`)}}}
 async function cancelActiveJob(){try{if(!state.activeJob)throw Error('No hay job activo');const v=await jpost('/api/jobs/'+state.activeJob+'/cancel',{});renderJob(v);await loadJobs()}catch(e){out(e.message)}}
 async function pollJob(job){state.activeJob=job.job_id;$('cancelBtn').disabled=false;renderJob(job);for(;;){await new Promise(r=>setTimeout(r,1000));const v=await jget('/api/jobs/'+job.job_id);renderJob(v);if(v.state==='completed'||v.state==='failed'||v.state==='cancelled'){if(v.operation==='probe_runtime'&&v.state==='completed')await reload();await loadJobs();state.activeJob=null;$('cancelBtn').disabled=true;return v}}}
-async function runWorkflow(){try{$('runBtn').disabled=true;$('runBtn').textContent='Ejecutando…';const op=$('operation').value,models=selectedModels();ensureCompatible(op,models);let job;if(op==='behavioral_discovery_multi'){if(models.length<2)throw Error('Selecciona al menos 2 modelos');if(!state.selectedDataset)throw Error('Selecciona un benchmark');job=await jpost('/api/workflows/behavioral-discovery',{schema:'cerebro.tidex.operator_behavioral_discovery/v1',model_ids:models,dataset_sha256:state.selectedDataset,max_new_tokens:128,seed:0})}else{job=await jpost('/api/workflows/direct',{schema:'cerebro.tidex.operator_direct_workflow/v1',operation:op,model_ids:models,dataset_sha256:state.selectedDataset,parameters:parameters(op)})}await pollJob(job)}catch(e){out(e.message)}finally{$('runBtn').disabled=false;$('runBtn').textContent='Ejecutar trabajo'}}
-function renderPlasticity(){const p=state.plasticity;if(!p){$('plasticity').innerHTML='<p class="muted">Sin señales plásticas calculadas.</p>';return}const jobs=(state.jobs||[]);const related=jobs.filter(j=>['behavioral_discovery','behavioral_evaluation','extract_capability','calibrate_alignment','activation_transfer_experiment'].includes(j.operation));const transfers=related.map(j=>({job:j,data:parseRunStdout(j)})).filter(x=>x.data?.schema==='cerebro.tidex.operator_activation_transfer/v1');const last=transfers[0]?.data;const leaders=((p.elo_entities||[]).length?p.elo_entities:(p.elo_leaderboard||[]).map(([entity,rating])=>({entity,rating,comparisons:0,last_evidence_sha256:null,last_update:null}))).map(x=>`<div class="result-card"><b>${esc(x.entity)}</b><div class="scorebar"><i style="width:${Math.max(0,Math.min(100,(Number(x.rating)-100)/29))}%"></i></div><div class="muted">rating ${Number(x.rating).toFixed(2)} · comparaciones ${Number(x.comparisons||0)}${x.last_evidence_sha256?' · evidencia '+esc(String(x.last_evidence_sha256).slice(0,12))+'…':''}</div></div>`).join('')||'<p class="muted">Sin pares suficientes para ELO.</p>';const routes=(p.routing_decisions||[]).map(r=>`<div class="result-card"><b>${esc(String(r.capability||'').startsWith('benchmark:')?'benchmark '+String(r.capability).slice(10):String(r.capability||''))} → ${esc(r.target_model)}</b><div class="muted">routing ${Number(r.routing_score||0).toFixed(4)} · medido ${Number(r.measured_score||0).toFixed(4)} · incertidumbre ${Number(r.uncertainty_bonus||0).toFixed(4)} · evidencia ${esc(String(r.evidence_sha256||'').slice(0,12))}…</div></div>`).join('')||'<p class="muted">Sin observaciones comparativas suficientes para routing.</p>';const experiments=related.map(j=>`<div class="history-item" onclick="openJob('${j.job_id}')"><span class="state ${j.state==='completed'?'good':(j.state==='failed'||j.state==='cancelled')?'bad':'running'}">${esc(trState(j.state))}</span><b>${esc(trOperation(j.operation))}</b><div class="muted">${esc(j.job_id.slice(0,16))}…${j.evidence_receipt?.evidence_sha256?' · evidence '+esc(j.evidence_receipt.evidence_sha256.slice(0,12))+'…':''}</div></div>`).join('')||'<p class="muted">Sin experimentos plásticos registrados.</p>';const learning=state.executors.filter(e=>e.executor_id.startsWith('plasticity.')||e.executor_id.startsWith('learning.')||e.executor_id==='numerical.evolve'||e.executor_id==='procedural.memory').map(e=>`<div class="executor-row"><span class="chip ${executorStateClass(e)}">${esc(executorStateLabel(e))}</span><b>${esc(e.title)}</b><div class="muted">${esc(e.executor_id)} · ${esc(e.notes||'')}</div>${executorCanRun(e)?`<button style="width:auto" onclick="activateExecutor('${e.executor_id}')">Abrir operación</button>`:`<details><summary>Contrato interno</summary><pre>${esc(JSON.stringify(e,null,2))}</pre></details>`}</div>`).join('');$('plasticity').innerHTML=`<div class="plasticity-tabs"><button onclick="switchPlasticityPane('state')">Estado</button><button onclick="switchPlasticityPane('experiments')">Experimentos</button><button onclick="switchPlasticityPane('elo')">Entidades / ELO</button><button onclick="switchPlasticityPane('routes')">Rutas</button><button onclick="switchPlasticityPane('learning')">Aprendizaje</button></div><div id="plasticity-state" class="plasticity-pane"><div class="metric-grid">${metric('disponible',p.available?'SÍ':'NO',p.available?'good':'bad')}${metric('jobs fuente',p.source_jobs||0)}${metric('ELO entities',(p.elo_leaderboard||[]).length)}${metric('rutas',(p.routing_decisions||[]).length)}${last?metric('último baseline',pct(last.baseline?.weighted_score)):''}${last?metric('último candidato',pct(last.intervened?.weighted_score),last.score_delta>0?'good':last.score_delta<0?'bad':''):''}${last?metric('delta',Number(last.score_delta||0).toFixed(4),last.score_delta>0?'good':last.score_delta<0?'bad':''):''}</div><div class="section-title">Notas de evidencia</div>${(p.notes||[]).map(n=>`<div class="muted">${esc(n)}</div>`).join('')||'<div class="muted">Sin notas.</div>'}</div><div id="plasticity-experiments" class="plasticity-pane hidden">${experiments}</div><div id="plasticity-elo" class="plasticity-pane hidden">${leaders}</div><div id="plasticity-routes" class="plasticity-pane hidden">${routes}</div><div id="plasticity-learning" class="plasticity-pane hidden">${learning||'<p class="muted">No hay ejecutores de aprendizaje registrados.</p>'}</div>`}
+async function runWorkflow(){try{$('runBtn').disabled=true;$('runBtn').textContent='Ejecutando…';const op=$('operation').value,models=selectedModels();ensureCompatible(op,models);let job;if(op==='behavioral_discovery_multi'){if(models.length<2)throw Error('Selecciona al menos 2 modelos');if(!state.selectedDataset)throw Error('Selecciona un benchmark');job=await jpost('/api/workflows/behavioral-discovery',{schema:'tidex.operator_behavioral_discovery/v1',model_ids:models,dataset_sha256:state.selectedDataset,max_new_tokens:128,seed:0})}else{job=await jpost('/api/workflows/direct',{schema:'tidex.operator_direct_workflow/v1',operation:op,model_ids:models,dataset_sha256:state.selectedDataset,parameters:parameters(op)})}await pollJob(job)}catch(e){out(e.message)}finally{$('runBtn').disabled=false;$('runBtn').textContent='Ejecutar trabajo'}}
+function renderPlasticity(){const p=state.plasticity;if(!p){$('plasticity').innerHTML='<p class="muted">Sin señales plásticas calculadas.</p>';return}const jobs=(state.jobs||[]);const related=jobs.filter(j=>['behavioral_discovery','behavioral_evaluation','extract_capability','calibrate_alignment','activation_transfer_experiment'].includes(j.operation));const transfers=related.map(j=>({job:j,data:parseRunStdout(j)})).filter(x=>x.data?.schema==='tidex.operator_activation_transfer/v1');const last=transfers[0]?.data;const leaders=((p.elo_entities||[]).length?p.elo_entities:(p.elo_leaderboard||[]).map(([entity,rating])=>({entity,rating,comparisons:0,last_evidence_sha256:null,last_update:null}))).map(x=>`<div class="result-card"><b>${esc(x.entity)}</b><div class="scorebar"><i style="width:${Math.max(0,Math.min(100,(Number(x.rating)-100)/29))}%"></i></div><div class="muted">rating ${Number(x.rating).toFixed(2)} · comparaciones ${Number(x.comparisons||0)}${x.last_evidence_sha256?' · evidencia '+esc(String(x.last_evidence_sha256).slice(0,12))+'…':''}</div></div>`).join('')||'<p class="muted">Sin pares suficientes para ELO.</p>';const routes=(p.routing_decisions||[]).map(r=>`<div class="result-card"><b>${esc(String(r.capability||'').startsWith('benchmark:')?'benchmark '+String(r.capability).slice(10):String(r.capability||''))} → ${esc(r.target_model)}</b><div class="muted">routing ${Number(r.routing_score||0).toFixed(4)} · medido ${Number(r.measured_score||0).toFixed(4)} · incertidumbre ${Number(r.uncertainty_bonus||0).toFixed(4)} · evidencia ${esc(String(r.evidence_sha256||'').slice(0,12))}…</div></div>`).join('')||'<p class="muted">Sin observaciones comparativas suficientes para routing.</p>';const experiments=related.map(j=>`<div class="history-item" onclick="openJob('${j.job_id}')"><span class="state ${j.state==='completed'?'good':(j.state==='failed'||j.state==='cancelled')?'bad':'running'}">${esc(trState(j.state))}</span><b>${esc(trOperation(j.operation))}</b><div class="muted">${esc(j.job_id.slice(0,16))}…${j.evidence_receipt?.evidence_sha256?' · evidence '+esc(j.evidence_receipt.evidence_sha256.slice(0,12))+'…':''}</div></div>`).join('')||'<p class="muted">Sin experimentos plásticos registrados.</p>';const learning=state.executors.filter(e=>e.executor_id.startsWith('plasticity.')||e.executor_id.startsWith('learning.')||e.executor_id==='numerical.evolve'||e.executor_id==='procedural.memory').map(e=>`<div class="executor-row"><span class="chip ${executorStateClass(e)}">${esc(executorStateLabel(e))}</span><b>${esc(e.title)}</b><div class="muted">${esc(e.executor_id)} · ${esc(e.notes||'')}</div>${executorCanRun(e)?`<button style="width:auto" onclick="activateExecutor('${e.executor_id}')">Abrir operación</button>`:`<details><summary>Contrato interno</summary><pre>${esc(JSON.stringify(e,null,2))}</pre></details>`}</div>`).join('');$('plasticity').innerHTML=`<div class="plasticity-tabs"><button onclick="switchPlasticityPane('state')">Estado</button><button onclick="switchPlasticityPane('experiments')">Experimentos</button><button onclick="switchPlasticityPane('elo')">Entidades / ELO</button><button onclick="switchPlasticityPane('routes')">Rutas</button><button onclick="switchPlasticityPane('learning')">Aprendizaje</button></div><div id="plasticity-state" class="plasticity-pane"><div class="metric-grid">${metric('disponible',p.available?'SÍ':'NO',p.available?'good':'bad')}${metric('jobs fuente',p.source_jobs||0)}${metric('ELO entities',(p.elo_leaderboard||[]).length)}${metric('rutas',(p.routing_decisions||[]).length)}${last?metric('último baseline',pct(last.baseline?.weighted_score)):''}${last?metric('último candidato',pct(last.intervened?.weighted_score),last.score_delta>0?'good':last.score_delta<0?'bad':''):''}${last?metric('delta',Number(last.score_delta||0).toFixed(4),last.score_delta>0?'good':last.score_delta<0?'bad':''):''}</div><div class="section-title">Notas de evidencia</div>${(p.notes||[]).map(n=>`<div class="muted">${esc(n)}</div>`).join('')||'<div class="muted">Sin notas.</div>'}</div><div id="plasticity-experiments" class="plasticity-pane hidden">${experiments}</div><div id="plasticity-elo" class="plasticity-pane hidden">${leaders}</div><div id="plasticity-routes" class="plasticity-pane hidden">${routes}</div><div id="plasticity-learning" class="plasticity-pane hidden">${learning||'<p class="muted">No hay ejecutores de aprendizaje registrados.</p>'}</div>`}
 function switchPlasticityPane(name){document.querySelectorAll('.plasticity-pane').forEach(x=>x.classList.add('hidden'));const pane=$('plasticity-'+name);if(pane)pane.classList.remove('hidden')}
 function renderExecutors(){const total=state.executors.length,operational=state.executors.filter(e=>e.state==='operational').length,implemented=state.executors.filter(e=>e.implementation_status==='implemented').length,actionable=state.executors.filter(executorActionable).length,runnable=state.executors.filter(executorCanRun).length,prod=state.executors.filter(e=>e.production_authority).length;const grouped={};for(const e of state.executors){(grouped[e.maturity||'unknown'] ||= []).push(e)}const order=['production_lifecycle','operational','operational_candidate','operational_advisory','needs_workflow','experimental','unknown'];$('executors').innerHTML=`<div class="metric-grid">${metric('registrados',total)}${metric('operativos contrato',operational,'good')}${metric('implementados',implemented,'good')}${metric('accionables',actionable,'good')}${metric('ejecutables UI/CLI',runnable)}${metric('autoridad producción',prod,prod===1?'good':'warn')}</div><div class="muted">Operativo aquí significa contrato implementado y rastreable. Madurez, evidencia y autoridad se muestran por separado para no mezclar candidatos/advisory con producción.</div>`+order.filter(k=>grouped[k]?.length).map(k=>`<div class="section-title">${esc(({production_lifecycle:'ciclo de vida producción',operational:'operativo',operational_candidate:'operativo candidato',operational_advisory:'operativo advisory',needs_workflow:'necesita workflow',experimental:'experimental',unknown:'desconocido'}[k]||k))} · ${grouped[k].length}</div>`+grouped[k].map(executorDetail).join('')).join('')||'<p class="muted">Sin ejecutores.</p>'}
 function showTab(t){$('resultTab').classList.toggle('hidden',t!=='result');$('historyTab').classList.toggle('hidden',t!=='history');$('executorsTab').classList.toggle('hidden',t!=='executors');$('plasticityTab').classList.toggle('hidden',t!=='plasticity');$('advancedTab').classList.toggle('hidden',t!=='advanced');if(t==='history')loadJobs();if(t==='executors')renderExecutors();if(t==='plasticity')renderPlasticity()}
 async function loadJobs(){try{const xs=await jget('/api/jobs');state.jobs=Array.isArray(xs)?xs:[];$('history').innerHTML=state.jobs.map(j=>`<div class="history-item" onclick="openJob('${j.job_id}')"><span class="state ${j.state==='completed'?'good':(j.state==='failed'||j.state==='cancelled')?'bad':'running'}">${esc(trState(j.state))}</span><b>${esc(trOperation(j.operation))}</b><div class="muted">${esc(j.job_id.slice(0,16))}… · ${new Date(Number(j.submitted_unix_ns||0)/1e6).toLocaleString()}${j.evidence_receipt?.evidence_sha256?' · evidence '+esc(j.evidence_receipt.evidence_sha256.slice(0,12))+'…':''}</div></div>`).join('')||`<p class="muted">${currentLanguage==='es'?'Sin ejecuciones todavía.':'No executions yet.'}</p>`;renderPlasticity()}catch(e){$('history').textContent=e.message}}
 async function openJob(id){try{const j=await jget('/api/jobs/'+id);showTab('result');renderJob(j)}catch(e){out(e.message)}}
 async function loadRecipes(){const xs=await jget('/api/recipes');state.recipes=Array.isArray(xs)?xs:[];$('recipes').innerHTML=state.recipes.map(x=>{const r=trRecipe(x);return `<div class="recipe" data-recipe-id="${esc(x.id)}"><b>${esc(r.title)}</b><span class="badge">${esc(trCategory(x.category))}</span><p class="muted">${esc(r.description)}</p><button onclick='runRaw(${JSON.stringify(JSON.stringify(x.id))})'>${currentLanguage==='es'?'Ejecutar':'Run'}</button></div>`}).join('');renderAreas();if(state.goalPipeline.length)renderGoalPipeline()}
-async function runRaw(encoded){try{const id=JSON.parse(encoded),assets=$('assets').value.split('\n').map(s=>s.trim()).filter(Boolean);out(await jpost('/api/runs',{schema:'cerebro.tidex.operator_run_request/v1',recipe_id:id,assets,selected_model_ids:[],dataset_sha256:null}))}catch(e){out(e.message)}}
+async function runRaw(encoded){try{const id=JSON.parse(encoded),assets=$('assets').value.split('\n').map(s=>s.trim()).filter(Boolean);out(await jpost('/api/runs',{schema:'tidex.operator_run_request/v1',recipe_id:id,assets,selected_model_ids:[],dataset_sha256:null}))}catch(e){out(e.message)}}
 (async()=>{try{state.info=await jget('/api/info');renderStatus();if(state.info.default_model_scan_root)$('modelRoot').value=state.info.default_model_scan_root;await reload();if(!state.models.length&&state.info.default_model_scan_root)await scanModels();await loadRecipes();await loadJobs();renderParams();setOperatorMode('system');buildGoalPipeline();applyLanguage()}catch(e){out(e.message);$('status').textContent=currentLanguage==='es'?'error de inicialización':'initialization error'}})();
 </script></body></html>"#;
 
@@ -3651,7 +3651,7 @@ mod tests {
         assert!(recipes.iter().any(|item| item.production_activation));
         let home = isolated_operator_home("production");
         let request = OperatorRunRequest {
-            schema: "cerebro.tidex.operator_run_request/v1".into(),
+            schema: "tidex.operator_run_request/v1".into(),
             recipe_id: "adapter.activate".into(),
             assets: Vec::new(),
             selected_model_ids: Vec::new(),
@@ -3691,7 +3691,7 @@ mod tests {
     fn operator_living_staircase_composes_plasticity_and_graph_without_production() {
         let home = isolated_operator_home("staircase");
         let receipt = compute_operator_living_staircase(&home).expect("staircase");
-        assert_eq!(receipt.schema, "cerebro.tidex.operator_living_staircase/v1");
+        assert_eq!(receipt.schema, "tidex.operator_living_staircase/v1");
         assert!(!receipt.knowledge_live);
         assert!(!receipt.authorizes_production);
         assert!(!receipt.discovery.present);
@@ -3795,13 +3795,15 @@ mod tests {
         std::os::unix::fs::symlink("../../blobs/weights", snap.join("model.safetensors")).unwrap();
 
         let home = isolated_operator_home("content-model-id");
-        let first = catalog_local_models(&home, &hub).expect("first catalog");
+        // Scan only this fixture repo so leftover hub snapshots cannot collide
+        // on content-identical model_ids.
+        let first = catalog_local_models(&home, &repo).expect("first catalog");
         let original = first
             .iter()
             .find(|model| model.root == snap)
             .expect("original model")
             .clone();
-        let repeated = discover_local_models(&hub).expect("repeat scan");
+        let repeated = discover_local_models(&repo).expect("repeat scan");
         let repeated = repeated
             .iter()
             .find(|model| model.root == snap)
@@ -3809,7 +3811,7 @@ mod tests {
         assert_eq!(original.model_id, repeated.model_id);
 
         fs::write(blobs.join("weights"), b"checkpoint-bytes-MUTATED").unwrap();
-        let second = catalog_local_models(&home, &hub).expect("recatalog after mutation");
+        let second = catalog_local_models(&home, &repo).expect("recatalog after mutation");
         let mutated = second
             .iter()
             .find(|model| model.root == snap)
@@ -3834,7 +3836,7 @@ mod tests {
         ));
         fs::write(&outside, b"not-in-vault").unwrap();
         let request = OperatorRunRequest {
-            schema: "cerebro.tidex.operator_run_request/v1".into(),
+            schema: "tidex.operator_run_request/v1".into(),
             recipe_id: "knowledge.plan".into(),
             assets: vec![outside.clone()],
             selected_model_ids: Vec::new(),
@@ -3863,7 +3865,7 @@ mod tests {
         let run_root = home.join("operator/runs/by-sha").join(run_id.as_str());
         fs::create_dir_all(&run_root).unwrap();
         let stdout = serde_json::json!({
-            "schema": "cerebro.cross_model.model_evaluation/v1",
+            "schema": "tidex.cross_model.model_evaluation/v1",
             "benchmark_id": benchmark,
             "benchmark_sha256": Sha256Digest::digest_bytes(benchmark.as_bytes()).as_str(),
             "evidence_sha256": Sha256Digest::digest_bytes(format!("{tag}-evidence").as_bytes()).as_str(),
@@ -3877,7 +3879,7 @@ mod tests {
         fs::write(&stdout_path, &stdout_bytes).unwrap();
         fs::write(&stderr_path, b"").unwrap();
         let record = OperatorJobRecord {
-            schema: "cerebro.tidex.operator_job/v1".into(),
+            schema: "tidex.operator_job/v1".into(),
             job_id,
             request_sha256: None,
             evidence_receipt: None,
@@ -3886,7 +3888,7 @@ mod tests {
             submitted_unix_ns,
             run: Some(OperatorRunView {
                 receipt: OperatorRunReceipt {
-                    schema: "cerebro.tidex.operator_run_receipt/v1".into(),
+                    schema: "tidex.operator_run_receipt/v1".into(),
                     run_id,
                     recipe_id: "operator.direct_runner".into(),
                     executor_id: Some("cross_model.evaluate".into()),
@@ -3983,7 +3985,7 @@ mod tests {
         let home = isolated_operator_home("jobs");
         let job_id = Sha256Digest::digest_bytes(b"operator-job-slim-test");
         let record = OperatorJobRecord {
-            schema: "cerebro.tidex.operator_job/v1".into(),
+            schema: "tidex.operator_job/v1".into(),
             job_id: job_id.clone(),
             request_sha256: None,
             evidence_receipt: None,
@@ -3992,7 +3994,7 @@ mod tests {
             submitted_unix_ns: 1,
             run: Some(OperatorRunView {
                 receipt: OperatorRunReceipt {
-                    schema: "cerebro.tidex.operator_run_receipt/v1".into(),
+                    schema: "tidex.operator_run_receipt/v1".into(),
                     run_id: Sha256Digest::digest_bytes(b"operator-run-slim-test"),
                     recipe_id: "operator.direct_runner".into(),
                     executor_id: None,
@@ -4030,7 +4032,7 @@ mod tests {
         let queued = start_operator_job(
             &home,
             OperatorJobRequest::Direct(OperatorDirectWorkflowRequest {
-                schema: "cerebro.tidex.operator_direct_workflow/v1".into(),
+                schema: "tidex.operator_direct_workflow/v1".into(),
                 operation: OperatorDirectOperation::ProbeRuntime,
                 model_ids: vec![missing_model],
                 dataset_sha256: None,

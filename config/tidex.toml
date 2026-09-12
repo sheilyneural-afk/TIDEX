@@ -1,4 +1,4 @@
-schema = "cerebro.cross_model.system/v1"
+schema = "tidex.cross_model.system/v1"
 
 [runtime]
 fail_closed = true

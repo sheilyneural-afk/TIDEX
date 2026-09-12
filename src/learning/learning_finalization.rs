@@ -25,7 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const LEARNING_FINALIZATION_INPUT_SCHEMA: &str = "cerebro.tidex.learning_finalization_input/v1";
+pub const LEARNING_FINALIZATION_INPUT_SCHEMA: &str = "tidex.learning_finalization_input/v1";
 const MAX_LEARNING_FINALIZATION_JSON_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Immutable mapping from an adaptive source observation to its sole staged
@@ -466,7 +466,7 @@ pub(crate) mod tests {
             risk_weight: 0.0,
         };
         let policy = AdaptiveLearningPolicy {
-            schema: "cerebro.tidex.adaptive_learning_policy/v1".into(),
+            schema: "tidex.adaptive_learning_policy/v1".into(),
             outcome_utility_weight: 1.0,
             maximize_observed_value: true,
         };
@@ -548,7 +548,7 @@ pub(crate) mod tests {
             write_or_verify_immutable(root, &support_path, &support_raw).unwrap();
 
             let evidence = LearningExperimentEvidence {
-                schema: "cerebro.tidex.learning_experiment_evidence/v1".into(),
+                schema: "tidex.learning_experiment_evidence/v1".into(),
                 session_id: SessionId::parse(session_name).unwrap(),
                 target_digest: started.receipt.target_digest.clone(),
                 aperture_id: step.aperture_id.clone(),
@@ -689,7 +689,7 @@ pub(crate) mod tests {
             risk_weight: 0.0,
         };
         let policy = AdaptiveLearningPolicy {
-            schema: "cerebro.tidex.adaptive_learning_policy/v1".into(),
+            schema: "tidex.adaptive_learning_policy/v1".into(),
             outcome_utility_weight: 1.0,
             maximize_observed_value: true,
         };

@@ -510,7 +510,7 @@ mod tests {
             .join(operation_key.as_str());
         fs::create_dir_all(&inflight).unwrap();
         let intent = LearningCorpusTransitionIntent {
-            schema: "cerebro.tidex.learning_corpus_transition_intent/v1".into(),
+            schema: "tidex.learning_corpus_transition_intent/v1".into(),
             operation_key: operation_key.clone(),
             session_id: SessionId::parse("session-recover").unwrap(),
             adaptive_receipt_sha256: Sha256Digest::digest_bytes(b"adaptive"),
@@ -568,7 +568,7 @@ mod tests {
             .advance_canonical_engine_head(HeadIncomplete::Clear, None, None)
             .unwrap();
         let status = engine.status().unwrap();
-        assert_eq!(status["schema"], "cerebro.tidex.status/v3");
+        assert_eq!(status["schema"], "tidex.status/v3");
         assert!(status.get("private_root").is_none());
         assert_eq!(status["revision"], 0);
         assert_eq!(status["skill_generation"], 3);
@@ -1061,7 +1061,7 @@ mod tests {
         engine.config.require_dual_space_for_promotion = true;
         let writer = ArtifactWriteAuthority::for_internal_root(&root).unwrap();
         let protocol = serde_json::json!({
-            "schema": "cerebro.tidex.representation_protocol/v1",
+            "schema": "tidex.representation_protocol/v1",
             "source_representation_sha256": Sha256Digest::digest_bytes(b"capture"),
             "probe_sha256": Sha256Digest::digest_bytes(b"probe"),
             "probe_text_sha256": Sha256Digest::digest_bytes(b"probe"),
@@ -1123,7 +1123,7 @@ mod tests {
         ));
 
         let bad_protocol = serde_json::json!({
-            "schema": "cerebro.tidex.representation_protocol/v1",
+            "schema": "tidex.representation_protocol/v1",
             "source_representation_sha256": Sha256Digest::digest_bytes(b"bad-capture"),
             "probe_sha256": Sha256Digest::digest_bytes(b"probe-a"),
             "probe_text_sha256": Sha256Digest::digest_bytes(b"probe-b"),
@@ -1275,7 +1275,7 @@ mod tests {
                 .unwrap(),
         ];
         let base_protocol = serde_json::json!({
-            "schema": "cerebro.tidex.representation_protocol/v1",
+            "schema": "tidex.representation_protocol/v1",
             "source_representation_sha256": Sha256Digest::digest_bytes(b"branch-capture"),
             "probe_sha256": Sha256Digest::digest_bytes(b"branch-probe"),
             "probe_text_sha256": Sha256Digest::digest_bytes(b"branch-probe"),
@@ -1541,7 +1541,7 @@ mod tests {
 
     fn single_field_causal_credit(skill_id: &SkillId) -> CausalCreditReport {
         CausalCreditReport {
-            schema: "cerebro.tidex.causal_credit/v3".into(),
+            schema: "tidex.causal_credit/v3".into(),
             context_count: 3,
             independent_group_count: 3,
             field_count: 1,
@@ -1653,12 +1653,12 @@ mod tests {
             ("schema", br#"{"schema":"wrong"}"#.as_slice(), "sleep_state_schema_invalid"),
             (
                 "cert",
-                br#"{"schema":"cerebro.tidex.sleep_state/v5","operation_key":"op","certification_status":"invalid","evidence_verification":{"verified":false}}"#.as_slice(),
+                br#"{"schema":"tidex.sleep_state/v5","operation_key":"op","certification_status":"invalid","evidence_verification":{"verified":false}}"#.as_slice(),
                 "certification_status_invalid",
             ),
             (
                 "receipt",
-                br#"{"schema":"cerebro.tidex.sleep_state/v5","operation_key":"missing-receipt","certification_status":"revoked","evidence_verification":{"verified":false}}"#.as_slice(),
+                br#"{"schema":"tidex.sleep_state/v5","operation_key":"missing-receipt","certification_status":"revoked","evidence_verification":{"verified":false}}"#.as_slice(),
                 "sleep_receipt_missing",
             ),
         ] {
@@ -1957,14 +1957,14 @@ mod tests {
         assert!(persistent_not_applicable_reason(&BrainError::Numerical("other".into())).is_none());
 
         let invocation = ControllerInvocation {
-            schema: "cerebro.tidex.controller_invocation/v1".into(),
+            schema: "tidex.controller_invocation/v1".into(),
             session_id: SessionId::parse("support-session").unwrap(),
             state_before: vec![1.0, 0.0],
             promoted_observation_semantic_sha256: Sha256Digest::digest_bytes(b"semantic"),
         };
         invocation.validate().unwrap();
         let receipt = ControllerExecutionReceipt {
-            schema: "cerebro.tidex.controller_execution_receipt/v1".into(),
+            schema: "tidex.controller_execution_receipt/v1".into(),
             session_id: invocation.session_id.clone(),
             invocation_sha256: Sha256Digest::parse(digest_json(&invocation).unwrap()).unwrap(),
             controller_receipt_sha256: Sha256Digest::digest_bytes(b"controller"),
@@ -2088,7 +2088,7 @@ mod tests {
         fs::create_dir_all(&inflight).unwrap();
 
         let intent = LearningCorpusTransitionIntent {
-            schema: "cerebro.tidex.learning_corpus_transition_intent/v1".into(),
+            schema: "tidex.learning_corpus_transition_intent/v1".into(),
             operation_key: operation_key.clone(),
             session_id: SessionId::parse("session-archive-rec").unwrap(),
             adaptive_receipt_sha256: Sha256Digest::digest_bytes(b"adaptive"),
@@ -2150,7 +2150,7 @@ mod tests {
         fs::create_dir_all(&inflight).unwrap();
 
         let intent = LearningCorpusTransitionIntent {
-            schema: "cerebro.tidex.learning_corpus_transition_intent/v1".into(),
+            schema: "tidex.learning_corpus_transition_intent/v1".into(),
             operation_key: operation_key.clone(),
             session_id: SessionId::parse("session-replay-rec").unwrap(),
             adaptive_receipt_sha256: Sha256Digest::digest_bytes(b"adaptive"),
@@ -2200,7 +2200,7 @@ mod tests {
         );
 
         let dummy_input = LearningFinalizationInput {
-            schema: "cerebro.tidex.learning_finalization_input/v1".into(),
+            schema: "tidex.learning_finalization_input/v1".into(),
             session_id: SessionId::parse("session-guard").unwrap(),
             adaptive_receipt_sha256: Sha256Digest::zero(),
             target_id: crate::foundation::identity::LearningTargetId::parse("t-1").unwrap(),
@@ -2596,7 +2596,7 @@ mod tests {
         ));
 
         // 2. Empty field_ids
-        route.schema = "cerebro.tidex.cognitive_field_routing/v1".into();
+        route.schema = "tidex.cognitive_field_routing/v1".into();
         route.field_ids = vec![];
         route.coefficients = vec![];
         route.selected_field_ids = vec![];
@@ -2950,7 +2950,7 @@ mod tests {
             format!("analysis-version:{label}").as_bytes(),
         ));
         let state = json!({
-            "schema":"cerebro.tidex.sleep_state/v5",
+            "schema":"tidex.sleep_state/v5",
             "operation_key":operation_key,
             "analysis_key":analysis_key,
             "corpus_digest":corpus_digest,
@@ -3019,7 +3019,7 @@ mod tests {
             &root,
             "sleep_transaction",
             json!({
-                "schema":"cerebro.tidex.sleep_transaction/v1",
+                "schema":"tidex.sleep_transaction/v1",
                 "operation_key":operation_key,
                 "analysis_key":analysis_key,
                 "corpus_digest":corpus_digest,
@@ -3037,7 +3037,7 @@ mod tests {
         )
         .unwrap();
         let receipt = SleepReceipt {
-            schema: "cerebro.tidex.sleep_receipt/v1".into(),
+            schema: "tidex.sleep_receipt/v1".into(),
             operation_key,
             analysis_key,
             report_sha256,
@@ -3203,7 +3203,7 @@ mod tests {
             engine.authorize_empty_bank_bootstrap(
                 true,
                 &serde_json::json!({
-                    "schema": "cerebro.tidex.sleep_state/v5",
+                    "schema": "tidex.sleep_state/v5",
                     "certification_status": "certified"
                 })
             ),
@@ -3215,7 +3215,7 @@ mod tests {
             engine.authorize_empty_bank_bootstrap(
                 true,
                 &serde_json::json!({
-                    "schema": "cerebro.tidex.sleep_state/v5",
+                    "schema": "tidex.sleep_state/v5",
                     "certification_status": "revoked",
                     "active_skill_count": 1,
                     "promoted": false,
@@ -3299,7 +3299,7 @@ mod tests {
 
         // 1. ControllerInvocation::validate contracts
         let valid_invocation = ControllerInvocation {
-            schema: "cerebro.tidex.controller_invocation/v1".into(),
+            schema: "tidex.controller_invocation/v1".into(),
             session_id: SessionId::parse("session-ctl").unwrap(),
             state_before: vec![1.0, 2.0],
             promoted_observation_semantic_sha256: Sha256Digest::digest_bytes(b"obs"),
@@ -3368,13 +3368,13 @@ mod tests {
     fn support_controller_execution_receipt_and_ledger_invariants() {
         let root = isolated_engine_root("ctl-exec-invariants");
         let invocation = ControllerInvocation {
-            schema: "cerebro.tidex.controller_invocation/v1".into(),
+            schema: "tidex.controller_invocation/v1".into(),
             session_id: SessionId::parse("session-test-ctl").unwrap(),
             state_before: vec![0.5, -0.2],
             promoted_observation_semantic_sha256: Sha256Digest::digest_bytes(b"semantic-obs"),
         };
         let receipt = ControllerExecutionReceipt {
-            schema: "cerebro.tidex.controller_execution_receipt/v1".into(),
+            schema: "tidex.controller_execution_receipt/v1".into(),
             session_id: invocation.session_id.clone(),
             invocation_sha256: Sha256Digest::parse(digest_json(&invocation).unwrap()).unwrap(),
             controller_receipt_sha256: Sha256Digest::digest_bytes(b"ctrl-receipt"),
@@ -3445,7 +3445,7 @@ mod tests {
 
         // 3. File has v1 schema -> historical only
         let v1_payload = serde_json::json!({
-            "schema": "cerebro.tidex.governed_composition_receipt/v1"
+            "schema": "tidex.governed_composition_receipt/v1"
         });
         let v1_bytes = serde_json::to_vec_pretty(&v1_payload).unwrap();
         let v1_sha = Sha256Digest::digest_bytes(&v1_bytes);
@@ -3462,7 +3462,7 @@ mod tests {
 
         // 4. File has unknown schema
         let bad_schema_payload = serde_json::json!({
-            "schema": "cerebro.tidex.unknown_composition_receipt/v99"
+            "schema": "tidex.unknown_composition_receipt/v99"
         });
         let bad_bytes = serde_json::to_vec_pretty(&bad_schema_payload).unwrap();
         let bad_sha = Sha256Digest::digest_bytes(&bad_bytes);
@@ -3485,7 +3485,7 @@ mod tests {
         let root = isolated_engine_root("close-inflight-invariants");
         let op_key = Sha256Digest::digest_bytes(b"target-op");
         let receipt = LearningFinalizationReceipt {
-            schema: "cerebro.tidex.learning_finalization_receipt/v1".into(),
+            schema: "tidex.learning_finalization_receipt/v1".into(),
             operation_key: op_key.clone(),
             session_id: SessionId::parse("session-inflight").unwrap(),
             adaptive_receipt_sha256: Sha256Digest::digest_bytes(b"adapt"),
@@ -3533,7 +3533,7 @@ mod tests {
         let root = isolated_engine_root("archive-invariants");
         let op_key = Sha256Digest::digest_bytes(b"archive-test-op");
         let mut receipt = LearningFinalizationReceipt {
-            schema: "cerebro.tidex.learning_finalization_receipt/v1".into(),
+            schema: "tidex.learning_finalization_receipt/v1".into(),
             operation_key: op_key.clone(),
             session_id: SessionId::parse("session-archive-test").unwrap(),
             adaptive_receipt_sha256: Sha256Digest::digest_bytes(b"adapt"),

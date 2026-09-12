@@ -13,7 +13,7 @@ Separar **números y políticas** del código Rust: governance, models, plastici
 
 | Path | Rol |
 |------|-----|
-| `tidex.toml` | Sistema cross-model / schema `cerebro.cross_model.system/*` |
+| `tidex.toml` | Sistema cross-model / schema `tidex.cross_model.system/*` |
 | `governance.toml` | Política de governance |
 | `models.toml` | Catálogo declarado de modelos (paths relativos a `runtime/` del crate) |
 | `plasticity.toml` | Control plane de plasticidad |

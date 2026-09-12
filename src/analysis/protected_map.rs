@@ -13,8 +13,8 @@ use std::path::Path;
 // v2/v3 distinguish metric-dual constraint vectors from the historical raw
 // covectors. Legacy maps must be rebuilt from their authenticated sensitivities;
 // relabelling their schema would silently retain the wrong projection contract.
-const PROTECTED_MAP_SCHEMA: &str = "cerebro.tidex.protected_cortex_map/v2";
-const PROTECTED_MAP_ARTIFACT_SCHEMA: &str = "cerebro.tidex.protected_cortex_map_artifact/v3";
+const PROTECTED_MAP_SCHEMA: &str = "tidex.protected_cortex_map/v2";
+const PROTECTED_MAP_ARTIFACT_SCHEMA: &str = "tidex.protected_cortex_map_artifact/v3";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SensitivityEvidence {
@@ -697,7 +697,7 @@ mod tests {
             },
         ];
         let mut map = build_protected_cortex_map(&evidence, 0.99, 1.0).unwrap();
-        assert_eq!(map.schema, "cerebro.tidex.protected_cortex_map/v2");
+        assert_eq!(map.schema, "tidex.protected_cortex_map/v2");
         let root = std::env::temp_dir().join(format!(
             "tidex-protected-map-dual-{}-{}",
             std::process::id(),
@@ -708,7 +708,7 @@ mod tests {
         ));
         fs::DirBuilder::new().mode(0o700).create(&root).unwrap();
         let mut stored = persist_protected_map(&root, &map).unwrap();
-        assert_eq!(stored.schema, "cerebro.tidex.protected_cortex_map_artifact/v3");
+        assert_eq!(stored.schema, "tidex.protected_cortex_map_artifact/v3");
         let loaded = load_protected_cortex(&root, &stored).unwrap();
         assert_eq!(loaded, map.cortex);
         let result = project_to_safe_subspace(&[1.0, 0.0, 3.0], &loaded).unwrap();
@@ -720,9 +720,9 @@ mod tests {
         );
 
         // Historical content is never silently treated as the new contract.
-        stored.schema = "cerebro.tidex.protected_cortex_map_artifact/v2".into();
+        stored.schema = "tidex.protected_cortex_map_artifact/v2".into();
         assert!(load_protected_cortex(&root, &stored).is_err());
-        map.schema = "cerebro.tidex.protected_cortex_map/v1".into();
+        map.schema = "tidex.protected_cortex_map/v1".into();
         assert!(persist_protected_map(&root, &map).is_err());
         fs::remove_dir_all(root).unwrap();
     }

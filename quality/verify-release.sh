@@ -59,7 +59,7 @@ for p in (manifest_path,sums_path,sbom_path):
 try: manifest=json.load(open(manifest_path,encoding='utf-8'))
 except Exception as e:
     print(f'release verification rejected: release_manifest_invalid:{e}',file=sys.stderr); raise SystemExit(2)
-if manifest.get('schema')!='cerebro.tidex.release_manifest/v1':
+if manifest.get('schema')!='tidex.release_manifest/v1':
     print('release verification rejected: release_manifest_schema_invalid',file=sys.stderr); raise SystemExit(2)
 if manifest.get('release_id')!=root.name:
     print('release verification rejected: release_manifest_id_mismatch',file=sys.stderr); raise SystemExit(2)

@@ -80,7 +80,7 @@ def dry_run_plan(model: str, tasks: list[str], extra_args: list[str]) -> dict:
     harness_present = HARNESS_ROOT.exists()
     cmd = build_command(model, tasks, extra_args)
     return {
-        "schema": "cerebro.tidex.external_lm_eval_plan/v1",
+        "schema": "tidex.external_lm_eval_plan/v1",
         "internal_gate": {
             "source": str(INTERNAL_REPORT),
             "summary": internal,
@@ -113,7 +113,7 @@ def run_external_benchmark(model: str, tasks: list[str], extra_args: list[str]) 
     cmd = build_command(model, tasks, extra_args)
     completed = subprocess.run(cmd, cwd=str(harness_root), env=env, capture_output=True, text=True)
     result = {
-        "schema": "cerebro.tidex.external_lm_eval_run/v1",
+        "schema": "tidex.external_lm_eval_run/v1",
         "interpreter": harness_python(),
         "command": cmd,
         "returncode": completed.returncode,

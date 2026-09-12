@@ -84,7 +84,7 @@ impl ActivationSteeringLayout {
         hooks: Vec<ActivationHookProjection>,
     ) -> BrainResult<Self> {
         let mut result = Self {
-            schema: "cerebro.tidex.activation_steering_layout/v1".into(),
+            schema: "tidex.activation_steering_layout/v1".into(),
             receiver_layout_sha256: receiver_layout.manifest_sha256.clone(),
             hooks,
             manifest_sha256: Sha256Digest::zero(),
@@ -99,7 +99,7 @@ impl ActivationSteeringLayout {
         receiver_layout: &ReceiverMaterializationLayout,
     ) -> BrainResult<()> {
         receiver_layout.geometry.validate()?;
-        if self.schema != "cerebro.tidex.activation_steering_layout/v1"
+        if self.schema != "tidex.activation_steering_layout/v1"
             || self.receiver_layout_sha256 != receiver_layout.manifest_sha256
             || self.hooks.is_empty()
             || self.hooks.len() > MAX_HOOKS
@@ -174,7 +174,7 @@ impl ActivationSteeringLayout {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:ACTIVATION-STEERING-LAYOUT:v1\0",
+            b"TIDEX:ACTIVATION-STEERING-LAYOUT:v1\0",
             &serde_json::to_vec(&unsigned)?,
         ))
     }
@@ -192,7 +192,7 @@ pub struct ActivationSteeringPolicy {
 
 impl ActivationSteeringPolicy {
     fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.activation_steering_policy/v1"
+        if self.schema != "tidex.activation_steering_policy/v1"
             || !self.maximum_vector_l2.is_finite()
             || self.maximum_vector_l2 <= 0.0
             || !self.maximum_absolute_component.is_finite()
@@ -207,7 +207,7 @@ impl ActivationSteeringPolicy {
     pub fn digest(&self) -> BrainResult<Sha256Digest> {
         self.validate()?;
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:ACTIVATION-STEERING-POLICY:v1\0",
+            b"TIDEX:ACTIVATION-STEERING-POLICY:v1\0",
             &serde_json::to_vec(self)?,
         ))
     }
@@ -256,7 +256,7 @@ fn normalize(mut vector: Vec<f64>, normalization: SteeringNormalization) -> Brai
 
 fn target_digest(values: &[f64]) -> BrainResult<Sha256Digest> {
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:ACTIVATION-STEERING-TARGET:v1\0",
+        b"TIDEX:ACTIVATION-STEERING-TARGET:v1\0",
         &serde_json::to_vec(values)?,
     ))
 }
@@ -266,7 +266,7 @@ impl ShadowActivationSteeringCandidate {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:ACTIVATION-STEERING-CANDIDATE:v1\0",
+            b"TIDEX:ACTIVATION-STEERING-CANDIDATE:v1\0",
             &serde_json::to_vec(&unsigned)?,
         ))
     }
@@ -362,7 +362,7 @@ fn build_candidate(
         });
     }
     let mut candidate = ShadowActivationSteeringCandidate {
-        schema: "cerebro.tidex.shadow_activation_steering_candidate/v1".into(),
+        schema: "tidex.shadow_activation_steering_candidate/v1".into(),
         planning_request_sha256: receipt.planning_request_sha256.clone(),
         receiver_layout_sha256: receiver_layout.manifest_sha256.clone(),
         steering_layout_sha256: steering_layout.manifest_sha256.clone(),

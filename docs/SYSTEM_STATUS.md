@@ -57,7 +57,7 @@ make ci   # o el subconjunto necesario; un solo cargo a la vez
 | Docs esqueleto | **OK** — reescritos con sustancia; ver `docs/INDEX.md` |
 | Paths en `config/models.toml` | **Corregido** a paths relativos `runtime/...` (antes `/home/yo/Future/...`) |
 | Working tree dirty | **Abierto** — cambios locales sin commit |
-| Schemas `cerebro.*` | **Abierto** — ~745 hits; rename a `tidex.*` pendiente (wire + persistidos) |
+| Schemas `cerebro.*` | **Cerrado en código** — rename a `tidex.*` / `TIDEX:` en src/config/tests/web-console/quality (auditorías históricas FORMULAS/AUDITORIA pueden conservar citas) |
 | `publish = false` | **Intencional** — no es crate crates.io; no es bug |
 
 Verificación positiva: check/clippy/deny/audit, lib tests, operator graph, fuzz 100k×3 PASS.

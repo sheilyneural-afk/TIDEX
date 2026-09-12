@@ -265,7 +265,7 @@ pub fn plan_active_apertures(
     }
     let final_trace = trace(&covariance);
     Ok(ActiveAperturePlan {
-        schema: "cerebro.tidex.active_aperture_plan/v1".into(),
+        schema: "tidex.active_aperture_plan/v1".into(),
         initial_posterior_trace: initial_trace,
         final_posterior_trace: final_trace,
         total_trace_reduction: (initial_trace - final_trace).max(0.0),

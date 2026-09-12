@@ -51,7 +51,7 @@ pub struct ReceiverCompilerPolicy {
 
 impl ReceiverCompilerPolicy {
     pub fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.receiver_compiler_policy/v1"
+        if self.schema != "tidex.receiver_compiler_policy/v1"
             || !self.ridge.is_finite()
             || self.ridge <= 0.0
             || !self.minimum_decoder_loo_r2.is_finite()
@@ -104,7 +104,7 @@ pub struct ReceiverSignatureBenchmarkInput {
 pub fn benchmark_receiver_signature(
     input: &ReceiverSignatureBenchmarkInput,
 ) -> BrainResult<ReceiverSignatureCompilation> {
-    if input.schema != "cerebro.tidex.receiver_signature_benchmark_input/v1"
+    if input.schema != "tidex.receiver_signature_benchmark_input/v1"
         || input.risk_metric.len() > 256
         || input.risk_metric.iter().any(|row| row.len() > 256)
     {
@@ -177,7 +177,7 @@ pub fn benchmark_receiver_basis(
     {
         return Err(BrainError::Invalid("receiver_basis_resource_or_rank_bounds".into()));
     }
-    if input.schema != "cerebro.tidex.receiver_basis_benchmark_input/v1"
+    if input.schema != "tidex.receiver_basis_benchmark_input/v1"
         || input.calibration_capability_ids.len() != n
         || !input.target_explained_variance.is_finite()
         || !(0.0..=1.0).contains(&input.target_explained_variance)
@@ -329,7 +329,7 @@ pub fn benchmark_receiver_basis(
         return Err(BrainError::Numerical("receiver_basis_resolution_nonfinite".into()));
     }
     Ok(ReceiverBasisBenchmarkReport {
-        schema: "cerebro.tidex.receiver_basis_benchmark_report/v1".into(),
+        schema: "tidex.receiver_basis_benchmark_report/v1".into(),
         calibration_capability_ids: input.calibration_capability_ids.clone(),
         parameter_dimension: p,
         selected_rank: rank,
@@ -466,7 +466,7 @@ fn finish_operational_compilation(
     let operational_verification =
         operational.verify_receiver_signature(ir, &numerical.predicted_functional_signature)?;
     Ok(ReceiverCompilation {
-        schema: "cerebro.tidex.receiver_compilation/v1".into(),
+        schema: "tidex.receiver_compilation/v1".into(),
         receiver_parameter_dimension: numerical.receiver_parameter_dimension,
         calibration_anchor_count: numerical.calibration_anchor_count,
         target_delta: numerical.target_delta,
@@ -693,7 +693,7 @@ impl FrozenFunctionalTransplantMap {
 
     fn to_map(&self) -> BrainResult<FunctionalTransplantMap> {
         let target_decoder = self.target_decoder.to_map()?;
-        if self.schema != "cerebro.tidex.functional_transplant/v1"
+        if self.schema != "tidex.functional_transplant/v1"
             || self.functional_dim != target_decoder.source_dim
             || self.target_dim != target_decoder.target_dim
             || self.anchor_count < 4
@@ -746,7 +746,7 @@ impl FrozenValidatedTransportMap {
 
     fn to_map(&self) -> BrainResult<ValidatedTransportMap> {
         let map = self.map.to_map()?;
-        if self.schema != "cerebro.tidex.validated_transport/v1"
+        if self.schema != "tidex.validated_transport/v1"
             || self.anchor_count < 4
             || [
                 self.loo_cv_r2,
@@ -896,7 +896,7 @@ impl FrozenReceiverCompilerMaps {
 
     fn sha256(&self) -> BrainResult<Sha256Digest> {
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:RECEIVER-COMPILER-MAPS:v2\0",
+            b"TIDEX:RECEIVER-COMPILER-MAPS:v2\0",
             &serde_json::to_vec(self)?,
         ))
     }
@@ -1022,7 +1022,7 @@ pub fn freeze_receiver_compiler(
         .first()
         .map_or(0, Vec::len);
     let k = calibration.receiver_solutions.first().map_or(0, Vec::len);
-    if input.schema != "cerebro.tidex.frozen_receiver_compiler_input/v1"
+    if input.schema != "tidex.frozen_receiver_compiler_input/v1"
         || !(5..=256).contains(&n)
         || !(1..=256).contains(&f)
         || !(1..=256).contains(&k)
@@ -1084,7 +1084,7 @@ pub fn freeze_receiver_compiler(
     let frozen_maps = FrozenReceiverCompilerMaps::from_maps(&maps);
     let maps_sha256 = frozen_maps.sha256()?;
     let mut frozen = FrozenReceiverCompiler {
-        schema: "cerebro.tidex.frozen_receiver_compiler/v3".into(),
+        schema: "tidex.frozen_receiver_compiler/v3".into(),
         input: input.clone(),
         compiler_source_sha256,
         maps: frozen_maps,
@@ -1095,7 +1095,7 @@ pub fn freeze_receiver_compiler(
     let mut unsigned = frozen.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     frozen.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
+        b"TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(frozen)
@@ -1114,7 +1114,7 @@ impl FrozenReceiverCompiler {
     /// identity. The returned handle owns the replayed maps; target compilation
     /// performs no calibration fitting.
     pub fn verify(&self) -> BrainResult<VerifiedFrozenReceiverCompiler<'_>> {
-        if self.schema != "cerebro.tidex.frozen_receiver_compiler/v3"
+        if self.schema != "tidex.frozen_receiver_compiler/v3"
             || self.compiler_source_sha256 != Sha256Digest::parse(env!("TIDEX_SOURCE_TREE_DIGEST"))?
             || self.maps.sha256()? != self.maps_sha256
         {
@@ -1123,7 +1123,7 @@ impl FrozenReceiverCompiler {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         let manifest = Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
+            b"TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
             &serde_json::to_vec(&unsigned)?,
         );
         if manifest != self.manifest_sha256 {
@@ -1739,7 +1739,7 @@ fn compile_signature_with_maps(
         && topology_gate;
 
     Ok(ReceiverSignatureCompilation {
-        schema: "cerebro.tidex.receiver_signature_compilation/v1".into(),
+        schema: "tidex.receiver_signature_compilation/v1".into(),
         proposal_method,
         validation_profile,
         decoder_fit_diagnostics,
@@ -1821,7 +1821,7 @@ pub fn evaluate_portability(
     }
     let recovered_gain = (transferred_score - virgin_score) / direct_gain;
     Ok(ReceiverPortabilityMetrics {
-        schema: "cerebro.tidex.receiver_portability_metrics/v1".into(),
+        schema: "tidex.receiver_portability_metrics/v1".into(),
         virgin_score,
         direct_score,
         transferred_score,
@@ -1886,7 +1886,7 @@ pub struct ReceiverPortabilityBenchmarkReport {
 pub fn benchmark_receiver_portability_leave_one_out(
     input: &ReceiverPortabilityBenchmarkInput,
 ) -> BrainResult<ReceiverPortabilityBenchmarkReport> {
-    if input.schema != "cerebro.tidex.receiver_portability_benchmark_input/v1"
+    if input.schema != "tidex.receiver_portability_benchmark_input/v1"
         || !input.ridge.is_finite()
         || input.ridge <= 0.0
         || input.cases.len() < 6
@@ -1992,7 +1992,7 @@ pub fn benchmark_receiver_portability_leave_one_out(
         .map(|report| report.metrics.correct_wrong_advantage)
         .fold(f64::INFINITY, f64::min);
     Ok(ReceiverPortabilityBenchmarkReport {
-        schema: "cerebro.tidex.receiver_portability_benchmark/v1".into(),
+        schema: "tidex.receiver_portability_benchmark/v1".into(),
         case_count: reports.len(),
         functional_dimension: functional_dim,
         receiver_parameter_dimension: receiver_dim,
@@ -2019,7 +2019,7 @@ mod tests {
             vec![2.0, 1.0, 0.0, 0.0],
         ];
         ReceiverBasisBenchmarkInput {
-            schema: "cerebro.tidex.receiver_basis_benchmark_input/v1".into(),
+            schema: "tidex.receiver_basis_benchmark_input/v1".into(),
             calibration_capability_ids: (0..calibration_deltas.len())
                 .map(|index| CapabilityId::parse(format!("basis-calibration-{index}")).unwrap())
                 .collect(),
@@ -2190,7 +2190,7 @@ mod tests {
             max_damage_ratio: 0.0,
         };
         let policy = ReceiverCompilerPolicy {
-            schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
+            schema: "tidex.receiver_compiler_policy/v1".into(),
             ridge: 1e-9,
             minimum_decoder_loo_r2: 0.0,
             minimum_encoder_loo_r2: 0.0,
@@ -2425,7 +2425,7 @@ mod tests {
     fn toggle_contract(ir: &CapabilityIr) -> OperationalCapabilityContract {
         let pre = 2.0_f64.sqrt();
         OperationalCapabilityContract {
-            schema: "cerebro.tidex.operational_capability/v1".into(),
+            schema: "tidex.operational_capability/v1".into(),
             capability_id: ir.capability_id().clone(),
             capability_ir_sha256: ir.manifest_digest().clone(),
             state_dimension: 2,
@@ -2495,7 +2495,7 @@ mod tests {
     }
     fn response_policy() -> ReceiverCompilerPolicy {
         ReceiverCompilerPolicy {
-            schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
+            schema: "tidex.receiver_compiler_policy/v1".into(),
             ridge: 1e-10,
             minimum_decoder_loo_r2: 0.99,
             minimum_encoder_loo_r2: 0.99,
@@ -2512,7 +2512,7 @@ mod tests {
             Some(Sha256Digest::digest_bytes(b"receiver-A"));
         calibration.wrong_functional_signatures.clear();
         FrozenReceiverCompilerInput {
-            schema: "cerebro.tidex.frozen_receiver_compiler_input/v1".into(),
+            schema: "tidex.frozen_receiver_compiler_input/v1".into(),
             calibration_capability_ids: (0..calibration.functional_signatures.len())
                 .map(|index| CapabilityId::parse(format!("calibration.{index}")).unwrap())
                 .collect(),
@@ -2571,7 +2571,7 @@ mod tests {
         let mut unsigned = forged.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         forged.manifest_sha256 = Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
+            b"TIDEX:FROZEN-RECEIVER-COMPILER:v3\0",
             &serde_json::to_vec(&unsigned).unwrap(),
         );
         match forged.verify() {
@@ -2735,7 +2735,7 @@ mod tests {
             max_damage_ratio: 0.01,
         };
         let policy = ReceiverCompilerPolicy {
-            schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
+            schema: "tidex.receiver_compiler_policy/v1".into(),
             ridge: 1e-10,
             minimum_decoder_loo_r2: 0.999,
             minimum_encoder_loo_r2: 0.999,
@@ -2808,7 +2808,7 @@ mod tests {
             direct_receiver_solution: receiver_solution(&[0.0, 1.0, 1.0, 0.0]),
         });
         let input = ReceiverPortabilityBenchmarkInput {
-            schema: "cerebro.tidex.receiver_portability_benchmark_input/v1".into(),
+            schema: "tidex.receiver_portability_benchmark_input/v1".into(),
             ridge: 1e-10,
             cases,
         };
@@ -2847,7 +2847,7 @@ mod tests {
             max_damage_ratio: 1.0,
         };
         let policy = ReceiverCompilerPolicy {
-            schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
+            schema: "tidex.receiver_compiler_policy/v1".into(),
             ridge: 1e-10,
             minimum_decoder_loo_r2: 0.9,
             minimum_encoder_loo_r2: 0.9,

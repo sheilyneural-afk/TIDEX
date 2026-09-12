@@ -48,8 +48,8 @@ use std::path::{Path, PathBuf};
 
 const MAX_RECORD_BYTES: u64 = 128 * 1024 * 1024;
 const MAX_COMPRESSED_ELEMENTS: u64 = 16 * 1024 * 1024;
-const REQUEST_SCHEMA: &str = "cerebro.tidex.physical_materialization_request/v1";
-const RECEIPT_SCHEMA: &str = "cerebro.tidex.physical_materialization_receipt/v1";
+const REQUEST_SCHEMA: &str = "tidex.physical_materialization_request/v1";
+const RECEIPT_SCHEMA: &str = "tidex.physical_materialization_receipt/v1";
 
 fn invalid(code: &str) -> BrainError {
     BrainError::Invalid(code.into())
@@ -186,7 +186,7 @@ fn derive(root: &Path, input: &PhysicalMaterializationRequest) -> BrainResult<De
             }
             let protocol: serde_json::Value = read_record(root, &request.protocol)?;
             if protocol.get("schema").and_then(|v| v.as_str())
-                == Some("cerebro.tidex.receiver_response_protocol/v1")
+                == Some("tidex.receiver_response_protocol/v1")
             {
                 let protocol: ReceiverResponseProtocol = serde_json::from_value(protocol)?;
                 if protocol.model_config_sha256 != profile.config.sha256
@@ -224,7 +224,7 @@ fn derive(root: &Path, input: &PhysicalMaterializationRequest) -> BrainResult<De
             let physical = planning_profile_from_physical(
                 root,
                 &PhysicalPlanningProfileRequest {
-                    schema: "cerebro.tidex.physical_planning_profile_request/v1".into(),
+                    schema: "tidex.physical_planning_profile_request/v1".into(),
                     physical_profile: input.physical_profile.clone(),
                     modalities: request.receiver_profile.modalities.clone(),
                     supports_persistent_state: request.receiver_profile.supports_persistent_state,

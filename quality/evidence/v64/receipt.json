@@ -153,7 +153,7 @@
       "skill": "mix"
     }
   ],
-  "schema": "cerebro.tidex.v64_transformer_portability/v1",
+  "schema": "tidex.v64_transformer_portability/v1",
   "scope": "micro-transformer cross-architecture portability; not an LLM-scale claim",
   "shared_backbone_mutated_during_skill_compilation": false,
   "skills": 8,

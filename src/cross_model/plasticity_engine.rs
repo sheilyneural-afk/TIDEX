@@ -193,7 +193,7 @@ impl PlasticityEngine {
             .ok_or("gap_counter_overflow")?;
         self.touch();
         Ok(DiscoveryCycleReport {
-            schema: "cerebro.cross_model.discovery_cycle/v1".into(),
+            schema: "tidex.cross_model.discovery_cycle/v1".into(),
             benchmark_id: benchmark.benchmark_id.clone(),
             evaluations,
             gaps,

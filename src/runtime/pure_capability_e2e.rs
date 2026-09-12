@@ -33,18 +33,17 @@ use std::collections::BTreeSet;
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 
-const DESCRIPTOR_DOMAIN: &[u8] = b"CEREBRO:TIDEX:LINEAR-MAP-DESCRIPTOR:v1\0";
-const DISCOVERY_DOMAIN: &[u8] = b"CEREBRO:TIDEX:PURE-CAPABILITY-DISCOVERY:v1\0";
-const TERMINAL_CASE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:TERMINAL-CASE:v1\0";
-const TERMINAL_SUITE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:TERMINAL-SUITE:v1\0";
-const CHALLENGE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:TERMINAL-CHALLENGE:v2\0";
-const COMMITMENT_DOMAIN: &[u8] = b"CEREBRO:TIDEX:TERMINAL-COMMITMENT:v2\0";
-const CANDIDATE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:PURE-WEIGHT-CANDIDATE:v2\0";
-const OUTPUT_DOMAIN: &[u8] = b"CEREBRO:TIDEX:TERMINAL-OUTPUTS:v1\0";
-const EVALUATION_DOMAIN: &[u8] = b"CEREBRO:TIDEX:TERMINAL-EVALUATION:v2\0";
-const ISOLATED_EVALUATION_DOMAIN: &[u8] = b"CEREBRO:TIDEX:ISOLATED-TERMINAL-EVALUATION:v1\0";
-const PURE_LINEAR_RUNNER_ADMISSION_DOMAIN: &[u8] =
-    b"CEREBRO:TIDEX:PURE-LINEAR-RUNNER-ADMISSION:v1\0";
+const DESCRIPTOR_DOMAIN: &[u8] = b"TIDEX:LINEAR-MAP-DESCRIPTOR:v1\0";
+const DISCOVERY_DOMAIN: &[u8] = b"TIDEX:PURE-CAPABILITY-DISCOVERY:v1\0";
+const TERMINAL_CASE_DOMAIN: &[u8] = b"TIDEX:TERMINAL-CASE:v1\0";
+const TERMINAL_SUITE_DOMAIN: &[u8] = b"TIDEX:TERMINAL-SUITE:v1\0";
+const CHALLENGE_DOMAIN: &[u8] = b"TIDEX:TERMINAL-CHALLENGE:v2\0";
+const COMMITMENT_DOMAIN: &[u8] = b"TIDEX:TERMINAL-COMMITMENT:v2\0";
+const CANDIDATE_DOMAIN: &[u8] = b"TIDEX:PURE-WEIGHT-CANDIDATE:v2\0";
+const OUTPUT_DOMAIN: &[u8] = b"TIDEX:TERMINAL-OUTPUTS:v1\0";
+const EVALUATION_DOMAIN: &[u8] = b"TIDEX:TERMINAL-EVALUATION:v2\0";
+const ISOLATED_EVALUATION_DOMAIN: &[u8] = b"TIDEX:ISOLATED-TERMINAL-EVALUATION:v1\0";
+const PURE_LINEAR_RUNNER_ADMISSION_DOMAIN: &[u8] = b"TIDEX:PURE-LINEAR-RUNNER-ADMISSION:v1\0";
 const ISOLATED_BACKEND_CONTRACT: &str = "linux_bubblewrap_sealed_memfd_data_bind/v3";
 const RUNNER_INPUT_PATH: &str = "/tidex/input";
 const MAX_RUNNER_BUILD_IDENTITY_BYTES: usize = 4_096;
@@ -95,7 +94,7 @@ fn bitwise_f64_slices_equal(left: &[f64], right: &[f64]) -> bool {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum LinearMapDescriptorSchema {
-    #[serde(rename = "cerebro.tidex.linear_map_f64/v1")]
+    #[serde(rename = "tidex.linear_map_f64/v1")]
     Current,
 }
 
@@ -255,7 +254,7 @@ fn expected_linear_map_ir(
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PureCapabilityDiscoverySchema {
-    #[serde(rename = "cerebro.tidex.pure_capability_discovery/v1")]
+    #[serde(rename = "tidex.pure_capability_discovery/v1")]
     Current,
 }
 
@@ -427,7 +426,7 @@ fn discovery_digest(receipt: &PureCapabilityDiscoveryReceipt) -> BrainResult<Sha
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TerminalChallengeSchema {
-    #[serde(rename = "cerebro.tidex.terminal_challenge/v2")]
+    #[serde(rename = "tidex.terminal_challenge/v2")]
     Current,
 }
 
@@ -940,7 +939,7 @@ fn authenticate_claim(
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TerminalEvaluationSchema {
-    #[serde(rename = "cerebro.tidex.terminal_evaluation/v2")]
+    #[serde(rename = "tidex.terminal_evaluation/v2")]
     Current,
 }
 
@@ -976,7 +975,7 @@ pub enum TerminalEvaluationOutcome {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PureLinearExecutionPackageSchema {
-    #[serde(rename = "cerebro.tidex.pure_linear_execution_package/v1")]
+    #[serde(rename = "tidex.pure_linear_execution_package/v1")]
     Current,
 }
 
@@ -998,7 +997,7 @@ pub struct PureLinearExecutionPackage {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PureLinearExecutionOutputSchema {
-    #[serde(rename = "cerebro.tidex.pure_linear_execution_output/v1")]
+    #[serde(rename = "tidex.pure_linear_execution_output/v1")]
     Current,
 }
 
@@ -1011,7 +1010,7 @@ pub struct PureLinearExecutionOutput {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PureLinearRunnerAdmissionSchema {
-    #[serde(rename = "cerebro.tidex.pure_linear_runner_admission/v1")]
+    #[serde(rename = "tidex.pure_linear_runner_admission/v1")]
     Current,
 }
 
@@ -1633,7 +1632,7 @@ impl TerminalEvaluationAuthority {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum IsolatedTerminalEvaluationSchema {
-    #[serde(rename = "cerebro.tidex.isolated_terminal_evaluation/v1")]
+    #[serde(rename = "tidex.isolated_terminal_evaluation/v1")]
     Current,
 }
 
@@ -2562,7 +2561,7 @@ mod tests {
         let wire = package.to_canonical_bytes().unwrap();
         assert_eq!(
             wire,
-            br#"{"schema":"cerebro.tidex.pure_linear_execution_package/v1","input_dimension":2,"output_dimension":2,"weights":[2.0,-1.0,0.5,3.0],"inputs":[[4.0,1.0],[-2.0,3.0]]}"#
+            br#"{"schema":"tidex.pure_linear_execution_package/v1","input_dimension":2,"output_dimension":2,"weights":[2.0,-1.0,0.5,3.0],"inputs":[[4.0,1.0],[-2.0,3.0]]}"#
         );
         let text = std::str::from_utf8(&wire).unwrap();
         for forbidden in [
@@ -2584,7 +2583,7 @@ mod tests {
         let output = package.execute().unwrap().to_canonical_bytes().unwrap();
         assert_eq!(
             output,
-            br#"{"schema":"cerebro.tidex.pure_linear_execution_output/v1","outputs":[[7.0,5.0],[-7.0,8.0]]}"#
+            br#"{"schema":"tidex.pure_linear_execution_output/v1","outputs":[[7.0,5.0],[-7.0,8.0]]}"#
         );
     }
 

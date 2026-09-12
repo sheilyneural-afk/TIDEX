@@ -1,5 +1,5 @@
 {
-  "schema": "cerebro.tidex.backend_selection_policy/v1",
+  "schema": "tidex.backend_selection_policy/v1",
   "minimum_functional_ci_lower": 0.8,
   "minimum_preservation_score": 0.95,
   "minimum_identity_margin": 0.05,

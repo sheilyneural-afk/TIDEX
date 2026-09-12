@@ -563,7 +563,7 @@ async function runSelectedWorkflow() {
   if (workflow.endpoint === 'behavioral-discovery') {
     url = '/api/workflows/behavioral-discovery';
     body = {
-      schema: 'cerebro.tidex.operator_behavioral_discovery/v1',
+      schema: 'tidex.operator_behavioral_discovery/v1',
       model_ids: state.selectedModels,
       dataset_sha256: datasetSha,
       max_new_tokens: 128,
@@ -572,7 +572,7 @@ async function runSelectedWorkflow() {
   } else {
     url = '/api/workflows/direct';
     body = {
-      schema: 'cerebro.tidex.operator_direct_workflow/v1',
+      schema: 'tidex.operator_direct_workflow/v1',
       operation: workflow.id,
       model_ids: state.selectedModels,
       dataset_sha256: datasetSha,
@@ -603,7 +603,7 @@ async function handleDatasetUpload(event) {
   if (format === 'json') {
     try {
       const parsed = JSON.parse(content);
-      if (parsed && parsed.schema === 'cerebro.cross_model.behavioral_benchmark/v1') {
+      if (parsed && parsed.schema === 'tidex.cross_model.behavioral_benchmark/v1') {
         kind = 'success';
         message = 'Benchmark conductual reconocido.';
       } else {

@@ -85,7 +85,7 @@ pub fn certified_causal_priority_weights(
     report: &CausalCreditReport,
     field_ids: &[SkillId],
 ) -> BrainResult<Vec<f64>> {
-    if report.schema != "cerebro.tidex.causal_credit/v3"
+    if report.schema != "tidex.causal_credit/v3"
         || field_ids.is_empty()
         || report.field_count != field_ids.len()
         || report.independent_group_count < 3
@@ -355,7 +355,7 @@ pub fn estimate_causal_credit(
         }
     }
     Ok(CausalCreditReport {
-        schema: "cerebro.tidex.causal_credit/v3".into(),
+        schema: "tidex.causal_credit/v3".into(),
         context_count: contexts.len(),
         independent_group_count: independent_groups.len(),
         field_count: field_ids.len(),

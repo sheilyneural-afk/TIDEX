@@ -15,8 +15,8 @@ use crate::operator::executor_registry::{
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-const GRAPH_SCHEMA: &str = "cerebro.tidex.operator_graph/v1";
-const GRAPH_DOMAIN: &[u8] = b"CEREBRO:TIDEX:OPERATOR-GRAPH:v1\0";
+const GRAPH_SCHEMA: &str = "tidex.operator_graph/v1";
+const GRAPH_DOMAIN: &[u8] = b"TIDEX:OPERATOR-GRAPH:v1\0";
 const DIRECT_RUNNER_RECIPE: &str = "operator.direct_runner";
 const PRODUCTION_AUTHORITY_EXECUTOR: &str = "adapter.bank";
 

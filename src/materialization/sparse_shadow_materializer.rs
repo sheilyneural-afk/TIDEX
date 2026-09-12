@@ -38,7 +38,7 @@ pub struct SparseShadowPolicy {
 
 impl SparseShadowPolicy {
     pub fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.sparse_shadow_policy/v1"
+        if self.schema != "tidex.sparse_shadow_policy/v1"
             || self.maximum_nonzero_count == 0
             || self.maximum_nonzero_count > MAX_SPARSE_ELEMENTS
             || !self.maximum_density.is_finite()
@@ -63,7 +63,7 @@ impl SparseShadowPolicy {
     pub fn digest(&self) -> BrainResult<Sha256Digest> {
         self.validate()?;
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SPARSE-SHADOW-POLICY:v1\0",
+            b"TIDEX:SPARSE-SHADOW-POLICY:v1\0",
             &serde_json::to_vec(self)?,
         ))
     }
@@ -108,7 +108,7 @@ pub struct ShadowSparseCandidate {
 
 fn values_digest(values: &[f64]) -> BrainResult<Sha256Digest> {
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:SHADOW-SPARSE-DENSE-VALUES:v1\0",
+        b"TIDEX:SHADOW-SPARSE-DENSE-VALUES:v1\0",
         &serde_json::to_vec(values)?,
     ))
 }
@@ -188,7 +188,7 @@ impl ShadowSparseCandidate {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SHADOW-SPARSE-CANDIDATE:v1\0",
+            b"TIDEX:SHADOW-SPARSE-CANDIDATE:v1\0",
             &serde_json::to_vec(&unsigned)?,
         ))
     }
@@ -316,7 +316,7 @@ fn build_candidate(
         return Err(BrainError::Numerical("sparse_storage_not_admissible".into()));
     }
     let mut candidate = ShadowSparseCandidate {
-        schema: "cerebro.tidex.shadow_sparse_candidate/v1".into(),
+        schema: "tidex.shadow_sparse_candidate/v1".into(),
         planning_request_sha256: receipt.planning_request_sha256.clone(),
         receiver_layout_sha256: layout.manifest_sha256.clone(),
         policy_sha256: policy.digest()?,
@@ -395,7 +395,7 @@ mod tests {
 
     fn policy() -> SparseShadowPolicy {
         SparseShadowPolicy {
-            schema: "cerebro.tidex.sparse_shadow_policy/v1".into(),
+            schema: "tidex.sparse_shadow_policy/v1".into(),
             maximum_nonzero_count: 2,
             maximum_density: 0.25,
             absolute_zero_threshold: 0.0,

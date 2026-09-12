@@ -455,7 +455,7 @@ pub fn analyze_dual_space(
         && match_accuracy >= config.minimum_match_accuracy
         && min_match_margin_observed > config.minimum_match_margin;
     Ok(DualSpaceReport {
-        schema: "cerebro.tidex.dual_space/v4".into(),
+        schema: "tidex.dual_space/v4".into(),
         parameter_inverse_mode: model.parameter_inverse_mode,
         parameter_promotable: model.parameter_promotable,
         functional_cv_r2: model.functional_cv_r2,

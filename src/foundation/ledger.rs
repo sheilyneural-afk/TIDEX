@@ -8,9 +8,9 @@ use sha2::{Digest, Sha256};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-const EVENT_SCHEMA_V2: &str = "cerebro.tidex.ledger_event/v2";
-const DOMAIN_V1: &[u8] = b"CEREBRO:TIDEX:LEDGER:v1\0";
-const DOMAIN_V2: &[u8] = b"CEREBRO:TIDEX:LEDGER:v2\0";
+const EVENT_SCHEMA_V2: &str = "tidex.ledger_event/v2";
+const DOMAIN_V1: &[u8] = b"TIDEX:LEDGER:v1\0";
+const DOMAIN_V2: &[u8] = b"TIDEX:LEDGER:v2\0";
 const MAX_LEDGER_BYTES: u64 = 256 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

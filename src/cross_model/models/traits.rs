@@ -217,7 +217,7 @@ pub struct DeepInstrumentationEvidence {
 
 impl DeepInstrumentationEvidence {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.deep_instrumentation/v1"
+        if self.schema != "tidex.cross_model.deep_instrumentation/v1"
             || self.model.trim().is_empty()
             || !is_sha256(&self.runtime_metadata_sha256)
             || self.module_path.trim().is_empty()
@@ -298,7 +298,7 @@ pub struct SparseAutoencoderEvidence {
 
 impl SparseAutoencoderEvidence {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.tidex.sparse_autoencoder_evidence/v1"
+        if self.schema != "tidex.sparse_autoencoder_evidence/v1"
             || self.model.trim().is_empty()
             || !is_sha256(&self.runtime_metadata_sha256)
             || self.module_path.trim().is_empty()
@@ -502,7 +502,7 @@ pub struct ActivationInterventionReceipt {
 
 impl ActivationInterventionReceipt {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.activation_intervention_receipt/v1"
+        if self.schema != "tidex.cross_model.activation_intervention_receipt/v1"
             || self.model.trim().is_empty()
             || !is_sha256(&self.runtime_metadata_sha256)
             || !is_sha256(&self.steering_sha256)

@@ -151,7 +151,7 @@ impl ReceiverMaterializationLayout {
         aliases: Vec<ReceiverTensorAlias>,
     ) -> BrainResult<Self> {
         let mut layout = Self {
-            schema: "cerebro.tidex.receiver_materialization_layout/v1".into(),
+            schema: "tidex.receiver_materialization_layout/v1".into(),
             geometry,
             physical_tensors,
             aliases,
@@ -182,7 +182,7 @@ impl ReceiverMaterializationLayout {
     fn validate_geometry(&self, profile: &ReceiverProfile) -> BrainResult<()> {
         profile.validate()?;
         self.geometry.validate()?;
-        if self.schema != "cerebro.tidex.receiver_materialization_layout/v1"
+        if self.schema != "tidex.receiver_materialization_layout/v1"
             || self.geometry.total_parameter_count != profile.parameter_dimension
             || self.geometry.layout.blocks.len() != profile.regions.len()
             || self.physical_tensors.len() != profile.regions.len()
@@ -234,7 +234,7 @@ impl ReceiverMaterializationLayout {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:RECEIVER-MATERIALIZATION-LAYOUT:v1\0",
+            b"TIDEX:RECEIVER-MATERIALIZATION-LAYOUT:v1\0",
             &serde_json::to_vec(&unsigned)?,
         ))
     }
@@ -253,7 +253,7 @@ mod tests {
         let embedding = TensorId::parse("embeddings.weight").unwrap();
         let projection = TensorId::parse("layers.0.attn.q_proj.weight").unwrap();
         let profile = ReceiverProfile {
-            schema: "cerebro.tidex.receiver_profile/v1".into(),
+            schema: "tidex.receiver_profile/v1".into(),
             model_id: ModelId::parse("receiver.v1").unwrap(),
             architecture_id: ArchitectureId::parse("transformer.v1").unwrap(),
             architecture: ReceiverArchitecture::Transformer,

@@ -195,7 +195,7 @@ for name in binary_names:
         'size_bytes':len(data),
     })
 manifest={
-    'schema':'cerebro.tidex.release_manifest/v1',
+    'schema':'tidex.release_manifest/v1',
     'package':package_name,
     'version':version,
     'release_id':root.name,

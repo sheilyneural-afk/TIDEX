@@ -70,7 +70,7 @@
   "receipt_sha256": "adabc3c946d7139ff249e02b2b8194433cefe730f592f9dd2262f5610b6d026d",
   "required_assurance_tests": 17,
   "reusable_input_file_count": 101,
-  "reusable_inputs_domain": "CEREBRO:TIDEX:P3-REUSABLE-INPUTS:v1\\0",
+  "reusable_inputs_domain": "TIDEX:P3-REUSABLE-INPUTS:v1\\0",
   "reusable_inputs_sha256": "33369800e83b4e7261a6eedc0449e650cd7dbec8ab093c46a979185a5162bfdc",
-  "schema": "cerebro.tidex.p3_reuse_anchor/v1"
+  "schema": "tidex.p3_reuse_anchor/v1"
 }

@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.active_aperture_real_posterior_benchmark/v1",
+            "schema":"tidex.active_aperture_real_posterior_benchmark/v1",
             "source_report":path,
             "field_count":report.fields.len(),
             "candidate_count":candidates.len(),

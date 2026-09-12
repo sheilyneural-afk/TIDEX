@@ -229,7 +229,7 @@ python3 - "$INSTALL_ROOT/activation.json" "$CURRENT_ID" "$PREVIOUS_ID" <<'PY'
 import json,sys
 path,active,previous=sys.argv[1:]
 value=json.load(open(path,encoding='utf-8'))
-expected={'schema':'cerebro.tidex.activation/v1','active':active,'previous':previous,'revision':2}
+expected={'schema':'tidex.activation/v1','active':active,'previous':previous,'revision':2}
 if value != expected: raise SystemExit(f'P4 activation after upgrade mismatch: {value!r}')
 PY
 [[ "$(readlink "$INSTALL_ROOT/current")" == "releases/$CURRENT_ID" ]] || fail 'current_pointer_not_current_after_upgrade'
@@ -288,7 +288,7 @@ python3 - "$FINAL_ACTIVATION" "$CURRENT_ID" <<'PY'
 import json,sys
 path,active=sys.argv[1:]
 value=json.load(open(path,encoding='utf-8'))
-expected={'schema':'cerebro.tidex.activation/v1','active':active,'previous':None,'revision':5}
+expected={'schema':'tidex.activation/v1','active':active,'previous':None,'revision':5}
 if value != expected: raise SystemExit(f'P4 final activation mismatch: {value!r}')
 PY
 
@@ -336,7 +336,7 @@ p3=json.load(open(p3_path,encoding='utf-8'))
 activation=json.load(open(activation_path,encoding='utf-8'))
 blockers=[line for line in pathlib.Path(blockers_path).read_text().splitlines() if line]
 receipt={
-    'schema':'cerebro.tidex.release_readiness_receipt/v1',
+    'schema':'tidex.release_readiness_receipt/v1',
     'gate':'P4',
     'result':'technical-passed',
     'technical_release_ready':True,

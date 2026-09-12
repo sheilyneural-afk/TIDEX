@@ -180,7 +180,7 @@ impl HierarchicalSteeringExtractor {
         };
         let steering_vector = SteeringVector::new(best.vector.clone(), metadata, 1.0)?;
         Ok(ExtractionResult {
-            schema: "cerebro.cross_model.steering_extraction/v1".into(),
+            schema: "tidex.cross_model.steering_extraction/v1".into(),
             steering_vector,
             components,
             positive_prompt_sha256,

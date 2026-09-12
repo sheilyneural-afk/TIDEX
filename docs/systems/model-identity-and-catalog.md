@@ -17,7 +17,7 @@ El `model_id` es identidad de **artefacto** (bytes), no nickname de carpeta ni r
 2. Según `LocalModelLayout`:
    - **single**: `model.safetensors`
    - **sharded**: `model.safetensors.index.json` + todos los `*.safetensors` ordenados
-3. `Sha256Digest::digest_domain(b"CEREBRO:TIDEX:OPERATOR-MODEL-CANDIDATE:v2\0", serde(layout, files))`.
+3. `Sha256Digest::digest_domain(b"TIDEX:OPERATOR-MODEL-CANDIDATE:v2\0", serde(layout, files))`.
 
 Discovery es **read-only**. `confine_model_scan_root` + `hub_snapshot_file` impiden escapes fuera del hub.
 

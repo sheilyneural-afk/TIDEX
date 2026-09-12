@@ -50,7 +50,7 @@ pub struct ShadowDenseDeltaCandidate {
 
 fn values_digest(values: &[f64]) -> BrainResult<Sha256Digest> {
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:SHADOW-DENSE-VALUES:v1\0",
+        b"TIDEX:SHADOW-DENSE-VALUES:v1\0",
         &serde_json::to_vec(values)?,
     ))
 }
@@ -60,7 +60,7 @@ impl ShadowDenseDeltaCandidate {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SHADOW-DENSE-DELTA-CANDIDATE:v1\0",
+            b"TIDEX:SHADOW-DENSE-DELTA-CANDIDATE:v1\0",
             &serde_json::to_vec(&unsigned)?,
         ))
     }
@@ -137,7 +137,7 @@ fn build_candidate(
         }
     }
     let mut candidate = ShadowDenseDeltaCandidate {
-        schema: "cerebro.tidex.shadow_dense_delta_candidate/v2".into(),
+        schema: "tidex.shadow_dense_delta_candidate/v2".into(),
         planning_request_sha256: receipt.planning_request_sha256.clone(),
         receiver_layout_sha256: layout.manifest_sha256.clone(),
         parameter_geometry_sha256: layout.geometry.parameter_layout_sha256.clone(),

@@ -45,32 +45,29 @@ use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
-pub const ADAPTER_IMPORT_REQUEST_SCHEMA: &str = "cerebro.tidex.adapter_import_request/v1";
-pub const ADAPTER_COMPOSITION_REQUEST_SCHEMA: &str = "cerebro.tidex.adapter_composition_request/v1";
-pub const ADAPTER_ACTIVATION_REQUEST_SCHEMA: &str = "cerebro.tidex.adapter_activation_request/v1";
-pub const ADAPTER_REVOCATION_REQUEST_SCHEMA: &str = "cerebro.tidex.adapter_revocation_request/v1";
-pub const ADAPTER_ROLLBACK_REQUEST_SCHEMA: &str = "cerebro.tidex.adapter_rollback_request/v1";
-pub const ADAPTER_BANK_QUERY_SCHEMA: &str = "cerebro.tidex.adapter_bank_query/v1";
-pub const ADAPTER_BANK_LOOKUP_SCHEMA: &str = "cerebro.tidex.adapter_bank_lookup/v1";
-pub const ADAPTER_RESOLUTION_REQUEST_SCHEMA: &str = "cerebro.tidex.adapter_resolution_request/v1";
-pub const ADAPTER_EXECUTION_RESOLUTION_SCHEMA: &str =
-    "cerebro.tidex.adapter_execution_resolution/v1";
-pub const ADAPTER_MANIFEST_SCHEMA: &str = "cerebro.tidex.adapter_manifest/v1";
-pub const ADAPTER_INDEX_SCHEMA: &str = "cerebro.tidex.adapter_index/v1";
-pub const ADAPTER_BANK_HEAD_SCHEMA: &str = "cerebro.tidex.adapter_bank_head/v1";
-pub const ADAPTER_BANK_REVISION_COMMIT_SCHEMA: &str =
-    "cerebro.tidex.adapter_bank_revision_commit/v1";
-pub const ADAPTER_BANK_COMMIT_SCHEMA: &str = "cerebro.tidex.adapter_bank_commit/v1";
-pub const ADAPTER_BANK_REPORT_SCHEMA: &str = "cerebro.tidex.adapter_bank_report/v1";
-pub const ADAPTER_PROMOTION_AUTHORIZATION_SCHEMA: &str =
-    "cerebro.tidex.adapter_promotion_authorization/v1";
+pub const ADAPTER_IMPORT_REQUEST_SCHEMA: &str = "tidex.adapter_import_request/v1";
+pub const ADAPTER_COMPOSITION_REQUEST_SCHEMA: &str = "tidex.adapter_composition_request/v1";
+pub const ADAPTER_ACTIVATION_REQUEST_SCHEMA: &str = "tidex.adapter_activation_request/v1";
+pub const ADAPTER_REVOCATION_REQUEST_SCHEMA: &str = "tidex.adapter_revocation_request/v1";
+pub const ADAPTER_ROLLBACK_REQUEST_SCHEMA: &str = "tidex.adapter_rollback_request/v1";
+pub const ADAPTER_BANK_QUERY_SCHEMA: &str = "tidex.adapter_bank_query/v1";
+pub const ADAPTER_BANK_LOOKUP_SCHEMA: &str = "tidex.adapter_bank_lookup/v1";
+pub const ADAPTER_RESOLUTION_REQUEST_SCHEMA: &str = "tidex.adapter_resolution_request/v1";
+pub const ADAPTER_EXECUTION_RESOLUTION_SCHEMA: &str = "tidex.adapter_execution_resolution/v1";
+pub const ADAPTER_MANIFEST_SCHEMA: &str = "tidex.adapter_manifest/v1";
+pub const ADAPTER_INDEX_SCHEMA: &str = "tidex.adapter_index/v1";
+pub const ADAPTER_BANK_HEAD_SCHEMA: &str = "tidex.adapter_bank_head/v1";
+pub const ADAPTER_BANK_REVISION_COMMIT_SCHEMA: &str = "tidex.adapter_bank_revision_commit/v1";
+pub const ADAPTER_BANK_COMMIT_SCHEMA: &str = "tidex.adapter_bank_commit/v1";
+pub const ADAPTER_BANK_REPORT_SCHEMA: &str = "tidex.adapter_bank_report/v1";
+pub const ADAPTER_PROMOTION_AUTHORIZATION_SCHEMA: &str = "tidex.adapter_promotion_authorization/v1";
 pub const ADAPTER_GOVERNED_PROMOTION_REQUEST_SCHEMA: &str =
-    "cerebro.tidex.adapter_governed_promotion_request/v1";
+    "tidex.adapter_governed_promotion_request/v1";
 pub const ADAPTER_CANDIDATE_MATERIALIZATION_REQUEST_SCHEMA: &str =
-    "cerebro.tidex.adapter_candidate_materialization_request/v1";
+    "tidex.adapter_candidate_materialization_request/v1";
 pub const ADAPTER_CANDIDATE_MATERIALIZATION_SCHEMA: &str =
-    "cerebro.tidex.adapter_candidate_materialization/v1";
-const IMPORT_RECEIPT_SCHEMA: &str = "cerebro.tidex.adapter_import_provenance/v1";
+    "tidex.adapter_candidate_materialization/v1";
+const IMPORT_RECEIPT_SCHEMA: &str = "tidex.adapter_import_provenance/v1";
 const EXACT_COMPOSITION_ARITHMETIC: &str = "ordered_f32_axes_mul_f64_accumulate_f64_round_f32/v1";
 const MAX_BANK_JSON_BYTES: u64 = 128 * 1024 * 1024;
 const MAX_COMPOSITION_TERMS: usize = 64;

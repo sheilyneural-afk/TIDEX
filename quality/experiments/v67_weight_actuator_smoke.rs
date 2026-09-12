@@ -23,8 +23,8 @@ use tidex::receiver::weight_actuator::{
     read_model_tensors_f32, ModelTensorSpec, WeightMaterializationReceipt,
 };
 
-const SCHEMA: &str = "cerebro.tidex.v67_weight_actuator_smoke/v1";
-const V66_MANIFEST_SCHEMA: &str = "cerebro.tidex.v66_compiled_adapter_artifact/v1";
+const SCHEMA: &str = "tidex.v67_weight_actuator_smoke/v1";
+const V66_MANIFEST_SCHEMA: &str = "tidex.v66_compiled_adapter_artifact/v1";
 
 fn invalid(code: impl Into<String>) -> BrainError {
     BrainError::Invalid(code.into())

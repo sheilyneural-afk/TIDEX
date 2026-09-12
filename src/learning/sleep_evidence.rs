@@ -243,7 +243,7 @@ struct RecomputedReplayStatistics {
 impl SleepEvidenceVerification {
     pub fn failed(reason: impl Into<String>) -> Self {
         Self {
-            schema: "cerebro.tidex.sleep_evidence_verification/v3".into(),
+            schema: "tidex.sleep_evidence_verification/v3".into(),
             verified: false,
             protection_verified: false,
             interaction_verified: false,
@@ -363,8 +363,8 @@ fn checked_replay_identity(
     if !valid_sha256(expected.report_sha256)
         || !valid_sha256(&bundle.causal_credit.report_sha256)
         || !valid_sha256(&bundle.causal_credit.plan_sha256)
-        || baseline.schema != "cerebro.tidex.counterfactual_replay/v3"
-        || candidate.schema != "cerebro.tidex.trust_region_functional_validation/v2"
+        || baseline.schema != "tidex.counterfactual_replay/v3"
+        || candidate.schema != "tidex.trust_region_functional_validation/v2"
         || baseline.blind_data_accessed
         || candidate.blind_data_accessed
         || bundle.replay.blind_data_accessed
@@ -400,7 +400,7 @@ fn checked_replay_identity(
     )
     .read_verified_bounded(root, MAX_SLEEP_EVIDENCE_JSON_BYTES)?;
     let trust: TrustRegionArtifactIdentity = serde_json::from_slice(&trust_raw)?;
-    if trust.schema != "cerebro.tidex.trust_region_benchmark/v3"
+    if trust.schema != "tidex.trust_region_benchmark/v3"
         || trust.report_sha256.as_str() != expected.report_sha256.as_str()
         || trust.protected_map_sha256 != bundle.protection.protected_map_sha256
         || trust.causal_plan_sha256 != baseline.plan_sha256
@@ -698,7 +698,7 @@ fn load_sensitivity_evidence(
     let source_raw = PrivateFileReference::new(PathBuf::from(source_path), source_sha256.clone())
         .read_verified_bounded(root, MAX_SLEEP_EVIDENCE_JSON_BYTES)?;
     let payload: ProtectionSourcePayload = serde_json::from_slice(&source_raw)?;
-    if payload.schema != "cerebro.tidex.protected_sensitivity_evidence/v1"
+    if payload.schema != "tidex.protected_sensitivity_evidence/v1"
         || payload.task_labels_used
         || payload.evidence.len() < 2
     {
@@ -768,7 +768,7 @@ fn verify_causal_credit_artifacts(
     .read_verified_bounded(root, MAX_SLEEP_EVIDENCE_JSON_BYTES)?;
     let replay: serde_json::Value = serde_json::from_slice(&replay_raw)?;
     if replay.get("schema").and_then(serde_json::Value::as_str)
-        != Some("cerebro.tidex.counterfactual_replay/v3")
+        != Some("tidex.counterfactual_replay/v3")
         || replay
             .get("blind_data_accessed")
             .and_then(serde_json::Value::as_bool)
@@ -836,7 +836,7 @@ fn verify_causal_credit_artifacts(
     .read_verified_bounded(root, MAX_SLEEP_EVIDENCE_JSON_BYTES)?;
     let wrapper: serde_json::Value = serde_json::from_slice(&credit_raw)?;
     if wrapper.get("schema").and_then(serde_json::Value::as_str)
-        != Some("cerebro.tidex.causal_credit_benchmark/v3")
+        != Some("tidex.causal_credit_benchmark/v3")
         || wrapper
             .get("blind_data_accessed")
             .and_then(serde_json::Value::as_bool)
@@ -920,8 +920,7 @@ fn verify_causal_credit_artifacts(
     if !stored_matches_recomputed {
         return Ok(false);
     }
-    if credit.get("schema").and_then(serde_json::Value::as_str)
-        != Some("cerebro.tidex.causal_credit/v3")
+    if credit.get("schema").and_then(serde_json::Value::as_str) != Some("tidex.causal_credit/v3")
         || credit
             .get("independent_group_count")
             .and_then(serde_json::Value::as_u64)
@@ -1138,7 +1137,7 @@ pub fn verify_sleep_evidence(
     bundle: &SleepEvidenceBundle,
     expected: &SleepEvidenceExpectation<'_>,
 ) -> BrainResult<SleepEvidenceVerification> {
-    if bundle.schema != "cerebro.tidex.sleep_evidence/v4" {
+    if bundle.schema != "tidex.sleep_evidence/v4" {
         return Err(BrainError::Invalid("sleep_evidence_schema_invalid".into()));
     }
     let mut reasons = Vec::new();
@@ -1182,7 +1181,7 @@ pub fn verify_sleep_evidence(
         .read_verified_bounded(root, MAX_SLEEP_EVIDENCE_JSON_BYTES)?;
         let wrapper: serde_json::Value = serde_json::from_slice(&map_raw)?;
         if wrapper.get("schema").and_then(serde_json::Value::as_str)
-            == Some("cerebro.tidex.protected_map_benchmark/v2")
+            == Some("tidex.protected_map_benchmark/v2")
             && wrapper
                 .get("task_labels_used")
                 .and_then(serde_json::Value::as_bool)
@@ -1294,7 +1293,7 @@ pub fn verify_sleep_evidence(
         .read_verified_bounded(root, MAX_SLEEP_EVIDENCE_JSON_BYTES)?;
         let payload: serde_json::Value = serde_json::from_slice(&interaction_raw)?;
         if payload.get("schema").and_then(serde_json::Value::as_str)
-            == Some("cerebro.tidex.trust_region_benchmark/v3")
+            == Some("tidex.trust_region_benchmark/v3")
             && payload
                 .get("report_sha256")
                 .and_then(serde_json::Value::as_str)
@@ -1535,7 +1534,7 @@ pub fn verify_sleep_evidence(
         };
 
     Ok(SleepEvidenceVerification {
-        schema: "cerebro.tidex.sleep_evidence_verification/v3".into(),
+        schema: "tidex.sleep_evidence_verification/v3".into(),
         verified: reasons.is_empty(),
         protection_verified,
         interaction_verified,
@@ -1634,7 +1633,7 @@ mod tests {
         let redirected_artifact = redirected_parent.join(artifact.path.file_name().unwrap());
         let source = root.join("protection.json");
         let payload = serde_json::json!({
-            "schema":"cerebro.tidex.protected_sensitivity_evidence/v1",
+            "schema":"tidex.protected_sensitivity_evidence/v1",
             "task_labels_used":false,
             "evidence":[
                 {
@@ -1738,7 +1737,7 @@ mod tests {
         fs::write(
             &baseline,
             serde_json::to_vec(&serde_json::json!({
-                "schema":"cerebro.tidex.counterfactual_replay/v3",
+                "schema":"tidex.counterfactual_replay/v3",
                 "report_sha256":report_sha.clone(),
                 "plan_sha256":plan_sha.clone(),
                 "field_ids":["s"],
@@ -1762,7 +1761,7 @@ mod tests {
         fs::write(
             &causal_credit,
             serde_json::to_vec(&serde_json::json!({
-                "schema":"cerebro.tidex.causal_credit_benchmark/v3",
+                "schema":"tidex.causal_credit_benchmark/v3",
                 "blind_data_accessed":false,
                 "replay_sha256":crate::foundation::artifact::sha256_file(&baseline).unwrap(),
                 "report_sha256":report_sha.clone(),
@@ -1776,7 +1775,7 @@ mod tests {
         let sha = |p: &Path| crate::foundation::artifact::sha256_file(p).unwrap();
         let a = root.join("protection.json");
         let protection_payload = serde_json::json!({
-            "schema":"cerebro.tidex.protected_sensitivity_evidence/v1",
+            "schema":"tidex.protected_sensitivity_evidence/v1",
             "task_labels_used":false,
             "evidence":[
                 {"probe_id":"p1","artifact":gradient_a,"causal_damage_per_parameter_norm":1.0,"reliability":1.0},
@@ -1808,7 +1807,7 @@ mod tests {
         fs::write(
             &protected_map_path,
             serde_json::to_vec(&serde_json::json!({
-                "schema":"cerebro.tidex.protected_map_benchmark/v2",
+                "schema":"tidex.protected_map_benchmark/v2",
                 "task_labels_used":false,
                 "map":protected_map
             }))
@@ -1824,7 +1823,7 @@ mod tests {
         .unwrap();
         let accepted_coefficients = expected_trust.accepted_coefficients.clone();
         let trust_payload = serde_json::json!({
-            "schema":"cerebro.tidex.trust_region_benchmark/v3",
+            "schema":"tidex.trust_region_benchmark/v3",
             "report_sha256":report_sha.clone(),
             "protected_map_sha256":sha(&protected_map_path),
             "causal_plan_sha256":plan_sha.clone(),
@@ -1855,7 +1854,7 @@ mod tests {
             fs::write(
                 &candidate,
                 serde_json::to_vec(&serde_json::json!({
-                    "schema":"cerebro.tidex.trust_region_functional_validation/v2",
+                    "schema":"tidex.trust_region_functional_validation/v2",
                     "report_sha256":report_sha.clone(),
                     "trust_region_sha256":interaction_sha.clone(),
                     "plan_sha256":plan_sha.clone(),
@@ -1873,7 +1872,7 @@ mod tests {
         };
         write_candidate(&[0.45, 0.45, 0.45]);
         let mut bundle = SleepEvidenceBundle {
-            schema: "cerebro.tidex.sleep_evidence/v4".into(),
+            schema: "tidex.sleep_evidence/v4".into(),
             corpus_digest: CorpusDigest::from(Sha256Digest::digest_bytes(b"x")),
             source_tree_digest: SourceTreeDigest::from(Sha256Digest::digest_bytes(b"source")),
             config_digest: ConfigDigest::from(Sha256Digest::digest_bytes(b"config")),

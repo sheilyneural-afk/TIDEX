@@ -8,7 +8,7 @@ import random
 from quality.experiments.capability_statistics import exact_paired_binomial_p
 from quality.experiments.certify_capability_evidence import canonical, require, unique_object
 
-SCHEMA = "cerebro.tidex.prospective_capability_experiment/v1"
+SCHEMA = "tidex.prospective_capability_experiment/v1"
 
 
 class Journal:

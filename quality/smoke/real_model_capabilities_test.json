@@ -1,5 +1,5 @@
 {
-  "schema": "cerebro.cross_model.runtime/v2",
+  "schema": "tidex.cross_model.runtime/v2",
   "models": [
     {
       "backend": "ollama",

@@ -36,7 +36,7 @@ pub struct AlignmentCalibration {
 
 impl AlignmentCalibration {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.alignment_calibration/v1"
+        if self.schema != "tidex.cross_model.alignment_calibration/v1"
             || self.source_model.trim().is_empty()
             || self.target_model.trim().is_empty()
             || self.source_model == self.target_model
@@ -170,7 +170,7 @@ impl CrossModelAligner {
                     .collect()
             };
         let mut calibration = AlignmentCalibration {
-            schema: "cerebro.cross_model.alignment_calibration/v1".into(),
+            schema: "tidex.cross_model.alignment_calibration/v1".into(),
             source_model: source_model.name().into(),
             target_model: target_model.name().into(),
             source_runtime_metadata_sha256: source_model.config().runtime_metadata_sha256.clone(),

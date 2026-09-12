@@ -25,7 +25,7 @@ pub struct CapabilityDiscoveryPolicy {
 
 impl CapabilityDiscoveryPolicy {
     pub fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.capability_discovery_policy/v1"
+        if self.schema != "tidex.capability_discovery_policy/v1"
             || self.minimum_trials < 2
             || self.minimum_seeds < 2
             || !self.minimum_consistency.is_finite()
@@ -61,7 +61,7 @@ pub struct CapabilityProbeTrial {
 
 impl CapabilityProbeTrial {
     fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.capability_probe_trial/v1"
+        if self.schema != "tidex.capability_probe_trial/v1"
             || self.trial_id.trim().is_empty()
             || self.probe_id.trim().is_empty()
             || self.functional_signature.is_empty()
@@ -130,7 +130,7 @@ pub struct CapabilityDiscoveryRequest {
 
 impl CapabilityDiscoveryRequest {
     pub fn execute(&self) -> BrainResult<CapabilityDiscoveryReport> {
-        if self.schema != "cerebro.tidex.capability_discovery_request/v1" {
+        if self.schema != "tidex.capability_discovery_request/v1" {
             return Err(BrainError::Invalid("capability_discovery_request_invalid".into()));
         }
         discover_capabilities(&self.architecture_fingerprint, &self.trials, &self.policy)
@@ -259,15 +259,15 @@ pub fn discover_capabilities(
         .map(|(probe, group)| analyze_group(probe, &group, policy))
         .collect::<BrainResult<Vec<_>>>()?;
     let policy_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:CAPABILITY-DISCOVERY-POLICY:v1\0",
+        b"TIDEX:CAPABILITY-DISCOVERY-POLICY:v1\0",
         &serde_json::to_vec(policy)?,
     );
     let trials_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:CAPABILITY-PROBE-TRIALS:v1\0",
+        b"TIDEX:CAPABILITY-PROBE-TRIALS:v1\0",
         &serde_json::to_vec(trials)?,
     );
     let mut report = CapabilityDiscoveryReport {
-        schema: "cerebro.tidex.capability_discovery_report/v1".into(),
+        schema: "tidex.capability_discovery_report/v1".into(),
         architecture_fingerprint_sha256: fingerprint.manifest_sha256.clone(),
         policy_sha256,
         trials_sha256,
@@ -277,7 +277,7 @@ pub fn discover_capabilities(
     let mut unsigned = report.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     report.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:CAPABILITY-DISCOVERY-REPORT:v1\0",
+        b"TIDEX:CAPABILITY-DISCOVERY-REPORT:v1\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(report)
@@ -296,7 +296,7 @@ mod tests {
         )
         .unwrap();
         let make_trial = |id: &str, seed| CapabilityProbeTrial {
-            schema: "cerebro.tidex.capability_probe_trial/v1".into(),
+            schema: "tidex.capability_probe_trial/v1".into(),
             trial_id: id.into(),
             probe_id: "tool.call:v1".into(),
             seed,
@@ -312,7 +312,7 @@ mod tests {
             &fingerprint,
             &[make_trial("one", 1), make_trial("two", 2)],
             &CapabilityDiscoveryPolicy {
-                schema: "cerebro.tidex.capability_discovery_policy/v1".into(),
+                schema: "tidex.capability_discovery_policy/v1".into(),
                 minimum_trials: 2,
                 minimum_seeds: 2,
                 minimum_consistency: 0.99,

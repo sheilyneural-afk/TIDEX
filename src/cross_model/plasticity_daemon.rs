@@ -90,7 +90,7 @@ struct RuntimeConfig {
 
 impl RuntimeConfig {
     fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.runtime/v2"
+        if self.schema != "tidex.cross_model.runtime/v2"
             || self.models.len() < 2
             || self.models.len() > 64
             || self.maximum_stored_capabilities == 0

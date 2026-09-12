@@ -161,7 +161,7 @@ pub fn inspect_safetensors_receiver(
     root: &Path,
     request: &SafeTensorsReceiverRequest,
 ) -> BrainResult<InspectedReceiverArtifacts> {
-    if request.schema != "cerebro.tidex.safetensors_receiver_request/v1"
+    if request.schema != "tidex.safetensors_receiver_request/v1"
         || request.checkpoint_files.is_empty()
         || request.checkpoint_files.len() > MAX_CHECKPOINT_FILES
         || request.modalities.is_empty()
@@ -205,7 +205,7 @@ pub fn inspect_safetensors_receiver(
         MAX_AUXILIARY_BYTES,
     )?);
     let snapshot_digest = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:SAFETENSORS-SNAPSHOT:v1\0",
+        b"TIDEX:SAFETENSORS-SNAPSHOT:v1\0",
         &serde_json::to_vec(&file_digests)?,
     );
     assemble_inspected(request, all, &config_bytes, tokenizer, file_digests, snapshot_digest)
@@ -284,7 +284,7 @@ fn assemble_inspected(
     }
     let geometry = ParameterLayoutArtifact::new(ParameterBlockLayout::from_shapes(&shapes)?)?;
     let profile = ReceiverProfile {
-        schema: "cerebro.tidex.receiver_profile/v1".into(),
+        schema: "tidex.receiver_profile/v1".into(),
         model_id: request.model_id.clone(),
         architecture_id: request.architecture_id.clone(),
         architecture: resolved_architecture,
@@ -302,7 +302,7 @@ fn assemble_inspected(
         layout.manifest_sha256.clone(),
     )?;
     let mut result = InspectedReceiverArtifacts {
-        schema: "cerebro.tidex.inspected_receiver_artifacts/v1".into(),
+        schema: "tidex.inspected_receiver_artifacts/v1".into(),
         profile,
         layout,
         snapshot,
@@ -313,7 +313,7 @@ fn assemble_inspected(
     let mut unsigned = result.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     result.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:INSPECTED-RECEIVER-ARTIFACTS:v1\0",
+        b"TIDEX:INSPECTED-RECEIVER-ARTIFACTS:v1\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(result)
@@ -335,7 +335,7 @@ pub fn planning_profile_from_physical(
     private_root: &Path,
     request: &PhysicalPlanningProfileRequest,
 ) -> BrainResult<InspectedReceiverArtifacts> {
-    if request.schema != "cerebro.tidex.physical_planning_profile_request/v1" {
+    if request.schema != "tidex.physical_planning_profile_request/v1" {
         return Err(BrainError::Invalid("physical_planning_profile_request_invalid".into()));
     }
     let source = authenticate_live_receiver_model_profile(private_root, &request.physical_profile)?;
@@ -349,7 +349,7 @@ pub fn planning_profile_from_physical(
         all.insert(spec.tensor_id.as_str().to_string(), (spec, scalar));
     }
     let declarations = SafeTensorsReceiverRequest {
-        schema: "cerebro.tidex.safetensors_receiver_request/v1".into(),
+        schema: "tidex.safetensors_receiver_request/v1".into(),
         model_id: source.model_id,
         architecture_id: source.architecture_id,
         architecture: ReceiverArchitecture::Unknown,
@@ -402,7 +402,7 @@ mod tests {
         model.write_all(header).unwrap();
         model.write_all(&[0u8; 16]).unwrap();
         let request = SafeTensorsReceiverRequest {
-            schema: "cerebro.tidex.safetensors_receiver_request/v1".into(),
+            schema: "tidex.safetensors_receiver_request/v1".into(),
             model_id: ModelId::parse("receiver.fixture").unwrap(),
             architecture_id: ArchitectureId::parse("transformer.fixture").unwrap(),
             architecture: ReceiverArchitecture::Transformer,
@@ -446,7 +446,7 @@ mod tests {
         symlink("../../blobs/config", snapshot.join("config.json")).unwrap();
         symlink("../../blobs/tokenizer", snapshot.join("tokenizer.json")).unwrap();
         let request = SafeTensorsReceiverRequest {
-            schema: "cerebro.tidex.safetensors_receiver_request/v1".into(),
+            schema: "tidex.safetensors_receiver_request/v1".into(),
             model_id: ModelId::parse("receiver.hf.fixture").unwrap(),
             architecture_id: ArchitectureId::parse("bert.fixture").unwrap(),
             architecture: ReceiverArchitecture::Unknown,

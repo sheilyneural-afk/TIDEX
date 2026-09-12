@@ -95,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.structured_geometry_benchmark/v1",
+            "schema":"tidex.structured_geometry_benchmark/v1",
             "source_count":geometry.source_count,
             "block_count":geometry.block_count,
             "total_parameter_count":geometry.total_parameter_count,

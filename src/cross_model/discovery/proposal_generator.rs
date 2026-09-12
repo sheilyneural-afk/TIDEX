@@ -60,7 +60,7 @@ pub struct TransferProposal {
 impl TransferProposal {
     pub fn validate(&self) -> Result<(), String> {
         self.resource_budget.validate()?;
-        if self.schema != "cerebro.cross_model.transfer_proposal/v1"
+        if self.schema != "tidex.cross_model.transfer_proposal/v1"
             || self.proposal_id.trim().is_empty()
             || self.capability_name.trim().is_empty()
             || self.source_model.trim().is_empty()
@@ -152,7 +152,7 @@ impl ProposalGenerator {
                 .as_bytes(),
             );
             let mut proposal = TransferProposal {
-                schema: "cerebro.cross_model.transfer_proposal/v1".into(),
+                schema: "tidex.cross_model.transfer_proposal/v1".into(),
                 proposal_id,
                 capability_name: gap.capability_name.clone(),
                 source_model: gap.source_model.clone(),

@@ -121,7 +121,7 @@ impl ControllerInvocation {
     /// controller coefficients and functional response are intentionally not
     /// part of this wire contract: both are rederived under engine authority.
     pub fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.controller_invocation/v1"
+        if self.schema != "tidex.controller_invocation/v1"
             || self.state_before.is_empty()
             || self.state_before.iter().any(|value| !value.is_finite())
         {
@@ -150,7 +150,7 @@ pub(super) fn controller_execution_ledger_binding(
     .ok_or_else(|| BrainError::Integrity("controller_execution_receipt_ledger_missing".into()))?;
     let payload = event.payload()?;
     if payload.get("schema").and_then(Value::as_str)
-        != Some("cerebro.tidex.controller_execution_ledger_binding/v1")
+        != Some("tidex.controller_execution_ledger_binding/v1")
         || payload.get("receipt_sha256").and_then(Value::as_str) != Some(receipt_sha256)
         || payload.get("session_id").and_then(Value::as_str) != Some(receipt.session_id.as_str())
         || payload.get("invocation_sha256").and_then(Value::as_str)
@@ -234,7 +234,7 @@ pub(super) fn persist_controller_execution(
                     root,
                     "controller_execution_receipt",
                     json!({
-                        "schema":"cerebro.tidex.controller_execution_ledger_binding/v1",
+                        "schema":"tidex.controller_execution_ledger_binding/v1",
                         "receipt_sha256":&receipt_sha256,
                         "session_id":&receipt.session_id,
                         "invocation_sha256":&receipt.invocation_sha256,
@@ -271,7 +271,7 @@ pub(super) fn verify_controller_execution_receipt(
     invocation.validate()?;
     if !valid_digest(&recorded.receipt_sha256)
         || !valid_digest(&recorded.ledger_event_hash)
-        || recorded.receipt.schema != "cerebro.tidex.controller_execution_receipt/v1"
+        || recorded.receipt.schema != "tidex.controller_execution_receipt/v1"
         || recorded.receipt_path
             != controller_execution_receipt_path(root, &recorded.receipt_sha256).to_string_lossy()
         || recorded.receipt.session_id != invocation.session_id
@@ -417,7 +417,7 @@ pub(super) fn attach_evidence_support(
         }
         if reconstruction_unassigned {
             let mut reconstruction = Sha256::new();
-            reconstruction.update(b"CEREBRO:TIDEX:SPECTRAL-RECONSTRUCTION:v1\0");
+            reconstruction.update(b"TIDEX:SPECTRAL-RECONSTRUCTION:v1\0");
             reconstruction.update((field.skill_id.as_str().len() as u64).to_be_bytes());
             reconstruction.update(field.skill_id.as_str().as_bytes());
             reconstruction.update(field.generation_created.to_be_bytes());
@@ -437,7 +437,7 @@ pub(super) fn attach_evidence_support(
                 ReconstructionId::parse(format!("recon-{reconstruction_digest}"))?;
 
             let mut lineage = Sha256::new();
-            lineage.update(b"CEREBRO:TIDEX:SPECTRAL-LINEAGE:v1\0");
+            lineage.update(b"TIDEX:SPECTRAL-LINEAGE:v1\0");
             lineage.update(reconstruction_digest.as_bytes());
             let lineage_digest = format!("{:x}", lineage.finalize());
             field.lineage_id = LineageId::parse(format!("lineage-{}", &lineage_digest[..32]))?;
@@ -458,7 +458,7 @@ pub(super) fn analysis_identity(
     }
     let config_digest = Sha256Digest::parse(digest_json(config)?)?;
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:ANALYSIS:v7\0");
+    hasher.update(b"TIDEX:ANALYSIS:v7\0");
     hasher.update(source_tree_digest.as_bytes());
     hasher.update(config_digest.as_bytes());
     hasher.update(b"reconstruction/v8");
@@ -476,7 +476,7 @@ pub(super) fn commit_operation_key(
     report_sha256: &str,
 ) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:COMMIT-OPERATION:v2\0");
+    hasher.update(b"TIDEX:COMMIT-OPERATION:v2\0");
     hasher.update(batch_digest.as_bytes());
     hasher.update(report.analysis_version_digest.as_bytes());
     hasher.update(report.config_digest.as_bytes());
@@ -490,7 +490,7 @@ pub(super) fn commit_transaction_payload(
     report: &ReconstructionReport,
 ) -> Value {
     json!({
-        "schema":"cerebro.tidex.commit_transaction/v2",
+        "schema":"tidex.commit_transaction/v2",
         "operation_key":intent.operation_key,
         "batch_digest":intent.batch_digest,
         "observation_count":observation_count,
@@ -524,7 +524,7 @@ pub(super) fn verify_commit_transaction_ledger_binding(
 
 pub(super) fn sleep_analysis_key(corpus_digest: &str, report: &ReconstructionReport) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:SLEEP-ANALYSIS:v1\0");
+    hasher.update(b"TIDEX:SLEEP-ANALYSIS:v1\0");
     hasher.update(corpus_digest.as_bytes());
     hasher.update(report.analysis_version_digest.as_bytes());
     hasher.update(report.config_digest.as_bytes());
@@ -538,7 +538,7 @@ pub(super) fn sleep_operation_key(
     active_bank_sha: Option<&str>,
 ) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:SLEEP-OPERATION:v1\0");
+    hasher.update(b"TIDEX:SLEEP-OPERATION:v1\0");
     hasher.update(analysis_key.as_bytes());
     hasher.update(evidence_sha.unwrap_or("none").as_bytes());
     hasher.update(certification_status.as_str().as_bytes());
@@ -565,8 +565,8 @@ pub(super) fn verify_sleep_receipt_ledger_binding(
     state: &Value,
     current_state_sha256: &str,
 ) -> BrainResult<()> {
-    if receipt.schema != "cerebro.tidex.sleep_receipt/v1"
-        || required_sleep_state_string(state, "schema")? != "cerebro.tidex.sleep_state/v5"
+    if receipt.schema != "tidex.sleep_receipt/v1"
+        || required_sleep_state_string(state, "schema")? != "tidex.sleep_state/v5"
         || required_sleep_state_string(state, "operation_key")? != receipt.operation_key
         || required_sleep_state_string(state, "analysis_key")? != receipt.analysis_key
         || required_sleep_state_string(state, "report_sha256")? != receipt.report_sha256.as_str()
@@ -622,8 +622,7 @@ pub(super) fn verify_sleep_receipt_ledger_binding(
     .ok_or_else(|| BrainError::Integrity("sleep_receipt_ledger_event_missing".into()))?;
     let payload = event.payload()?;
     if event.event_hash != receipt.ledger_event_hash
-        || payload.get("schema").and_then(Value::as_str)
-            != Some("cerebro.tidex.sleep_transaction/v1")
+        || payload.get("schema").and_then(Value::as_str) != Some("tidex.sleep_transaction/v1")
         || payload.get("operation_key").and_then(Value::as_str)
             != Some(receipt.operation_key.as_str())
         || payload.get("analysis_key").and_then(Value::as_str)
@@ -660,7 +659,7 @@ pub(super) fn verify_sleep_transaction_ledger_binding(
     intent: &SleepTransactionIntent,
 ) -> BrainResult<()> {
     let expected = json!({
-        "schema":"cerebro.tidex.sleep_transaction/v1",
+        "schema":"tidex.sleep_transaction/v1",
         "operation_key":intent.operation_key,
         "analysis_key":intent.analysis_key,
         "corpus_digest":intent.corpus_digest,
@@ -687,7 +686,7 @@ pub(super) fn learning_finalization_operation_key(
     new_corpus_digest: &Sha256Digest,
 ) -> BrainResult<Sha256Digest> {
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:LEARNING-FINALIZATION:v1\0");
+    hasher.update(b"TIDEX:LEARNING-FINALIZATION:v1\0");
     hasher.update(learning_finalization_input_sha256.as_str().as_bytes());
     hasher.update(prior_corpus_digest.as_str().as_bytes());
     hasher.update(new_corpus_digest.as_str().as_bytes());
@@ -711,7 +710,7 @@ pub(super) fn governed_composition_operation_key(
 ) -> BrainResult<String> {
     let activation_bytes = serde_json::to_vec(operation.activation)?;
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:GOVERNED-COMPOSITION:v2\0");
+    hasher.update(b"TIDEX:GOVERNED-COMPOSITION:v2\0");
     for value in [
         operation.report_sha256,
         operation.active_bank_sha256,
@@ -895,7 +894,7 @@ pub(super) fn verify_learning_finalization_commit_binding(
     let expected_operation_key =
         commit_operation_key(&expected_batch_digest, report, receipt.report_sha256.as_str());
     if expected_batch_digest != receipt.new_corpus_digest.as_str()
-        || commit.schema != "cerebro.tidex.commit_receipt/v2"
+        || commit.schema != "tidex.commit_receipt/v2"
         || commit.legacy_recovery
         || commit.operation_key != receipt.commit_operation_key.as_str()
         || commit.operation_key != expected_operation_key
@@ -924,7 +923,7 @@ pub(super) fn verify_learning_finalization_commit_binding(
     )?
     .ok_or_else(|| BrainError::Integrity("learning_finalization_commit_ledger_missing".into()))?;
     let expected_intent = CommitTransactionIntent {
-        schema: "cerebro.tidex.commit_transaction_intent/v2".into(),
+        schema: "tidex.commit_transaction_intent/v2".into(),
         operation_key: expected_operation_key,
         batch_digest: expected_batch_digest,
         observation_digests,
@@ -1034,7 +1033,7 @@ pub(super) fn expected_learning_finalization_transition_intent(
     archive_dir: &Path,
 ) -> LearningCorpusTransitionIntent {
     LearningCorpusTransitionIntent {
-        schema: "cerebro.tidex.learning_corpus_transition_intent/v1".into(),
+        schema: "tidex.learning_corpus_transition_intent/v1".into(),
         operation_key: receipt.operation_key.clone(),
         session_id: receipt.session_id.clone(),
         adaptive_receipt_sha256: receipt.adaptive_receipt_sha256.clone(),
@@ -1149,7 +1148,7 @@ pub(super) fn verify_learning_finalization_ledger_binding(
     let archived_artifacts = serde_json::to_value(&receipt.archived_artifact_sha256)?;
     if event.event_hash != receipt.ledger_event_hash.as_str()
         || payload.get("schema").and_then(Value::as_str)
-            != Some("cerebro.tidex.learning_corpus_transition/v1")
+            != Some("tidex.learning_corpus_transition/v1")
         || payload.get("operation_key").and_then(Value::as_str)
             != Some(receipt.operation_key.as_str())
         || payload.get("session_id").and_then(Value::as_str) != Some(receipt.session_id.as_str())
@@ -1223,8 +1222,8 @@ pub fn load_verified_governed_composition_receipt(
     let receipt_bytes = receipt_reference.read_verified_bounded(&root, MAX_ENGINE_JSON_BYTES)?;
     let receipt_value: Value = serde_json::from_slice(&receipt_bytes)?;
     match receipt_value.get("schema").and_then(Value::as_str) {
-        Some("cerebro.tidex.governed_composition_receipt/v2") => {}
-        Some("cerebro.tidex.governed_composition_receipt/v1") => {
+        Some("tidex.governed_composition_receipt/v2") => {}
+        Some("tidex.governed_composition_receipt/v1") => {
             return Err(BrainError::Integrity(
                 "governed_composition_receipt_v1_historical_only".into(),
             ));
@@ -1236,7 +1235,7 @@ pub fn load_verified_governed_composition_receipt(
         }
     }
     let receipt: GovernedCompositionReceipt = serde_json::from_value(receipt_value)?;
-    if receipt.schema != "cerebro.tidex.governed_composition_receipt/v2"
+    if receipt.schema != "tidex.governed_composition_receipt/v2"
         || !valid_digest(&receipt.report_sha256)
         || !valid_digest(&receipt.active_bank_sha256)
         || !valid_digest(&receipt.evidence_bundle_sha256)
@@ -1307,7 +1306,7 @@ pub fn load_verified_governed_composition_receipt(
     .ok_or_else(|| BrainError::Integrity("governed_composition_receipt_ledger_missing".into()))?;
     let payload = event.payload()?;
     if payload.get("schema").and_then(serde_json::Value::as_str)
-        != Some("cerebro.tidex.governed_composition_ledger_binding/v2")
+        != Some("tidex.governed_composition_ledger_binding/v2")
         || payload
             .get("receipt_sha256")
             .and_then(serde_json::Value::as_str)
@@ -1502,7 +1501,7 @@ pub(super) fn load_verified_learning_finalization_receipt_under_root(
     let receipt: LearningFinalizationReceipt = serde_json::from_slice(&receipt_bytes)?;
     let expected = learning_finalization_receipt_path(root, &receipt.operation_key);
     if reference.path != expected
-        || receipt.schema != "cerebro.tidex.learning_finalization_receipt/v1"
+        || receipt.schema != "tidex.learning_finalization_receipt/v1"
         || receipt.representation_observation_bindings.is_empty()
     {
         return Err(BrainError::Integrity("learning_finalization_receipt_contract_invalid".into()));

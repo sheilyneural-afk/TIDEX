@@ -72,7 +72,7 @@ pub struct CounterfactualResult {
 impl CounterfactualResult {
     pub fn validate(&self) -> Result<(), String> {
         self.scenario.validate()?;
-        if self.schema != "cerebro.cross_model.counterfactual_result/v1"
+        if self.schema != "tidex.cross_model.counterfactual_result/v1"
             || self.model.trim().is_empty()
             || !(0.0..=1.0).contains(&self.original_score)
             || !(0.0..=1.0).contains(&self.perturbed_score)
@@ -194,7 +194,7 @@ impl CounterfactualAnalyzer {
             });
         }
         let mut result = CounterfactualResult {
-            schema: "cerebro.cross_model.counterfactual_result/v1".into(),
+            schema: "tidex.cross_model.counterfactual_result/v1".into(),
             scenario: scenario.clone(),
             model: model.name().into(),
             original_response_sha256: original.response_sha256,

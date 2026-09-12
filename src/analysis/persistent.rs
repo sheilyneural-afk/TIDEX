@@ -294,7 +294,7 @@ fn component_identity(
 ) -> BrainResult<(String, ReconstructionId, LineageId)> {
     let keys = canonical_component_key(members, observations);
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:CAPABILITY-SUPPORT:v1\0");
+    hasher.update(b"TIDEX:CAPABILITY-SUPPORT:v1\0");
     for key in &keys {
         hasher.update((key.len() as u64).to_be_bytes());
         hasher.update(key.as_bytes());

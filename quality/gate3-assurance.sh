@@ -158,7 +158,7 @@ if len(critical) < 6:
 
 passed = [line for line in pathlib.Path(passed_path).read_text().splitlines() if line]
 receipt = {
-    "schema": "cerebro.tidex.quality_assurance_receipt/v1",
+    "schema": "tidex.quality_assurance_receipt/v1",
     "gate": "P3",
     "result": "passed",
     "head_commit": head,

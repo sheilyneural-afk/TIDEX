@@ -233,7 +233,7 @@ pub fn build_memory_snapshot(
         });
     }
     Ok(BrainMemorySnapshot {
-        schema: "cerebro.tidex.memory_snapshot/v1".into(),
+        schema: "tidex.memory_snapshot/v1".into(),
         generation,
         evidence,
         semantic_episodic,
@@ -365,7 +365,7 @@ mod tests {
             .join(format!("cerebro-memory-public-persistence-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         let snapshot = BrainMemorySnapshot {
-            schema: "cerebro.tidex.memory_snapshot/v1".into(),
+            schema: "tidex.memory_snapshot/v1".into(),
             generation: 0,
             evidence: Vec::new(),
             semantic_episodic: Vec::new(),

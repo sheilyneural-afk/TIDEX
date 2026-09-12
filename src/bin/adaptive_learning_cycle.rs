@@ -49,7 +49,7 @@ fn print_receipt(
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.adaptive_learning_cli_output/v1",
+            "schema":"tidex.adaptive_learning_cli_output/v1",
             "receipt_sha256":loaded.receipt_sha256,
             "receipt":loaded.receipt,
         }))?
@@ -63,7 +63,7 @@ fn print_controller_receipt(
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.learned_controller_cli_output/v1",
+            "schema":"tidex.learned_controller_cli_output/v1",
             "receipt_sha256":loaded.receipt_sha256,
             "receipt":loaded.receipt,
         }))?
@@ -77,7 +77,7 @@ fn print_controller_execution(
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.controller_execution_cli_output/v1",
+            "schema":"tidex.controller_execution_cli_output/v1",
             "receipt_path":execution.receipt_path,
             "receipt_sha256":execution.receipt_sha256,
             "ledger_event_hash":execution.ledger_event_hash,
@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn invocation_contract_rejects_free_vectors_and_invalid_state() {
         let free_observation = json!({
-            "schema":"cerebro.tidex.controller_invocation/v1",
+            "schema":"tidex.controller_invocation/v1",
             "session_id":"session-a",
             "state_before":[1.0],
             "observation":[0.5],
@@ -179,7 +179,7 @@ mod tests {
         });
         assert!(serde_json::from_value::<ControllerInvocation>(free_observation).is_err());
         let free_coefficients = json!({
-            "schema":"cerebro.tidex.controller_invocation/v1",
+            "schema":"tidex.controller_invocation/v1",
             "session_id":"session-a",
             "state_before":[1.0],
             "promoted_observation_semantic_sha256":"a".repeat(64),
@@ -189,7 +189,7 @@ mod tests {
 
         let invalid =
             ControllerInvocation {
-                schema: "cerebro.tidex.controller_invocation/v1".into(),
+                schema: "tidex.controller_invocation/v1".into(),
                 session_id: tidex::foundation::identity::SessionId::parse("session-a").unwrap(),
                 state_before: Vec::new(),
                 promoted_observation_semantic_sha256:
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn invocation_deserialization_rejects_invalid_semantic_identities() {
         let invalid_session = json!({
-            "schema":"cerebro.tidex.controller_invocation/v1",
+            "schema":"tidex.controller_invocation/v1",
             "session_id":"../escape",
             "state_before":[1.0],
             "promoted_observation_semantic_sha256":"a".repeat(64)
@@ -209,7 +209,7 @@ mod tests {
         assert!(serde_json::from_value::<ControllerInvocation>(invalid_session).is_err());
 
         let invalid_digest = json!({
-            "schema":"cerebro.tidex.controller_invocation/v1",
+            "schema":"tidex.controller_invocation/v1",
             "session_id":"session-a",
             "state_before":[1.0],
             "promoted_observation_semantic_sha256":"not-a-digest"

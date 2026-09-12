@@ -108,7 +108,7 @@ fn tidex_graph_emits_a_closed_operator_graph_receipt() {
     let output = Command::new(executable).args(["graph"]).output().unwrap();
     assert_eq!(output.status.code(), Some(0));
     let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(receipt["schema"], "cerebro.tidex.operator_graph/v1");
+    assert_eq!(receipt["schema"], "tidex.operator_graph/v1");
     assert_eq!(receipt["passed"], true);
     assert_eq!(receipt["findings"].as_array().map(Vec::len), Some(0));
     assert!(output.stderr.is_empty());
@@ -133,7 +133,7 @@ fn tidex_staircase_emits_the_operator_living_staircase_receipt() {
         .unwrap();
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
     let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(receipt["schema"], "cerebro.tidex.operator_living_staircase/v1");
+    assert_eq!(receipt["schema"], "tidex.operator_living_staircase/v1");
     assert_eq!(receipt["authorizes_production"], false);
     assert_eq!(receipt["knowledge_live"], false);
     assert_eq!(receipt["discovery"]["present"], false);
@@ -211,7 +211,7 @@ fn tidex_profiles_and_reauthenticates_a_physical_receiver_through_the_cli() {
     std::fs::write(
         &request,
         serde_json::to_vec(&serde_json::json!({
-            "schema":"cerebro.tidex.receiver_model_profile_input/v1",
+            "schema":"tidex.receiver_model_profile_input/v1",
             "model_id":"receiver.cli-test",
             "architecture_id":"tidex.cli-test",
             "checkpoint_path":checkpoint,
@@ -230,7 +230,7 @@ fn tidex_profiles_and_reauthenticates_a_physical_receiver_through_the_cli() {
         .unwrap();
     assert_eq!(profiled.status.code(), Some(0), "{}", String::from_utf8_lossy(&profiled.stderr));
     let receipt: serde_json::Value = serde_json::from_slice(&profiled.stdout).unwrap();
-    assert_eq!(receipt["schema"], "cerebro.tidex.receiver_model_profile_receipt/v1");
+    assert_eq!(receipt["schema"], "tidex.receiver_model_profile_receipt/v1");
     std::fs::write(&reference, serde_json::to_vec(&receipt["profile_reference"]).unwrap()).unwrap();
 
     for command in ["verify-profile", "verify-live-profile"] {
@@ -307,7 +307,7 @@ fn tidex_capabilities_identify_receiver_profile_and_adapter_bank_engines() {
         .unwrap();
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(report["schema"], "cerebro.tidex.capabilities/v1");
+    assert_eq!(report["schema"], "tidex.capabilities/v1");
     let capabilities = report["capabilities"].as_array().unwrap();
     let by_id = |id: &str| {
         capabilities
@@ -406,7 +406,7 @@ fn tidex_operator_acquires_the_selected_external_workspace_target() {
         .unwrap();
     assert_eq!(acquired.status.code(), Some(0), "{}", String::from_utf8_lossy(&acquired.stderr));
     let value: serde_json::Value = serde_json::from_slice(&acquired.stdout).unwrap();
-    assert_eq!(value["schema"], "cerebro.tidex.workspace_acquisition/v1");
+    assert_eq!(value["schema"], "tidex.workspace_acquisition/v1");
     assert_eq!(value["workspace"], "external");
     assert!(value["entries"].as_u64().unwrap() >= 2);
     assert!(home
@@ -459,7 +459,7 @@ fn tidex_portability_benchmark_is_workspace_independent_and_leave_one_out() {
     std::fs::write(
         &input,
         serde_json::to_vec(&serde_json::json!({
-            "schema":"cerebro.tidex.receiver_portability_benchmark_input/v1",
+            "schema":"tidex.receiver_portability_benchmark_input/v1",
             "ridge":1e-9,
             "cases":cases
         }))
@@ -480,7 +480,7 @@ fn tidex_portability_benchmark_is_workspace_independent_and_leave_one_out() {
         String::from_utf8_lossy(&output.stderr)
     );
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(report["schema"], "cerebro.tidex.receiver_portability_benchmark/v1");
+    assert_eq!(report["schema"], "tidex.receiver_portability_benchmark/v1");
     assert_eq!(report["case_count"], 6);
     assert_eq!(report["all_resolved"], true);
 }
@@ -533,7 +533,7 @@ fn autonomous_learning_plan_cli_lifecycle() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("cerebro.tidex.autonomous_learning_plan/v1"));
+    assert!(stdout.contains("tidex.autonomous_learning_plan/v1"));
 }
 
 #[test]

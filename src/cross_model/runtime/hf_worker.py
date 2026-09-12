@@ -22,9 +22,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-HELLO_SCHEMA = "cerebro.tidex.hf_worker_hello/v1"
-RESPONSE_SCHEMA = "cerebro.cross_model.hf_worker_response/v1"
-RUNTIME_IDENTITY_DOMAIN = b"CEREBRO:TIDEX:HF-RUNTIME-IDENTITY:v1\0"
+HELLO_SCHEMA = "tidex.hf_worker_hello/v1"
+RESPONSE_SCHEMA = "tidex.cross_model.hf_worker_response/v1"
+RUNTIME_IDENTITY_DOMAIN = b"TIDEX:HF-RUNTIME-IDENTITY:v1\0"
 MAX_LINE_BYTES = 32 * 1024 * 1024
 MAX_PROMPT_CHARS = 1_048_576
 MAX_GENERATED_TOKENS = 32_768
@@ -46,7 +46,7 @@ def canonical_sha256(value: Any) -> str:
 
 def f64_vector_sha256(values: list[float]) -> str:
     hasher = hashlib.sha256()
-    hasher.update(b"CEREBRO:CROSS-MODEL:F64-VECTOR:v1\0")
+    hasher.update(b"TIDEX:CROSS-MODEL:F64-VECTOR:v1\0")
     hasher.update(struct.pack("<Q", len(values)))
     for value in values:
         hasher.update(struct.pack("<d", value))
@@ -321,7 +321,7 @@ def run_hf_worker(args: argparse.Namespace) -> int:
             require(isinstance(request, dict), "hf_worker_request_not_object")
             allowed_common = {"schema", "request_id", "operation", "payload"}
             require(set(request) == allowed_common, "hf_worker_request_fields_invalid")
-            require(request.get("schema") == "cerebro.cross_model.hf_worker_request/v1", "hf_worker_request_schema_invalid")
+            require(request.get("schema") == "tidex.cross_model.hf_worker_request/v1", "hf_worker_request_schema_invalid")
             request_id = request.get("request_id")
             operation = request.get("operation")
             payload = request.get("payload")

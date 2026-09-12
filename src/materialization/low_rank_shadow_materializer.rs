@@ -42,7 +42,7 @@ pub struct LowRankShadowPolicy {
 
 impl LowRankShadowPolicy {
     pub fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.low_rank_shadow_policy/v1"
+        if self.schema != "tidex.low_rank_shadow_policy/v1"
             || self.maximum_rank == 0
             || self.maximum_rank > MAX_SHADOW_RANK
             || !self.relative_reconstruction_tolerance.is_finite()
@@ -64,7 +64,7 @@ impl LowRankShadowPolicy {
     pub fn digest(&self) -> BrainResult<Sha256Digest> {
         self.validate()?;
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:LOW-RANK-SHADOW-POLICY:v1\0",
+            b"TIDEX:LOW-RANK-SHADOW-POLICY:v1\0",
             &serde_json::to_vec(self)?,
         ))
     }
@@ -242,7 +242,7 @@ pub fn factor_dense_delta_verified(
                 || relative <= policy.relative_reconstruction_tolerance)
         {
             return Ok(VerifiedLowRankFactors {
-                schema: "cerebro.tidex.verified_low_rank_factors/v1".into(),
+                schema: "tidex.verified_low_rank_factors/v1".into(),
                 rows,
                 columns,
                 rank,
@@ -285,7 +285,7 @@ pub struct ShadowLowRankCandidate {
 
 fn values_digest(values: &[f64]) -> BrainResult<Sha256Digest> {
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:SHADOW-LOW-RANK-DENSE-VALUES:v1\0",
+        b"TIDEX:SHADOW-LOW-RANK-DENSE-VALUES:v1\0",
         &serde_json::to_vec(values)?,
     ))
 }
@@ -301,7 +301,7 @@ impl ShadowLowRankCandidate {
         let wire_value: serde_json::Value =
             serde_json::from_slice(&serde_json::to_vec(&unsigned)?)?;
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SHADOW-LOW-RANK-CANDIDATE:v1\0",
+            b"TIDEX:SHADOW-LOW-RANK-CANDIDATE:v1\0",
             &serde_json::to_vec(&wire_value)?,
         ))
     }
@@ -321,7 +321,7 @@ impl ShadowLowRankCandidate {
         if shadow.materialization_plan.strategy != MaterializationStrategy::LowRank {
             return Err(BrainError::Invalid("shadow_low_rank_strategy_required".into()));
         }
-        if self.schema != "cerebro.tidex.shadow_low_rank_candidate/v1"
+        if self.schema != "tidex.shadow_low_rank_candidate/v1"
             || self.planning_request_sha256 != receipt.planning_request_sha256
             || self.receiver_layout_sha256 != layout.manifest_sha256
             || self.policy_sha256 != policy.digest()?
@@ -379,7 +379,7 @@ impl ShadowLowRankCandidate {
                 || tensor.base_encoding != physical.encoding
                 || tensor.partitioning != physical.partitioning
                 || tensor.dense_values_sha256 != values_digest(dense)?
-                || factors.schema != "cerebro.tidex.verified_low_rank_factors/v1"
+                || factors.schema != "tidex.verified_low_rank_factors/v1"
                 || factors.rows != block.shape[0]
                 || factors.columns != block.shape[1]
                 || factors.rank == 0
@@ -497,7 +497,7 @@ fn build_candidate(
         }
     }
     let mut candidate = ShadowLowRankCandidate {
-        schema: "cerebro.tidex.shadow_low_rank_candidate/v1".into(),
+        schema: "tidex.shadow_low_rank_candidate/v1".into(),
         planning_request_sha256: receipt.planning_request_sha256.clone(),
         receiver_layout_sha256: layout.manifest_sha256.clone(),
         policy_sha256: policy.digest()?,
@@ -576,7 +576,7 @@ mod tests {
 
     fn policy(maximum_rank: usize) -> LowRankShadowPolicy {
         LowRankShadowPolicy {
-            schema: "cerebro.tidex.low_rank_shadow_policy/v1".into(),
+            schema: "tidex.low_rank_shadow_policy/v1".into(),
             maximum_rank,
             relative_reconstruction_tolerance: 1.0e-10,
             absolute_reconstruction_tolerance: 1.0e-10,

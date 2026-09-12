@@ -34,7 +34,7 @@ def main() -> int:
     parser.add_argument("--prompt", default="Return only the decimal integer for 17 * 19.")
     args = parser.parse_args()
     runtime = json.loads(Path(args.runtime).read_text())
-    if runtime.get("schema") != "cerebro.cross_model.runtime/v2":
+    if runtime.get("schema") != "tidex.cross_model.runtime/v2":
         raise SystemExit("invalid runtime schema")
     models = runtime.get("models")
     if not isinstance(models, list):

@@ -881,7 +881,7 @@ pub fn inspect_private_directory(
             .cmp(right.relative_path.as_os_str().as_bytes())
     });
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:PRIVATE-DIRECTORY-TREE:v1\0");
+    hasher.update(b"TIDEX:PRIVATE-DIRECTORY-TREE:v1\0");
     let mut regular_file_count = 0u64;
     let mut total_file_bytes = 0u64;
     for entry in &entries {

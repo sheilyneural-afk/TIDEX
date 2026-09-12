@@ -1,5 +1,5 @@
 {
-  "schema": "cerebro.tidex.convergence_audit/v1",
+  "schema": "tidex.convergence_audit/v1",
   "base_head": "c36e042b487900b4352db22b85a90a2850283561",
   "alternate_head": "3be129281a6fb03bcc08a26dac5dacf1f29768a0",
   "alternate_working_changes_preserved": true,

@@ -97,7 +97,7 @@ impl BidirectionalLoop {
     ) -> Result<CoEvolutionStep, String> {
         self.config.validate()?;
         if self.evolution_history.len() >= self.config.maximum_iterations
-            || report.schema != "cerebro.cross_model.discovery_cycle/v1"
+            || report.schema != "tidex.cross_model.discovery_cycle/v1"
             || report.evaluations.len() < self.config.minimum_common_models
         {
             return Err("coevolution_cycle_invalid".into());

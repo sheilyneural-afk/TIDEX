@@ -55,7 +55,7 @@ def main():
     require(observed==stages["intervention_observations"],"fresh-process intervention mismatch")
     require(all(not m._forward_hooks for m in modules.values()),"replay hook remains")
     require(tip==read_journal(args.root/"events")[1],"journal changed during independent replay")
-    final={"schema":"cerebro.tidex.prospective_independent_replay/v1","complete":True,"pass":True,
+    final={"schema":"tidex.prospective_independent_replay/v1","complete":True,"pass":True,
            "journal_tip_sha256":tip,"prediction_count":len(replayed),"intervention_count":len(observed),
            "program_pairs_reexecuted":len(benchmark["verification"]),
            "fresh_process_predictions_exact":True,"fresh_process_interventions_exact":True,

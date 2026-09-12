@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let evidence_path = existing_regular_file_under_root(&root, Path::new(evidence_path))?;
     let payload: Payload = serde_json::from_slice(&fs::read(evidence_path)?)?;
-    if payload.schema != "cerebro.tidex.protected_sensitivity_evidence/v1"
+    if payload.schema != "tidex.protected_sensitivity_evidence/v1"
         || payload.task_labels_used
         || payload.evidence.len() < 2
     {
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("protected map persisted roundtrip mismatch".into());
     }
     let output = json!({
-        "schema":"cerebro.tidex.protected_map_benchmark/v2",
+        "schema":"tidex.protected_map_benchmark/v2",
         "task_labels_used":false,
         "map":stored,
     });

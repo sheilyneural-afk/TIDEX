@@ -61,6 +61,6 @@ Bajo el home del operator (p.ej. `runtime/tidex/operator/`):
 
 ## Deuda conocida (no maquillar)
 
-- Schemas wire aún `cerebro.tidex.*`.
+- Schemas wire aún `tidex.*`.
 - Identidad de modelo: ver [model-identity-and-catalog](model-identity-and-catalog.md) (política cero-aliases / content-bound).
 

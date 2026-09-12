@@ -8,7 +8,6 @@
 pub mod co_evolution;
 pub mod discovery;
 pub mod extraction;
-pub mod integration;
 pub mod models;
 pub mod plasticity;
 pub mod plasticity_engine;
@@ -42,15 +41,6 @@ pub use promotion::{
     EvidenceValidator, EvidenceValidatorConfig, GateType, Promoter, PromoterConfig,
     PromotionGateConfig, PromotionGateResult, PromotionGates, PromotionResult, PromotionStage,
     PromotionStatistics, ValidationResult,
-};
-
-pub use integration::{
-    ActivationSteeringBridge, ActivationSteeringBridgeConfig, AdapterBankBridge,
-    AdapterBankBridgeConfig, CapabilityDiscoveryBridge, CapabilityDiscoveryBridgeConfig,
-    CausalCreditBridge, CausalCreditBridgeConfig, LedgerBridge, LedgerBridgeConfig,
-    PythagorasBridge, PythagorasBridgeConfig, ShadowEvaluationBridge, ShadowEvaluationBridgeConfig,
-    TemporalTrackingBridge, TemporalTrackingBridgeConfig, WeightTomographyBridge,
-    WeightTomographyBridgeConfig,
 };
 
 pub use plasticity::{

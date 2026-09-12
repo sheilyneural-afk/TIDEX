@@ -113,9 +113,7 @@ impl BrainEngine {
         match read_untrusted_private_file_bounded(&self.root, &sleep_path, MAX_ENGINE_JSON_BYTES) {
             Ok(bytes) => {
                 let state: Value = serde_json::from_slice(&bytes)?;
-                if state.get("schema").and_then(Value::as_str)
-                    != Some("cerebro.tidex.sleep_state/v5")
-                {
+                if state.get("schema").and_then(Value::as_str) != Some("tidex.sleep_state/v5") {
                     return Err(BrainError::Integrity(
                         "canonical_engine_head_sleep_state_schema_invalid".into(),
                     ));
@@ -239,9 +237,7 @@ impl BrainEngine {
             ) {
                 Ok(bytes) => {
                     let state: Value = serde_json::from_slice(&bytes)?;
-                    if state.get("schema").and_then(Value::as_str)
-                        != Some("cerebro.tidex.sleep_state/v5")
-                    {
+                    if state.get("schema").and_then(Value::as_str) != Some("tidex.sleep_state/v5") {
                         return Err(BrainError::Integrity(
                             "canonical_engine_head_sleep_state_schema_invalid".into(),
                         ));

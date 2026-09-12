@@ -29,7 +29,6 @@ No conviene leer el runtime cross-model como una entidad que “decide por sí m
 | Backend | Inferencia conductual | Activaciones internas | Intervención | Peso físico |
 | --- | --- | --- | --- | --- |
 | Ollama | sí | no | no | no |
-| Candle | sí | no | no | no |
 | HF Transformers | sí | sí | sí | no |
 | AdapterBank / weight actuator | no | no | no | sí |
 

@@ -25,7 +25,7 @@ pub struct UniversalPromotionPolicy {
 
 impl UniversalPromotionPolicy {
     fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.universal_promotion_policy/v1"
+        if self.schema != "tidex.universal_promotion_policy/v1"
             || self.minimum_universality_n == 0
             || !self.minimum_global_wilson_lower_bound.is_finite()
             || !(0.0..=1.0).contains(&self.minimum_global_wilson_lower_bound)
@@ -83,7 +83,7 @@ pub struct UniversalPromotionGateReceipt {
 pub fn evaluate_universal_promotion_gate(
     request: &UniversalPromotionGateRequest,
 ) -> BrainResult<UniversalPromotionGateReceipt> {
-    if request.schema != "cerebro.tidex.universal_promotion_gate_request/v1" {
+    if request.schema != "tidex.universal_promotion_gate_request/v1" {
         return Err(BrainError::Invalid("universal_promotion_gate_request_invalid".into()));
     }
     request.policy.validate()?;
@@ -154,15 +154,15 @@ pub fn evaluate_universal_promotion_gate(
     let selection_sha256 = request.selection_receipt.manifest_sha256.clone();
     let universality_sha256 = request.universality_receipt.manifest_sha256.clone();
     let shadow_evaluations_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:SHADOW-EVALUATION-SET:v1\0",
+        b"TIDEX:SHADOW-EVALUATION-SET:v1\0",
         &serde_json::to_vec(&request.shadow_evaluations)?,
     );
     let policy_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSAL-PROMOTION-POLICY:v1\0",
+        b"TIDEX:UNIVERSAL-PROMOTION-POLICY:v1\0",
         &serde_json::to_vec(&request.policy)?,
     );
     let mut receipt = UniversalPromotionGateReceipt {
-        schema: "cerebro.tidex.universal_promotion_gate_receipt/v2".into(),
+        schema: "tidex.universal_promotion_gate_receipt/v2".into(),
         selection_sha256,
         universality_sha256,
         shadow_evaluations_sha256,
@@ -175,7 +175,7 @@ pub fn evaluate_universal_promotion_gate(
     let mut unsigned = receipt.clone();
     unsigned.manifest_sha256 = Sha256Digest::zero();
     receipt.manifest_sha256 = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSAL-PROMOTION-GATE-RECEIPT:v2\0",
+        b"TIDEX:UNIVERSAL-PROMOTION-GATE-RECEIPT:v2\0",
         &serde_json::to_vec(&unsigned)?,
     );
     Ok(receipt)
@@ -194,9 +194,9 @@ mod tests {
         let candidate = Sha256Digest::digest_bytes(b"candidate");
         let controls = BackendSelectionPolicy::rigorous_default(100, 100).required_controls;
         let selection_input = BackendSelectionInput {
-            schema: "cerebro.tidex.backend_selection_input/v1".into(),
+            schema: "tidex.backend_selection_input/v1".into(),
             evaluations: vec![BackendEvaluation {
-                schema: "cerebro.tidex.backend_evaluation/v1".into(),
+                schema: "tidex.backend_evaluation/v1".into(),
                 candidate_sha256: candidate,
                 strategy: MaterializationStrategy::SparseDelta,
                 functional_score: 1.0,
@@ -214,11 +214,11 @@ mod tests {
         };
         let selection_receipt = selection_input.execute().unwrap();
         let universality_input = UniversalityEvidenceInput {
-            schema: "cerebro.tidex.universality_evidence_input/v1".into(),
+            schema: "tidex.universality_evidence_input/v1".into(),
             calibration_capabilities: BTreeSet::from(["calibration:v1".into()]),
             trials: vec![
                 UniversalityTrial {
-                    schema: "cerebro.tidex.universality_trial/v1".into(),
+                    schema: "tidex.universality_trial/v1".into(),
                     trial_id: "calibration-trial".into(),
                     capability_id: "calibration:v1".into(),
                     task_family_id: "calibration_family".into(),
@@ -235,7 +235,7 @@ mod tests {
                     unmodified_receiver_score: 0.0,
                 },
                 UniversalityTrial {
-                    schema: "cerebro.tidex.universality_trial/v1".into(),
+                    schema: "tidex.universality_trial/v1".into(),
                     trial_id: "held-out-trial".into(),
                     capability_id: "held-out:v1".into(),
                     task_family_id: "state_identity".into(),
@@ -253,7 +253,7 @@ mod tests {
                 },
             ],
             protocol: UniversalityProtocol {
-                schema: "cerebro.tidex.universality_protocol/v1".into(),
+                schema: "tidex.universality_protocol/v1".into(),
                 minimum_calibration_capabilities: 1,
                 minimum_held_out_capabilities: 1,
                 minimum_receivers_per_capability: 1,
@@ -271,14 +271,14 @@ mod tests {
         };
         let universality_receipt = universality_input.execute().unwrap();
         UniversalPromotionGateRequest {
-            schema: "cerebro.tidex.universal_promotion_gate_request/v1".into(),
+            schema: "tidex.universal_promotion_gate_request/v1".into(),
             selection_input,
             selection_receipt,
             universality_input,
             universality_receipt,
             shadow_evaluations: vec![],
             policy: UniversalPromotionPolicy {
-                schema: "cerebro.tidex.universal_promotion_policy/v1".into(),
+                schema: "tidex.universal_promotion_policy/v1".into(),
                 minimum_universality_n: 1,
                 minimum_global_wilson_lower_bound: 0.0,
                 require_all_selected_candidates_evaluated: true,
@@ -302,7 +302,7 @@ mod tests {
         evaluation.functional_score = 0.0;
         evaluation.functional_ci_lower = 0.0;
         let mut witness = ShadowEvaluationReceipt {
-            schema: "cerebro.tidex.shadow_evaluation_receipt/v1".into(),
+            schema: "tidex.shadow_evaluation_receipt/v1".into(),
             runner_sha256: Sha256Digest::digest_bytes(b"test-runner"),
             bundle_sha256: Sha256Digest::digest_bytes(b"test-bundle"),
             isolated_request_sha256: Sha256Digest::digest_bytes(b"test-request"),
@@ -310,7 +310,7 @@ mod tests {
             manifest_sha256: Sha256Digest::zero(),
         };
         witness.manifest_sha256 = Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
+            b"TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
             &serde_json::to_vec(&witness).unwrap(),
         );
         witness.validate_integrity().unwrap();
@@ -320,7 +320,7 @@ mod tests {
 
     fn shadow_receipt(evaluation: BackendEvaluation) -> ShadowEvaluationReceipt {
         let mut receipt = ShadowEvaluationReceipt {
-            schema: "cerebro.tidex.shadow_evaluation_receipt/v1".into(),
+            schema: "tidex.shadow_evaluation_receipt/v1".into(),
             runner_sha256: Sha256Digest::digest_bytes(b"runner"),
             bundle_sha256: Sha256Digest::digest_bytes(b"bundle"),
             isolated_request_sha256: Sha256Digest::digest_bytes(b"request"),
@@ -330,7 +330,7 @@ mod tests {
         let mut unsigned = receipt.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         receipt.manifest_sha256 = Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
+            b"TIDEX:SHADOW-EVALUATION-RECEIPT:v1\0",
             &serde_json::to_vec(&unsigned).unwrap(),
         );
         receipt

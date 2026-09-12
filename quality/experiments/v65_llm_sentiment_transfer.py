@@ -54,8 +54,8 @@ RECEIVER_DIRECT_STEPS = 200
 RECEIVER_COMPILE_STEPS = 200
 WRONG_IR_STEPS = 160
 LABEL_TEXT = (" negative", " positive")
-CAPABILITY_SCHEMA = "cerebro.tidex.language_capability_ir/v1"
-RECEIPT_SCHEMA = "cerebro.tidex.v65_llm_capability_transfer/v1"
+CAPABILITY_SCHEMA = "tidex.language_capability_ir/v1"
+RECEIPT_SCHEMA = "tidex.v65_llm_capability_transfer/v1"
 
 
 def canonical_json(value: Any) -> bytes:

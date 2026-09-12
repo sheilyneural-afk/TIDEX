@@ -97,14 +97,14 @@ impl ParameterBlockLayout {
             }
         }
         Ok(Self {
-            schema: "cerebro.tidex.parameter_block_layout/v1".into(),
+            schema: "tidex.parameter_block_layout/v1".into(),
             blocks,
             total_parameter_count: offset,
         })
     }
 
     pub fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.parameter_block_layout/v1"
+        if self.schema != "tidex.parameter_block_layout/v1"
             || self.blocks.is_empty()
             || self.blocks.len() > MAX_PARAMETER_BLOCKS
             || self.total_parameter_count > MAX_LAYOUT_PARAMETER_COUNT
@@ -150,7 +150,7 @@ impl ParameterBlockLayout {
 /// contract; this outer schema versions persistence and authentication.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ParameterLayoutArtifactSchema {
-    #[serde(rename = "cerebro.tidex.parameter_layout_artifact/v1")]
+    #[serde(rename = "tidex.parameter_layout_artifact/v1")]
     V1,
 }
 
@@ -539,7 +539,7 @@ pub fn reconstruct_structured_geometry(
         });
     }
     Ok(StructuredGeometryReport {
-        schema: "cerebro.tidex.structured_geometry/v1".into(),
+        schema: "tidex.structured_geometry/v1".into(),
         source_count: sources.len(),
         block_count: layout.blocks.len(),
         total_parameter_count: layout.total_parameter_count,

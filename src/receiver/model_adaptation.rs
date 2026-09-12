@@ -29,11 +29,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-pub const RECEIVER_MODEL_PROFILE_INPUT_SCHEMA: &str =
-    "cerebro.tidex.receiver_model_profile_input/v1";
-pub const RECEIVER_MODEL_PROFILE_SCHEMA: &str = "cerebro.tidex.receiver_model_profile/v1";
-pub const RECEIVER_MODEL_PROFILE_RECEIPT_SCHEMA: &str =
-    "cerebro.tidex.receiver_model_profile_receipt/v1";
+pub const RECEIVER_MODEL_PROFILE_INPUT_SCHEMA: &str = "tidex.receiver_model_profile_input/v1";
+pub const RECEIVER_MODEL_PROFILE_SCHEMA: &str = "tidex.receiver_model_profile/v1";
+pub const RECEIVER_MODEL_PROFILE_RECEIPT_SCHEMA: &str = "tidex.receiver_model_profile_receipt/v1";
 const MAX_PROFILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_CONFIG_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -343,9 +341,7 @@ fn architecture_metadata(bytes: &[u8]) -> BrainResult<ReceiverArchitectureMetada
         .get("quantization_config")
         .map(|value| {
             serde_json::to_vec(value)
-                .map(|bytes| {
-                    Sha256Digest::digest_domain(b"CEREBRO:TIDEX:QUANTIZATION-CONFIG:v1\0", &bytes)
-                })
+                .map(|bytes| Sha256Digest::digest_domain(b"TIDEX:QUANTIZATION-CONFIG:v1\0", &bytes))
                 .map_err(BrainError::from)
         })
         .transpose()?;
@@ -376,7 +372,7 @@ fn adaptation_abi_digest(
     exact_lora_layout_sha256: Option<&ParameterLayoutDigest>,
 ) -> BrainResult<Sha256Digest> {
     let projection = AdaptationAbiProjection {
-        schema: "cerebro.tidex.receiver_adaptation_abi/v1",
+        schema: "tidex.receiver_adaptation_abi/v1",
         checkpoint_format: ReceiverCheckpointFormat::SingleSafetensorsV1,
         architecture_id,
         config_sha256,
@@ -388,7 +384,7 @@ fn adaptation_abi_digest(
         lora_surface: "peft_unfused_layers_qkvo_gate_up_down/v1",
     };
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:RECEIVER-ADAPTATION-ABI:v1\0",
+        b"TIDEX:RECEIVER-ADAPTATION-ABI:v1\0",
         &serde_json::to_vec(&projection)?,
     ))
 }
@@ -405,7 +401,7 @@ fn topology_digest(inventory: &ModelParameterInventory) -> BrainResult<Sha256Dig
         })
         .collect::<Vec<_>>();
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:RECEIVER-PARAMETER-TOPOLOGY:v1\0",
+        b"TIDEX:RECEIVER-PARAMETER-TOPOLOGY:v1\0",
         &serde_json::to_vec(&entries)?,
     ))
 }

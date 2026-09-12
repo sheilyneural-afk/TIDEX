@@ -21,7 +21,7 @@ from quality.experiments.capability_statistics import (
     paired_gain_interval, paired_pass_counts, validated_pass_rows,
 )
 
-SCHEMA = "cerebro.tidex.capability_evidence_audit/v1"
+SCHEMA = "tidex.capability_evidence_audit/v1"
 
 
 def require(condition, reason):
@@ -116,13 +116,13 @@ def comparison(base, candidate):
 
 def audit(args):
     evidence = Evidence()
-    manifest = evidence.read(args.adapter_dir / "manifest.json", "cerebro.tidex.v66_compiled_adapter_artifact/v1")
-    source = evidence.read(args.source, "cerebro.tidex.v66_receiver_code_capability/v1")
-    replay = evidence.read(args.replay, "cerebro.tidex.v66_compiled_adapter_replay/v1")
-    direct = evidence.read(args.direct_replay, "cerebro.tidex.v67_direct_weight_replay/v1")
-    smoke = evidence.read(args.smoke, "cerebro.tidex.v67_weight_actuator_smoke/v1")
-    ir = evidence.read(args.ir, "cerebro.tidex.code_capability_ir/v1")
-    donor = evidence.read(args.donor, "cerebro.tidex.v66_donor_code_capability/v1")
+    manifest = evidence.read(args.adapter_dir / "manifest.json", "tidex.v66_compiled_adapter_artifact/v1")
+    source = evidence.read(args.source, "tidex.v66_receiver_code_capability/v1")
+    replay = evidence.read(args.replay, "tidex.v66_compiled_adapter_replay/v1")
+    direct = evidence.read(args.direct_replay, "tidex.v67_direct_weight_replay/v1")
+    smoke = evidence.read(args.smoke, "tidex.v67_weight_actuator_smoke/v1")
+    ir = evidence.read(args.ir, "tidex.code_capability_ir/v1")
+    donor = evidence.read(args.donor, "tidex.v66_donor_code_capability/v1")
     for receipt in (source, replay, direct):
         require(receipt.get("complete") is True, "incomplete receipt")
     # Recompute; input pass flags are deliberately not used.
@@ -267,7 +267,7 @@ def audit(args):
         measured = verify_run(prospective_root)
         retained = evidence.read(prospective_root / "receipt.json")
         require(measured == retained, "prospective receipt differs from recalculated observations")
-        independent = evidence.read(prospective_root / "independent-replay.json", "cerebro.tidex.prospective_independent_replay/v1")
+        independent = evidence.read(prospective_root / "independent-replay.json", "tidex.prospective_independent_replay/v1")
         require(independent.get("complete") is True and independent.get("pass") is True
                 and independent["scientific_verdict"] == measured
                 and independent["journal_tip_sha256"] == measured["journal_tip_sha256"],

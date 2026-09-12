@@ -56,13 +56,13 @@ impl ArchitectureFamilyFingerprint {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:ARCHITECTURE-FAMILY-FINGERPRINT:v1\0",
+            b"TIDEX:ARCHITECTURE-FAMILY-FINGERPRINT:v1\0",
             &serde_json::to_vec(&unsigned)?,
         ))
     }
 
     pub fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.architecture_family_fingerprint/v1"
+        if self.schema != "tidex.architecture_family_fingerprint/v1"
             || self.configuration_sha256 == Sha256Digest::zero()
             || self.module_family_counts.is_empty()
             || self.module_family_counts.values().any(|count| *count == 0)
@@ -250,7 +250,7 @@ pub fn fingerprint_architecture(
         evidence_tags.insert("multimodal_config_or_tensors".into());
     }
     let mut result = ArchitectureFamilyFingerprint {
-        schema: "cerebro.tidex.architecture_family_fingerprint/v1".into(),
+        schema: "tidex.architecture_family_fingerprint/v1".into(),
         configuration_sha256: Sha256Digest::digest_bytes(config_bytes),
         model_type,
         declared_architectures,

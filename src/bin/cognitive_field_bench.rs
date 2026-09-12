@@ -50,13 +50,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|field| field.skill_id.clone())
         .collect::<Vec<_>>();
-    if report.schema != "cerebro.tidex.reconstruction/v8"
+    if report.schema != "tidex.reconstruction/v8"
         || !report.promotion.allowed
         || report.fields.is_empty()
-        || trust.schema != "cerebro.tidex.trust_region_benchmark/v3"
+        || trust.schema != "tidex.trust_region_benchmark/v3"
         || trust.report_sha256 != report_sha
         || trust.field_ids != field_ids
-        || causal.schema != "cerebro.tidex.causal_credit_benchmark/v3"
+        || causal.schema != "tidex.causal_credit_benchmark/v3"
         || causal.blind_data_accessed
         || causal.report_sha256 != report_sha
         || causal.field_ids != field_ids
@@ -112,7 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.dynamic_cognitive_field_benchmark/v1",
+            "schema":"tidex.dynamic_cognitive_field_benchmark/v1",
             "task_labels_used_for_dynamics":false,
             "report_sha256":report_sha,
             "trust_region_sha256":sha256_file(trust_path)?,

@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .ok_or("usage: relational_transport_bench <input.json>")?;
     let input: Input = serde_json::from_slice(&fs::read(Path::new(&path))?)?;
-    if input.schema != "cerebro.tidex.relational_transport_input/v1" {
+    if input.schema != "tidex.relational_transport_input/v1" {
         return Err("relational transport input schema invalid".into());
     }
     let map =
@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.relational_transport_benchmark/v1",
+            "schema":"tidex.relational_transport_benchmark/v1",
             "anchor_count":map.anchor_count,
             "source_signature_dim":map.source_signature_dim,
             "target_signature_dim":map.target_signature_dim,

@@ -33,7 +33,7 @@ pub struct ShadowReceiverCoordinateCandidate {
 
 fn plan_digest(plan: &MaterializationPlan) -> BrainResult<Sha256Digest> {
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:SHADOW-MATERIALIZATION-PLAN:v1\0",
+        b"TIDEX:SHADOW-MATERIALIZATION-PLAN:v1\0",
         &serde_json::to_vec(plan)?,
     ))
 }
@@ -43,7 +43,7 @@ impl ShadowReceiverCoordinateCandidate {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SHADOW-RECEIVER-CANDIDATE:v1\0",
+            b"TIDEX:SHADOW-RECEIVER-CANDIDATE:v1\0",
             &serde_json::to_vec(&unsigned)?,
         ))
     }
@@ -63,11 +63,11 @@ impl ShadowReceiverCoordinateCandidate {
             ));
         }
         let coordinate_bytes = serde_json::to_vec(&self.coordinates)?;
-        if self.schema != "cerebro.tidex.shadow_receiver_coordinate_candidate/v1"
+        if self.schema != "tidex.shadow_receiver_coordinate_candidate/v1"
             || self.plan_sha256 != plan_digest(plan)?
             || self.coordinate_sha256
                 != Sha256Digest::digest_domain(
-                    b"CEREBRO:TIDEX:SHADOW-RECEIVER-COORDINATES:v1\0",
+                    b"TIDEX:SHADOW-RECEIVER-COORDINATES:v1\0",
                     &coordinate_bytes,
                 )
             || self.receiver_parameter_dimension != profile.parameter_dimension
@@ -100,10 +100,10 @@ fn materialize_receiver_coordinates_shadow(
     }
     let coordinate_bytes = serde_json::to_vec(&coordinates)?;
     let mut candidate = ShadowReceiverCoordinateCandidate {
-        schema: "cerebro.tidex.shadow_receiver_coordinate_candidate/v1".into(),
+        schema: "tidex.shadow_receiver_coordinate_candidate/v1".into(),
         plan_sha256: plan_digest(plan)?,
         coordinate_sha256: Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:SHADOW-RECEIVER-COORDINATES:v1\0",
+            b"TIDEX:SHADOW-RECEIVER-COORDINATES:v1\0",
             &coordinate_bytes,
         ),
         receiver_parameter_dimension: profile.parameter_dimension,
@@ -194,7 +194,7 @@ mod tests {
     fn fixture() -> (ReceiverProfile, MaterializationPlan) {
         let tensor = TensorId::parse("layers.0.attn.q_proj.weight").unwrap();
         let profile = ReceiverProfile {
-            schema: "cerebro.tidex.receiver_profile/v1".into(),
+            schema: "tidex.receiver_profile/v1".into(),
             model_id: ModelId::parse("receiver.v1").unwrap(),
             architecture_id: ArchitectureId::parse("transformer.v1").unwrap(),
             architecture: ReceiverArchitecture::Transformer,
@@ -210,7 +210,7 @@ mod tests {
             }],
         };
         let requirements = CapabilityRequirements {
-            schema: "cerebro.tidex.capability_requirements/v1".into(),
+            schema: "tidex.capability_requirements/v1".into(),
             capability_id: CapabilityId::parse("test.capability:v1").unwrap(),
             capability_ir_sha256: CapabilityIrDigest::draft_marker(),
             required_modalities: BTreeSet::from([CapabilityModality::Text]),

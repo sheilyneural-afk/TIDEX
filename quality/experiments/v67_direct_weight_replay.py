@@ -45,8 +45,8 @@ from quality.experiments.v66_mbpp_receiver_compile import (
     generic_loss,
 )
 
-SCHEMA = "cerebro.tidex.v67_direct_weight_replay/v1"
-SMOKE_SCHEMA = "cerebro.tidex.v67_weight_actuator_smoke/v1"
+SCHEMA = "tidex.v67_direct_weight_replay/v1"
+SMOKE_SCHEMA = "tidex.v67_weight_actuator_smoke/v1"
 
 if "peft" in sys.modules:
     raise SystemExit("V67 direct replay rejected: PEFT was imported into the standalone evaluator")

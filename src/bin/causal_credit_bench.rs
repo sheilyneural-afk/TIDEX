@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("usage: causal_credit_bench <replay.json>")?;
     let replay_path = Path::new(&path);
     let payload: ReplayPayload = serde_json::from_slice(&fs::read(replay_path)?)?;
-    if !matches!(payload.schema.as_str(), "cerebro.tidex.counterfactual_replay/v3")
+    if !matches!(payload.schema.as_str(), "tidex.counterfactual_replay/v3")
         || payload.blind_data_accessed
         || payload.report_sha256.len() != 64
         || payload.plan_sha256.len() != 64
@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.causal_credit_benchmark/v3",
+            "schema":"tidex.causal_credit_benchmark/v3",
             "blind_data_accessed":payload.blind_data_accessed,
             "replay_sha256":sha256_file(replay_path)?,
             "report_sha256":payload.report_sha256,

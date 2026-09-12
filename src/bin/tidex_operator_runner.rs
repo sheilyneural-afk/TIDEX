@@ -125,7 +125,7 @@ fn probe_runtime_profile(
 ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
     let model = spawn(config)?;
     Ok(serde_json::json!({
-        "schema": "cerebro.tidex.operator_runtime_probe/v1",
+        "schema": "tidex.operator_runtime_probe/v1",
         "model": model.config(),
         "access": {
             "behavioral_inference": model.supports(ModelAccess::BehavioralInference),
@@ -217,7 +217,7 @@ fn run(
             }
             let model = spawn(*model)?;
             let prompt = format!(
-                "Create exactly {probe_count} deterministic behavioral benchmark probes for the objective below. Return ONLY one JSON object, with no markdown and no commentary. The JSON MUST satisfy this exact schema: {{\"schema\":\"cerebro.cross_model.behavioral_benchmark/v1\",\"benchmark_id\":{benchmark_id:?},\"domain\":{domain:?},\"probes\":[{{\"probe_id\":\"p1\",\"prompt\":\"...\",\"verifier\":{{\"kind\":\"exact_text\",\"expected\":\"...\",\"trim\":true,\"case_sensitive\":true}},\"weight\":1.0}}],\"minimum_mean_gap\":0.0,\"significance_alpha\":0.05}}. Use deterministic verifiers only: exact_text, contains_all, numeric, or json_pointer_equals. Do not include unverifiable subjective grading. Objective: {objective}"
+                "Create exactly {probe_count} deterministic behavioral benchmark probes for the objective below. Return ONLY one JSON object, with no markdown and no commentary. The JSON MUST satisfy this exact schema: {{\"schema\":\"tidex.cross_model.behavioral_benchmark/v1\",\"benchmark_id\":{benchmark_id:?},\"domain\":{domain:?},\"probes\":[{{\"probe_id\":\"p1\",\"prompt\":\"...\",\"verifier\":{{\"kind\":\"exact_text\",\"expected\":\"...\",\"trim\":true,\"case_sensitive\":true}},\"weight\":1.0}}],\"minimum_mean_gap\":0.0,\"significance_alpha\":0.05}}. Use deterministic verifiers only: exact_text, contains_all, numeric, or json_pointer_equals. Do not include unverifiable subjective grading. Objective: {objective}"
             );
             let generation = model.generate(&prompt)?;
             let benchmark: BehavioralBenchmark = serde_json::from_str(&generation.text)
@@ -230,7 +230,7 @@ fn run(
                 return Err("generated_benchmark_contract_mismatch".into());
             }
             Ok(serde_json::json!({
-                "schema":"cerebro.tidex.operator_generated_benchmark/v1",
+                "schema":"tidex.operator_generated_benchmark/v1",
                 "generator_model":model.name(),
                 "runtime_metadata_sha256":model.config().runtime_metadata_sha256,
                 "generation_execution_sha256":generation.execution_sha256,
@@ -316,7 +316,7 @@ fn run(
             let score_delta = intervened.weighted_score - baseline.weighted_score;
             let restore_delta = restored.weighted_score - baseline.weighted_score;
             Ok(serde_json::to_value(ActivationTransferReport {
-                schema: "cerebro.tidex.operator_activation_transfer/v1".into(),
+                schema: "tidex.operator_activation_transfer/v1".into(),
                 source_model: source.name().into(),
                 target_model: target.name().into(),
                 capability_name,

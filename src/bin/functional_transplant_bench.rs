@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .ok_or("usage: functional_transplant_bench <input.json>")?;
     let input: Input = serde_json::from_slice(&fs::read(Path::new(&path))?)?;
-    if input.schema != "cerebro.tidex.functional_transplant_input/v1" {
+    if input.schema != "tidex.functional_transplant_input/v1" {
         return Err("functional transplant input schema invalid".into());
     }
     let map = learn_functional_transplant(
@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.functional_transplant_benchmark/v1",
+            "schema":"tidex.functional_transplant_benchmark/v1",
             "functional_dim":map.functional_dim,
             "target_dim":map.target_dim,
             "anchor_count":map.anchor_count,

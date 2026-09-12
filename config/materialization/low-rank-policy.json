@@ -1,5 +1,5 @@
 {
-  "schema": "cerebro.tidex.low_rank_shadow_policy/v1",
+  "schema": "tidex.low_rank_shadow_policy/v1",
   "maximum_rank": 32,
   "relative_reconstruction_tolerance": 0.001,
   "absolute_reconstruction_tolerance": 1e-8,

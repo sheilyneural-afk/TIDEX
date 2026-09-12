@@ -32,17 +32,16 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-pub const MODEL_PARAMETER_INVENTORY_SCHEMA: &str = "cerebro.tidex.model_parameter_inventory/v1";
-pub const WEIGHT_MATERIALIZATION_RECEIPT_SCHEMA: &str =
-    "cerebro.tidex.weight_materialization_receipt/v1";
-pub const LORA_ADAPTER_AXIS_INPUT_SCHEMA: &str = "cerebro.tidex.lora_adapter_axis_input/v1";
-pub const LORA_ADAPTER_AXIS_RECEIPT_SCHEMA: &str = "cerebro.tidex.lora_adapter_axis_receipt/v1";
+pub const MODEL_PARAMETER_INVENTORY_SCHEMA: &str = "tidex.model_parameter_inventory/v1";
+pub const WEIGHT_MATERIALIZATION_RECEIPT_SCHEMA: &str = "tidex.weight_materialization_receipt/v1";
+pub const LORA_ADAPTER_AXIS_INPUT_SCHEMA: &str = "tidex.lora_adapter_axis_input/v1";
+pub const LORA_ADAPTER_AXIS_RECEIPT_SCHEMA: &str = "tidex.lora_adapter_axis_receipt/v1";
 pub const SHARDED_SAFETENSORS_NORMALIZATION_INPUT_SCHEMA: &str =
-    "cerebro.tidex.sharded_safetensors_normalization_input/v1";
+    "tidex.sharded_safetensors_normalization_input/v1";
 pub const SHARDED_SAFETENSORS_NORMALIZATION_SCHEMA: &str =
-    "cerebro.tidex.sharded_safetensors_normalization/v1";
+    "tidex.sharded_safetensors_normalization/v1";
 pub const SHARDED_SAFETENSORS_NORMALIZATION_RECEIPT_SCHEMA: &str =
-    "cerebro.tidex.sharded_safetensors_normalization_receipt/v1";
+    "tidex.sharded_safetensors_normalization_receipt/v1";
 const MAX_SAFETENSORS_HEADER_BYTES: u64 = 100_000_000;
 const MAX_SHARDED_INDEX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_SHARDED_TENSORS: usize = 1_000_000;
@@ -784,7 +783,7 @@ impl SafeTensorArchive {
             return Err(integrity("linear_readout_difference_nonfinite"));
         }
         Ok(LinearReadoutInspection {
-            schema: "cerebro.tidex.linear_readout_inspection/v1".into(),
+            schema: "tidex.linear_readout_inspection/v1".into(),
             input_dimension,
             model_sha256: self.inventory.model_sha256.clone(),
             tensor_id: tensor_id.clone(),
@@ -2973,7 +2972,7 @@ mod tests {
             let path = root.join(format!("{dtype}.safetensors"));
             write_readout_fixture(&path, dtype, &[3, 2], &bytes);
             let inspection = inspect_linear_readout(&path, &tensor_id, 2, 0).unwrap();
-            assert_eq!(inspection.schema, "cerebro.tidex.linear_readout_inspection/v1");
+            assert_eq!(inspection.schema, "tidex.linear_readout_inspection/v1");
             assert_eq!(
                 inspection.model_sha256,
                 crate::foundation::artifact::sha256_file(&path).unwrap()

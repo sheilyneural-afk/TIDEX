@@ -38,10 +38,10 @@ use std::os::fd::AsRawFd;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Component, Path, PathBuf};
 
-const REQUEST_DOMAIN: &[u8] = b"CEREBRO:TIDEX:ACQUISITION-REQUEST:v1\0";
-const ENVELOPE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:SYSTEM-ENVELOPE:v1\0";
-const FILE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:SOURCE-FILE:v1\0";
-const DIRECTORY_DOMAIN: &[u8] = b"CEREBRO:TIDEX:SOURCE-DIRECTORY:v1\0";
+const REQUEST_DOMAIN: &[u8] = b"TIDEX:ACQUISITION-REQUEST:v1\0";
+const ENVELOPE_DOMAIN: &[u8] = b"TIDEX:SYSTEM-ENVELOPE:v1\0";
+const FILE_DOMAIN: &[u8] = b"TIDEX:SOURCE-FILE:v1\0";
+const DIRECTORY_DOMAIN: &[u8] = b"TIDEX:SOURCE-DIRECTORY:v1\0";
 
 // Protocol safety ceilings.  The caller-controlled byte/file budget is still
 // authoritative for admitted regular-file contents; these additional limits
@@ -133,13 +133,13 @@ mod path_wire {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AcquisitionSchema {
-    #[serde(rename = "cerebro.tidex.acquisition_request/v1")]
+    #[serde(rename = "tidex.acquisition_request/v1")]
     V1,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SystemEnvelopeSchema {
-    #[serde(rename = "cerebro.tidex.system_envelope/v1")]
+    #[serde(rename = "tidex.system_envelope/v1")]
     V1,
 }
 

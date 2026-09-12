@@ -49,7 +49,7 @@ def main() -> int:
         print(json.dumps({'status':'failed_closed','reason':'tensor manifest incomplete'}, indent=2))
         return 2
     payload = {
-        'schema':'cerebro.cross_model.runtime_architecture_evidence/v1',
+        'schema':'tidex.cross_model.runtime_architecture_evidence/v1',
         'model':args.model,
         'architecture':architecture,
         'parameter_count':parameter_count,

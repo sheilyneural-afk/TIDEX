@@ -199,7 +199,7 @@ fn functional_similarity(left: &SkillField, right: &SkillField) -> BrainResult<f
 
 fn attractor_digest(field_ids: &[SkillId], activations: &[f64]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:COGNITIVE-FIELD-ATTRACTOR:v1\0");
+    hasher.update(b"TIDEX:COGNITIVE-FIELD-ATTRACTOR:v1\0");
     for (field_id, activation) in field_ids.iter().zip(activations) {
         hasher.update((field_id.len() as u64).to_be_bytes());
         hasher.update(field_id.as_bytes());
@@ -351,7 +351,7 @@ impl DynamicCognitiveField {
             .collect::<Vec<_>>();
 
         Ok(Self {
-            schema: "cerebro.tidex.dynamic_cognitive_field/v1".into(),
+            schema: "tidex.dynamic_cognitive_field/v1".into(),
             field_ids,
             coupling_matrix: matrix_rows(&coupling),
             positive_laplacian: matrix_rows(&positive_laplacian),
@@ -444,7 +444,7 @@ impl DynamicCognitiveField {
                 && coalition.salience >= self.config.ignition_threshold
         });
         Ok(CognitiveFieldState {
-            schema: "cerebro.tidex.cognitive_field_state/v1".into(),
+            schema: "tidex.cognitive_field_state/v1".into(),
             field_ids: self.field_ids.clone(),
             activations: state.clone(),
             steps,
@@ -563,7 +563,7 @@ impl DynamicCognitiveField {
             selected_field_ids.push(self.field_ids[index].clone());
         }
         Ok(FieldRoutingDecision {
-            schema: "cerebro.tidex.cognitive_field_routing/v1".into(),
+            schema: "tidex.cognitive_field_routing/v1".into(),
             field_ids: self.field_ids.clone(),
             coefficients,
             selected_field_ids,
@@ -602,7 +602,7 @@ mod tests {
 
     fn causal() -> CausalCreditReport {
         CausalCreditReport {
-            schema: "cerebro.tidex.causal_credit/v3".into(),
+            schema: "tidex.causal_credit/v3".into(),
             context_count: 12,
             independent_group_count: 4,
             field_count: 3,

@@ -394,7 +394,7 @@ pub fn train_learned_controller(
         .collect::<BTreeSet<_>>()
         .len();
     Ok(LearnedController {
-        schema: "cerebro.tidex.learned_controller/v1".into(),
+        schema: "tidex.learned_controller/v1".into(),
         state_dim,
         observation_dim,
         coefficient_dim,
@@ -421,7 +421,7 @@ pub(crate) fn train_runtime_learned_controller(
         return Err(BrainError::Invalid("runtime_learned_controller_coefficient_shape".into()));
     }
     Ok(RuntimeLearnedController {
-        schema: "cerebro.tidex.runtime_learned_controller/v1".into(),
+        schema: "tidex.runtime_learned_controller/v1".into(),
         field_ids,
         controller,
     })
@@ -460,7 +460,7 @@ fn field_fingerprint(field_ids: &[SkillId]) -> BrainResult<SkillFieldSetDigest> 
 }
 
 fn validate_persisted_controller_policy(policy: &LearnedControllerPolicy) -> BrainResult<()> {
-    if policy.schema != "cerebro.tidex.learned_controller_policy/v1"
+    if policy.schema != "tidex.learned_controller_policy/v1"
         || !policy.ridge.is_finite()
         || policy.ridge <= 0.0
         || !policy.ood_margin_fraction.is_finite()
@@ -583,7 +583,7 @@ fn active_bank_under_root(
 }
 
 fn report_field_ids(report: &Value) -> BrainResult<Vec<SkillId>> {
-    if report.get("schema").and_then(Value::as_str) != Some("cerebro.tidex.reconstruction/v8")
+    if report.get("schema").and_then(Value::as_str) != Some("tidex.reconstruction/v8")
         || report
             .get("promotion")
             .and_then(|promotion| promotion.get("allowed"))
@@ -653,7 +653,7 @@ fn validate_controller_binding_under_root(
     root: &Path,
     binding: &LearnedControllerBinding,
 ) -> BrainResult<(SkillBank, LoadedAdaptiveLearningReceipt, LearningFinalizationReceipt)> {
-    if binding.schema != "cerebro.tidex.learned_controller_binding/v1"
+    if binding.schema != "tidex.learned_controller_binding/v1"
         || !Sha256Digest::is_valid_str(binding.finalization_receipt.sha256.as_str())
     {
         return Err(BrainError::Integrity("learned_controller_binding_contract_invalid".into()));
@@ -722,7 +722,7 @@ fn validate_supervision(
     binding: &LearnedControllerBinding,
     finalization: &LearningFinalizationReceipt,
 ) -> BrainResult<ControllerExample> {
-    if record.schema != "cerebro.tidex.learned_controller_training_record/v1"
+    if record.schema != "tidex.learned_controller_training_record/v1"
         || record.observation != expected_evidence.observation
         || record.observation_id != expected_evidence.observation_id
     {
@@ -745,7 +745,7 @@ fn validate_supervision(
     }
     let supervision: ControllerSupervisionEvidence =
         parse_referenced_json(root, &record.supervision)?;
-    if supervision.schema != "cerebro.tidex.learned_controller_supervision/v1"
+    if supervision.schema != "tidex.learned_controller_supervision/v1"
         || supervision.session_id != binding.session_id
         || supervision.target_digest != binding.target_digest
         || supervision.adaptive_evidence_sha256 != record.adaptive_evidence_sha256
@@ -875,7 +875,7 @@ fn validate_training_dataset_under_root(
         ));
     }
     let dataset: ControllerTrainingDataset = parse_referenced_json(root, dataset_reference)?;
-    if dataset.schema != "cerebro.tidex.learned_controller_training_dataset/v1"
+    if dataset.schema != "tidex.learned_controller_training_dataset/v1"
         || dataset.session_id != binding.session_id
         || dataset.target_digest != binding.target_digest
         || dataset.records.len() < 6
@@ -933,9 +933,9 @@ fn validate_controller_quality(
     policy: &LearnedControllerPolicy,
     field_ids: &[SkillId],
 ) -> BrainResult<()> {
-    if runtime.schema != "cerebro.tidex.runtime_learned_controller/v1"
+    if runtime.schema != "tidex.runtime_learned_controller/v1"
         || runtime.field_ids != field_ids
-        || runtime.controller.schema != "cerebro.tidex.learned_controller/v1"
+        || runtime.controller.schema != "tidex.learned_controller/v1"
         || runtime.controller.coefficient_dim != field_ids.len()
         || runtime.controller.training_groups < policy.minimum_independent_groups
         || !runtime.controller.grouped_cv_r2.is_finite()
@@ -1023,7 +1023,7 @@ fn validate_controller_receipt_under_root(
     digest: &LearnedControllerReceiptDigest,
 ) -> BrainResult<LearnedControllerReceipt> {
     let receipt = load_controller_receipt_by_sha(root, digest)?;
-    if receipt.schema != "cerebro.tidex.learned_controller_receipt/v1"
+    if receipt.schema != "tidex.learned_controller_receipt/v1"
         || receipt.event_kind != LearnedControllerEventKind::ControllerTrained
         || receipt.policy_digest != controller_policy_digest(&receipt.policy)?
         || receipt.field_fingerprint != field_fingerprint(&receipt.field_ids)?
@@ -1099,7 +1099,7 @@ fn load_current_controller_receipt_under_root(
         BrainError::Integrity("learned_controller_current_pointer_missing_or_invalid".into())
     })?;
     let pointer: LearnedControllerPointer = serde_json::from_slice(&pointer_raw)?;
-    if pointer.schema != "cerebro.tidex.learned_controller_pointer/v1"
+    if pointer.schema != "tidex.learned_controller_pointer/v1"
         || pointer.session_id.as_str() != session_id
     {
         return Err(BrainError::Integrity(
@@ -1130,7 +1130,7 @@ fn persist_controller_receipt_under_root(
         root,
         "learned_controller_receipt",
         json!({
-            "schema":"cerebro.tidex.learned_controller_ledger_binding/v1",
+            "schema":"tidex.learned_controller_ledger_binding/v1",
             "receipt_sha256":&digest,
             "session_id":&receipt.binding.session_id,
             "target_digest":&receipt.binding.target_digest,
@@ -1149,7 +1149,7 @@ fn persist_controller_receipt_under_root(
         ));
     }
     let pointer = LearnedControllerPointer {
-        schema: "cerebro.tidex.learned_controller_pointer/v1".into(),
+        schema: "tidex.learned_controller_pointer/v1".into(),
         session_id: receipt.binding.session_id.clone(),
         receipt_sha256: digest.clone(),
     };
@@ -1217,7 +1217,7 @@ fn train_persisted_runtime_learned_controller_under_root(
             None
         };
         let receipt = LearnedControllerReceipt {
-            schema: "cerebro.tidex.learned_controller_receipt/v1".into(),
+            schema: "tidex.learned_controller_receipt/v1".into(),
             event_kind: LearnedControllerEventKind::ControllerTrained,
             generation: previous
                 .as_ref()
@@ -1442,7 +1442,7 @@ mod tests {
     ) -> LearningFinalizationReceipt {
         let source_digest = Sha256Digest::parse(source_sha256).unwrap();
         LearningFinalizationReceipt {
-            schema: "cerebro.tidex.learning_finalization_receipt/v1".into(),
+            schema: "tidex.learning_finalization_receipt/v1".into(),
             operation_key: Sha256Digest::parse("a".repeat(64)).unwrap(),
             session_id: SessionId::parse("session").unwrap(),
             adaptive_receipt_sha256: Sha256Digest::parse("b".repeat(64)).unwrap(),
@@ -1574,7 +1574,7 @@ mod tests {
     #[test]
     fn persisted_controller_policy_and_quality_gates_fail_closed() {
         let invalid_policy = LearnedControllerPolicy {
-            schema: "cerebro.tidex.learned_controller_policy/v1".into(),
+            schema: "tidex.learned_controller_policy/v1".into(),
             ridge: 1e-8,
             ood_margin_fraction: 0.25,
             minimum_grouped_cv_r2: 0.95,
@@ -1589,10 +1589,10 @@ mod tests {
         };
         validate_persisted_controller_policy(&policy).unwrap();
         let runtime = RuntimeLearnedController {
-            schema: "cerebro.tidex.runtime_learned_controller/v1".into(),
+            schema: "tidex.runtime_learned_controller/v1".into(),
             field_ids: vec![SkillId::parse("field-a").unwrap()],
             controller: LearnedController {
-                schema: "cerebro.tidex.learned_controller/v1".into(),
+                schema: "tidex.learned_controller/v1".into(),
                 state_dim: 1,
                 observation_dim: 1,
                 coefficient_dim: 1,
@@ -1612,7 +1612,7 @@ mod tests {
     #[test]
     fn supervision_contract_has_no_free_label_substitute() {
         let raw = serde_json::json!({
-            "schema":"cerebro.tidex.learned_controller_supervision/v1",
+            "schema":"tidex.learned_controller_supervision/v1",
             "session_id":"session",
             "target_digest":"a".repeat(64),
             "adaptive_evidence_sha256":"b".repeat(64),
@@ -1633,7 +1633,7 @@ mod tests {
             .join(format!("tidex-controller-binding-fixture-{}", std::process::id()))
             .join("report.json");
         let raw = serde_json::json!({
-            "schema":"cerebro.tidex.learned_controller_binding/v1",
+            "schema":"tidex.learned_controller_binding/v1",
             "session_id":"session",
             "target_digest":"a".repeat(64),
             "adaptive_receipt_sha256":"b".repeat(64),
@@ -1647,7 +1647,7 @@ mod tests {
     #[test]
     fn versioned_controller_policy_rejects_unknown_wire_fields() {
         let wire = serde_json::json!({
-            "schema": "cerebro.tidex.learned_controller_policy/v1",
+            "schema": "tidex.learned_controller_policy/v1",
             "ridge": 0.01,
             "ood_margin_fraction": 0.1,
             "minimum_grouped_cv_r2": 0.5,
@@ -1748,7 +1748,7 @@ mod tests {
 
         // feature_dim for state_dim=2, obs_dim=1 is 1 + 2 + 1 + 2 = 6
         let controller = LearnedController {
-            schema: "cerebro.tidex.learned_controller/v1".into(),
+            schema: "tidex.learned_controller/v1".into(),
             state_dim: 2,
             observation_dim: 1,
             coefficient_dim: 2,
@@ -1789,7 +1789,7 @@ mod tests {
         let fields = vec![f1, f2];
 
         let controller = LearnedController {
-            schema: "cerebro.tidex.learned_controller/v1".into(),
+            schema: "tidex.learned_controller/v1".into(),
             state_dim: 2,
             observation_dim: 1,
             coefficient_dim: 2,
@@ -1872,7 +1872,7 @@ mod tests {
     #[test]
     fn learned_controller_decide_and_training_validation_errors() {
         let controller = LearnedController {
-            schema: "cerebro.tidex.learned_controller/v1".into(),
+            schema: "tidex.learned_controller/v1".into(),
             state_dim: 1,
             observation_dim: 1,
             coefficient_dim: 1,

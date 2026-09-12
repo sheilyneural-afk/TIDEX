@@ -15,7 +15,7 @@ Sin esta capa el código de `src/` no es un producto verificable: no hay pins de
 |---------|----------|
 | `Cargo.toml` | `publish = false`, `autobins/autotests = false`, feature `cross-model-plasticity`, lista explícita de `[[bin]]` y tests |
 | `Cargo.lock` | Grafo de deps reproducible |
-| `build.rs` | Digiere entradas canónicas → `TIDEX_SOURCE_TREE_DIGEST` (dominio `CEREBRO:TIDEX:COMPILED-INPUTS:v3`) |
+| `build.rs` | Digiere entradas canónicas → `TIDEX_SOURCE_TREE_DIGEST` (dominio `TIDEX:COMPILED-INPUTS:v3`) |
 | `Makefile` | `fmt` `clippy` `check` `test` `integration` `config-contracts` `fuzz-check` `ci` |
 | `rust-toolchain.toml` | Canal fijo (p.ej. 1.96.0) + componentes |
 | `rustfmt.toml` / `clippy.toml` / `deny.toml` | Estilo y política de dependencias |

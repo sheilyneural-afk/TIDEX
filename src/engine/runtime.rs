@@ -163,7 +163,7 @@ impl BrainEngine {
                 Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
                     Ok(value)
                         if value.get("schema").and_then(Value::as_str)
-                            == Some("cerebro.tidex.sleep_state/v5") =>
+                            == Some("tidex.sleep_state/v5") =>
                     {
                         Some(value)
                     }
@@ -455,7 +455,7 @@ impl BrainEngine {
         }
         let execution_authorized = execution_blockers.is_empty();
         Ok(RuntimeIntegrityHealth {
-            schema: "cerebro.tidex.runtime_integrity_health/v2".into(),
+            schema: "tidex.runtime_integrity_health/v2".into(),
             canonical_runtime_config,
             canonical_head_verified,
             corpus_transition_clear,
@@ -561,7 +561,7 @@ impl BrainEngine {
         if protected_wrapper
             .get("schema")
             .and_then(serde_json::Value::as_str)
-            != Some("cerebro.tidex.protected_map_benchmark/v2")
+            != Some("tidex.protected_map_benchmark/v2")
             || protected_wrapper
                 .get("task_labels_used")
                 .and_then(serde_json::Value::as_bool)
@@ -585,7 +585,7 @@ impl BrainEngine {
         if interaction_payload
             .get("schema")
             .and_then(serde_json::Value::as_str)
-            != Some("cerebro.tidex.trust_region_benchmark/v3")
+            != Some("tidex.trust_region_benchmark/v3")
         {
             return Err(BrainError::Integrity("runtime_interaction_contract_invalid".into()));
         }
@@ -688,7 +688,7 @@ impl BrainEngine {
         if causal_wrapper
             .get("schema")
             .and_then(serde_json::Value::as_str)
-            != Some("cerebro.tidex.causal_credit_benchmark/v3")
+            != Some("tidex.causal_credit_benchmark/v3")
             || causal_wrapper
                 .get("blind_data_accessed")
                 .and_then(serde_json::Value::as_bool)
@@ -1044,7 +1044,7 @@ impl BrainEngine {
                 MAX_ENGINE_JSON_BYTES,
             )?;
             let pointer: GovernedCompositionPointer = serde_json::from_slice(&pointer_bytes)?;
-            if pointer.schema != "cerebro.tidex.governed_composition_pointer/v2"
+            if pointer.schema != "tidex.governed_composition_pointer/v2"
                 || pointer.operation_key != operation_key
                 || !valid_digest(&pointer.receipt_sha256)
             {
@@ -1084,7 +1084,7 @@ impl BrainEngine {
         }
 
         let receipt = GovernedCompositionReceipt {
-            schema: "cerebro.tidex.governed_composition_receipt/v2".into(),
+            schema: "tidex.governed_composition_receipt/v2".into(),
             operation_key: operation_key.clone(),
             report_sha256: report_sha256.clone(),
             active_bank_sha256: active_bank_sha256.clone(),
@@ -1124,7 +1124,7 @@ impl BrainEngine {
         )? {
             let payload = existing.payload()?;
             if payload.get("schema").and_then(serde_json::Value::as_str)
-                != Some("cerebro.tidex.governed_composition_ledger_binding/v2")
+                != Some("tidex.governed_composition_ledger_binding/v2")
                 || payload
                     .get("receipt_sha256")
                     .and_then(serde_json::Value::as_str)
@@ -1176,7 +1176,7 @@ impl BrainEngine {
                 &self.root,
                 "governed_composition_receipt",
                 json!({
-                    "schema":"cerebro.tidex.governed_composition_ledger_binding/v2",
+                    "schema":"tidex.governed_composition_ledger_binding/v2",
                     "receipt_sha256":receipt_sha256,
                     "operation_key":operation_key,
                     "report_sha256":report_sha256,
@@ -1202,7 +1202,7 @@ impl BrainEngine {
             ));
         }
         let pointer = GovernedCompositionPointer {
-            schema: "cerebro.tidex.governed_composition_pointer/v2".into(),
+            schema: "tidex.governed_composition_pointer/v2".into(),
             operation_key,
             receipt_sha256: receipt_sha256.clone(),
         };
@@ -1253,7 +1253,7 @@ impl BrainEngine {
         &self,
         route: &FieldRoutingDecision,
     ) -> BrainResult<BTreeMap<SkillId, f64>> {
-        if route.schema != "cerebro.tidex.cognitive_field_routing/v1"
+        if route.schema != "tidex.cognitive_field_routing/v1"
             || route.field_ids.is_empty()
             || route.field_ids.len() != route.coefficients.len()
             || route.selected_field_ids.is_empty()
@@ -1315,7 +1315,7 @@ impl BrainEngine {
             .iter()
             .map(|field| field.skill_id.clone())
             .collect::<Vec<_>>();
-        if runtime.schema != "cerebro.tidex.runtime_learned_controller/v1"
+        if runtime.schema != "tidex.runtime_learned_controller/v1"
             || runtime.field_ids != bank_ids
             || runtime.controller.coefficient_dim != bank.fields.len()
         {
@@ -1392,7 +1392,7 @@ impl BrainEngine {
         let recorded = persist_controller_execution(
             &self.root,
             ControllerExecutionReceipt {
-                schema: "cerebro.tidex.controller_execution_receipt/v1".into(),
+                schema: "tidex.controller_execution_receipt/v1".into(),
                 session_id: invocation.session_id.clone(),
                 invocation: invocation.clone(),
                 // This is a semantic digest of the strict invocation contract,
@@ -1510,7 +1510,7 @@ impl BrainEngine {
         let health = self.runtime_integrity_health()?;
         let head = self.load_canonical_head_if_present()?;
         Ok(json!({
-            "schema":"cerebro.tidex.status/v3",
+            "schema":"tidex.status/v3",
             "revision":head.as_ref().map(|value| value.revision),
             "head_digest":head.as_ref().map(|value| value.manifest_digest.clone()),
             "corpus_digest":head.as_ref().and_then(|value| value.corpus_digest.clone()),

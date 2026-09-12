@@ -1024,7 +1024,7 @@ fn combine_content_addressed_dvec_under_root(
     let dir = ensure_private_directory(&root, &content_artifact_dir(&root))?;
     let descriptor = {
         let mut hasher = Sha256::new();
-        hasher.update(b"CEREBRO:TIDEX:LINEAR-COMBINATION-TEMP:v1\0");
+        hasher.update(b"TIDEX:LINEAR-COMBINATION-TEMP:v1\0");
         for (reference, coefficient) in sources {
             hasher.update(reference.sha256.as_bytes());
             hasher.update(reference.parameter_count.to_be_bytes());

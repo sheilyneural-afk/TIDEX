@@ -128,7 +128,7 @@ pub fn compile_experimental_universal_capability(
         UniversalCapabilityDisposition::Rejected
     };
     Ok(UniversalCapabilityCompilation {
-        schema: "cerebro.tidex.universal_capability_compilation/v2".into(),
+        schema: "tidex.universal_capability_compilation/v2".into(),
         source_envelope_sha256: envelope.manifest_sha256().clone(),
         capability_ir_sha256: ir.manifest_digest().clone(),
         frozen_receiver_compiler_sha256: frozen_receiver_compiler.manifest_sha256().clone(),
@@ -142,7 +142,7 @@ pub fn compile_experimental_universal_capability(
 pub fn compile_experimental_universal_capability_request(
     request: &UniversalCapabilityCompilationRequest,
 ) -> BrainResult<UniversalCapabilityCompilation> {
-    if request.schema != "cerebro.tidex.universal_capability_compilation_request/v2"
+    if request.schema != "tidex.universal_capability_compilation_request/v2"
         || request.wrong_functional_signatures.is_empty()
         || request.wrong_functional_signatures.len() > 256
     {
@@ -159,7 +159,7 @@ pub fn compile_experimental_universal_capability_request(
 
 fn request_digest(request: &UniversalCapabilityCompilationRequest) -> BrainResult<Sha256Digest> {
     let payload = serde_json::to_vec(request)?;
-    let mut framed = b"CEREBRO:TIDEX:UNIVERSAL-CAPABILITY-COMPILATION-REQUEST:v2\0".to_vec();
+    let mut framed = b"TIDEX:UNIVERSAL-CAPABILITY-COMPILATION-REQUEST:v2\0".to_vec();
     framed.extend_from_slice(&payload);
     Ok(Sha256Digest::digest_bytes(&framed))
 }
@@ -169,7 +169,7 @@ pub fn execute_experimental_universal_capability_request(
     request: &UniversalCapabilityCompilationRequest,
 ) -> BrainResult<UniversalCapabilityCompilationReceipt> {
     Ok(UniversalCapabilityCompilationReceipt {
-        schema: "cerebro.tidex.universal_capability_compilation_receipt/v2".into(),
+        schema: "tidex.universal_capability_compilation_receipt/v2".into(),
         request_sha256: request_digest(request)?,
         compilation: compile_experimental_universal_capability_request(request)?,
     })
@@ -180,7 +180,7 @@ pub fn replay_experimental_universal_capability_request(
     request: &UniversalCapabilityCompilationRequest,
     receipt: &UniversalCapabilityCompilationReceipt,
 ) -> BrainResult<()> {
-    if receipt.schema != "cerebro.tidex.universal_capability_compilation_receipt/v2" {
+    if receipt.schema != "tidex.universal_capability_compilation_receipt/v2" {
         return Err(BrainError::Invalid("universal_capability_compilation_receipt_schema".into()));
     }
     if receipt.request_sha256 != request_digest(request)? {
@@ -202,7 +202,7 @@ pub fn replay_experimental_universal_capability_request(
 pub fn compile_and_plan_experimental_universal_capability(
     request: &UniversalCapabilityPlanningRequest,
 ) -> BrainResult<UniversalCapabilityShadowPlan> {
-    if request.schema != "cerebro.tidex.universal_capability_planning_request/v2" {
+    if request.schema != "tidex.universal_capability_planning_request/v2" {
         return Err(BrainError::Invalid("universal_capability_planning_request_schema".into()));
     }
     let compilation_receipt =
@@ -251,7 +251,7 @@ pub fn compile_and_plan_experimental_universal_capability(
         request.affected_regions.clone(),
     )?;
     Ok(UniversalCapabilityShadowPlan {
-        schema: "cerebro.tidex.universal_capability_shadow_plan/v2".into(),
+        schema: "tidex.universal_capability_shadow_plan/v2".into(),
         compilation_receipt,
         compatibility,
         materialization_plan,
@@ -262,7 +262,7 @@ fn planning_request_digest(
     request: &UniversalCapabilityPlanningRequest,
 ) -> BrainResult<Sha256Digest> {
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:UNIVERSAL-CAPABILITY-PLANNING-REQUEST:v2\0",
+        b"TIDEX:UNIVERSAL-CAPABILITY-PLANNING-REQUEST:v2\0",
         &serde_json::to_vec(request)?,
     ))
 }
@@ -271,7 +271,7 @@ pub fn execute_universal_capability_shadow_plan(
     request: &UniversalCapabilityPlanningRequest,
 ) -> BrainResult<UniversalCapabilityShadowPlanReceipt> {
     Ok(UniversalCapabilityShadowPlanReceipt {
-        schema: "cerebro.tidex.universal_capability_shadow_plan_receipt/v2".into(),
+        schema: "tidex.universal_capability_shadow_plan_receipt/v2".into(),
         planning_request_sha256: planning_request_digest(request)?,
         shadow_plan: compile_and_plan_experimental_universal_capability(request)?,
     })
@@ -281,7 +281,7 @@ pub fn replay_universal_capability_shadow_plan(
     request: &UniversalCapabilityPlanningRequest,
     receipt: &UniversalCapabilityShadowPlanReceipt,
 ) -> BrainResult<()> {
-    if receipt.schema != "cerebro.tidex.universal_capability_shadow_plan_receipt/v2" {
+    if receipt.schema != "tidex.universal_capability_shadow_plan_receipt/v2" {
         return Err(BrainError::Invalid("universal_capability_shadow_plan_receipt_schema".into()));
     }
     if receipt.planning_request_sha256 != planning_request_digest(request)? {
@@ -397,7 +397,7 @@ mod tests {
         .unwrap();
         let pre = 2.0_f64.sqrt();
         let operational = OperationalCapabilityContract {
-            schema: "cerebro.tidex.operational_capability/v1".into(),
+            schema: "tidex.operational_capability/v1".into(),
             capability_id: ir.capability_id().clone(),
             capability_ir_sha256: ir.manifest_digest().clone(),
             state_dimension: 2,
@@ -467,7 +467,7 @@ mod tests {
     ) -> FrozenReceiverCompiler {
         let dimension = receiver_solutions.first().unwrap().len();
         let input = FrozenReceiverCompilerInput {
-            schema: "cerebro.tidex.frozen_receiver_compiler_input/v1".into(),
+            schema: "tidex.frozen_receiver_compiler_input/v1".into(),
             calibration_capability_ids: (0..functional.len())
                 .map(|index| CapabilityId::parse(format!("calibration.{index}:v1")).unwrap())
                 .collect(),
@@ -490,7 +490,7 @@ mod tests {
                 })
                 .collect(),
             policy: ReceiverCompilerPolicy {
-                schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
+                schema: "tidex.receiver_compiler_policy/v1".into(),
                 ridge: 1e-10,
                 minimum_decoder_loo_r2: 0.999,
                 minimum_encoder_loo_r2: 0.999,
@@ -514,7 +514,7 @@ mod tests {
         maximum_quadratic_cost: f64,
     ) -> UniversalCapabilityCompilationRequest {
         UniversalCapabilityCompilationRequest {
-            schema: "cerebro.tidex.universal_capability_compilation_request/v2".into(),
+            schema: "tidex.universal_capability_compilation_request/v2".into(),
             system_envelope,
             capability_ir,
             operational_contract,
@@ -561,7 +561,7 @@ mod tests {
         let (root, envelope, ir, operational) = fixture();
         let functional = calibration();
         let request = UniversalCapabilityCompilationRequest {
-            schema: "cerebro.tidex.universal_capability_compilation_request/v2".into(),
+            schema: "tidex.universal_capability_compilation_request/v2".into(),
             system_envelope: envelope,
             capability_ir: ir,
             operational_contract: operational,
@@ -613,7 +613,7 @@ mod tests {
         )
         .unwrap();
         let profile = ReceiverProfile {
-            schema: "cerebro.tidex.receiver_profile/v1".into(),
+            schema: "tidex.receiver_profile/v1".into(),
             model_id: ModelId::parse("receiver.v1").unwrap(),
             architecture_id: ArchitectureId::parse("transformer.v1").unwrap(),
             architecture: ReceiverArchitecture::Transformer,
@@ -651,7 +651,7 @@ mod tests {
         )
         .unwrap();
         let requirements = CapabilityRequirements {
-            schema: "cerebro.tidex.capability_requirements/v1".into(),
+            schema: "tidex.capability_requirements/v1".into(),
             capability_id: ir.capability_id().clone(),
             capability_ir_sha256: ir.manifest_digest().clone(),
             required_modalities: BTreeSet::from([CapabilityModality::Text]),
@@ -663,7 +663,7 @@ mod tests {
             ]),
         };
         let request = UniversalCapabilityPlanningRequest {
-            schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+            schema: "tidex.universal_capability_planning_request/v2".into(),
             compilation: compilation_request(
                 envelope,
                 ir.clone(),
@@ -794,7 +794,7 @@ mod tests {
         )
         .unwrap();
         let profile = ReceiverProfile {
-            schema: "cerebro.tidex.receiver_profile/v1".into(),
+            schema: "tidex.receiver_profile/v1".into(),
             model_id: ModelId::parse("receiver.low-rank.v1").unwrap(),
             architecture_id: ArchitectureId::parse("transformer.v1").unwrap(),
             architecture: ReceiverArchitecture::Transformer,
@@ -829,7 +829,7 @@ mod tests {
         )
         .unwrap();
         let request = UniversalCapabilityPlanningRequest {
-            schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+            schema: "tidex.universal_capability_planning_request/v2".into(),
             compilation: compilation_request(
                 envelope,
                 ir.clone(),
@@ -842,7 +842,7 @@ mod tests {
             receiver_profile: profile,
             receiver_snapshot: snapshot,
             capability_requirements: CapabilityRequirements {
-                schema: "cerebro.tidex.capability_requirements/v1".into(),
+                schema: "tidex.capability_requirements/v1".into(),
                 capability_id: ir.capability_id().clone(),
                 capability_ir_sha256: ir.manifest_digest().clone(),
                 required_modalities: BTreeSet::from([CapabilityModality::Text]),
@@ -855,7 +855,7 @@ mod tests {
         };
         let receipt = execute_universal_capability_shadow_plan(&request).unwrap();
         let policy = LowRankShadowPolicy {
-            schema: "cerebro.tidex.low_rank_shadow_policy/v1".into(),
+            schema: "tidex.low_rank_shadow_policy/v1".into(),
             maximum_rank: 1,
             relative_reconstruction_tolerance: 1e-6,
             absolute_reconstruction_tolerance: 1e-6,
@@ -928,7 +928,7 @@ mod tests {
         )
         .unwrap();
         let profile = ReceiverProfile {
-            schema: "cerebro.tidex.receiver_profile/v1".into(),
+            schema: "tidex.receiver_profile/v1".into(),
             model_id: ModelId::parse("receiver.sparse.v1").unwrap(),
             architecture_id: ArchitectureId::parse("transformer.v1").unwrap(),
             architecture: ReceiverArchitecture::Transformer,
@@ -963,7 +963,7 @@ mod tests {
         )
         .unwrap();
         let request = UniversalCapabilityPlanningRequest {
-            schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+            schema: "tidex.universal_capability_planning_request/v2".into(),
             compilation: compilation_request(
                 envelope,
                 ir.clone(),
@@ -976,7 +976,7 @@ mod tests {
             receiver_profile: profile,
             receiver_snapshot: snapshot,
             capability_requirements: CapabilityRequirements {
-                schema: "cerebro.tidex.capability_requirements/v1".into(),
+                schema: "tidex.capability_requirements/v1".into(),
                 capability_id: ir.capability_id().clone(),
                 capability_ir_sha256: ir.manifest_digest().clone(),
                 required_modalities: BTreeSet::from([CapabilityModality::Text]),
@@ -989,7 +989,7 @@ mod tests {
         };
         let receipt = execute_universal_capability_shadow_plan(&request).unwrap();
         let policy = SparseShadowPolicy {
-            schema: "cerebro.tidex.sparse_shadow_policy/v1".into(),
+            schema: "tidex.sparse_shadow_policy/v1".into(),
             maximum_nonzero_count: 2,
             maximum_density: 0.5,
             absolute_zero_threshold: 0.0,
@@ -1063,7 +1063,7 @@ mod tests {
         )
         .unwrap();
         let profile = ReceiverProfile {
-            schema: "cerebro.tidex.receiver_profile/v1".into(),
+            schema: "tidex.receiver_profile/v1".into(),
             model_id: ModelId::parse("receiver.steering.v1").unwrap(),
             architecture_id: ArchitectureId::parse("transformer.v1").unwrap(),
             architecture: ReceiverArchitecture::Transformer,
@@ -1098,7 +1098,7 @@ mod tests {
         )
         .unwrap();
         let request = UniversalCapabilityPlanningRequest {
-            schema: "cerebro.tidex.universal_capability_planning_request/v2".into(),
+            schema: "tidex.universal_capability_planning_request/v2".into(),
             compilation: compilation_request(
                 envelope,
                 ir.clone(),
@@ -1111,7 +1111,7 @@ mod tests {
             receiver_profile: profile,
             receiver_snapshot: snapshot,
             capability_requirements: CapabilityRequirements {
-                schema: "cerebro.tidex.capability_requirements/v1".into(),
+                schema: "tidex.capability_requirements/v1".into(),
                 capability_id: ir.capability_id().clone(),
                 capability_ir_sha256: ir.manifest_digest().clone(),
                 required_modalities: BTreeSet::from([CapabilityModality::Text]),
@@ -1143,7 +1143,7 @@ mod tests {
         )
         .unwrap();
         let policy = ActivationSteeringPolicy {
-            schema: "cerebro.tidex.activation_steering_policy/v1".into(),
+            schema: "tidex.activation_steering_policy/v1".into(),
             maximum_vector_l2: 10.0,
             maximum_absolute_component: 10.0,
             maximum_gain: 2.0,

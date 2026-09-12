@@ -20,21 +20,21 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 
-const STATE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:KNOWLEDGE-STATE:v1\0";
-const POLICY_DOMAIN: &[u8] = b"CEREBRO:TIDEX:KNOWLEDGE-POLICY:v1\0";
-const ACTION_ID_DOMAIN: &[u8] = b"CEREBRO:TIDEX:KNOWLEDGE-ACTION-ID:v1\0";
-const INVOCATION_DOMAIN: &[u8] = b"CEREBRO:TIDEX:COGNITIVE-INVOCATION:v1\0";
-const OBSERVATION_DOMAIN: &[u8] = b"CEREBRO:TIDEX:OBSERVATION-SET:v1\0";
-const EXACT_BYTES_DOMAIN: &[u8] = b"CEREBRO:TIDEX:OBSERVED-EXACT-BYTES:v1\0";
-const EVIDENCE_ID_DOMAIN: &[u8] = b"CEREBRO:TIDEX:KNOWLEDGE-EVIDENCE-ID:v1\0";
-const EVIDENCE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:KNOWLEDGE-EVIDENCE:v1\0";
-const RECEIPT_DOMAIN: &[u8] = b"CEREBRO:TIDEX:KNOWLEDGE-ACTION-RECEIPT:v1\0";
-const TRANSITION_DOMAIN: &[u8] = b"CEREBRO:TIDEX:KNOWLEDGE-TRANSITION:v1\0";
-const ROOT_DOMAIN: &[u8] = b"CEREBRO:TIDEX:AUTHORITY-ROOT:v1\0";
-const CANONICAL_HEAD_DOMAIN: &[u8] = b"CEREBRO:TIDEX:CANONICAL-INQUIRY-HEAD:v1\0";
+const STATE_DOMAIN: &[u8] = b"TIDEX:KNOWLEDGE-STATE:v1\0";
+const POLICY_DOMAIN: &[u8] = b"TIDEX:KNOWLEDGE-POLICY:v1\0";
+const ACTION_ID_DOMAIN: &[u8] = b"TIDEX:KNOWLEDGE-ACTION-ID:v1\0";
+const INVOCATION_DOMAIN: &[u8] = b"TIDEX:COGNITIVE-INVOCATION:v1\0";
+const OBSERVATION_DOMAIN: &[u8] = b"TIDEX:OBSERVATION-SET:v1\0";
+const EXACT_BYTES_DOMAIN: &[u8] = b"TIDEX:OBSERVED-EXACT-BYTES:v1\0";
+const EVIDENCE_ID_DOMAIN: &[u8] = b"TIDEX:KNOWLEDGE-EVIDENCE-ID:v1\0";
+const EVIDENCE_DOMAIN: &[u8] = b"TIDEX:KNOWLEDGE-EVIDENCE:v1\0";
+const RECEIPT_DOMAIN: &[u8] = b"TIDEX:KNOWLEDGE-ACTION-RECEIPT:v1\0";
+const TRANSITION_DOMAIN: &[u8] = b"TIDEX:KNOWLEDGE-TRANSITION:v1\0";
+const ROOT_DOMAIN: &[u8] = b"TIDEX:AUTHORITY-ROOT:v1\0";
+const CANONICAL_HEAD_DOMAIN: &[u8] = b"TIDEX:CANONICAL-INQUIRY-HEAD:v1\0";
 const CANONICAL_HEAD_POINTER_MAX_BYTES: u64 = 1 << 20;
-const DERIVED_CLAIM_ID_DOMAIN: &[u8] = b"CEREBRO:TIDEX:DERIVED-CLAIM-ID:v1\0";
-const DERIVED_OBLIGATION_ID_DOMAIN: &[u8] = b"CEREBRO:TIDEX:DERIVED-OBLIGATION-ID:v1\0";
+const DERIVED_CLAIM_ID_DOMAIN: &[u8] = b"TIDEX:DERIVED-CLAIM-ID:v1\0";
+const DERIVED_OBLIGATION_ID_DOMAIN: &[u8] = b"TIDEX:DERIVED-OBLIGATION-ID:v1\0";
 
 const HARD_MAX_CLAIMS: usize = 4_096;
 const HARD_MAX_OBLIGATIONS: usize = 8_192;
@@ -606,7 +606,7 @@ impl CognitivePlan {
 
 fn dependency_closure_predicate(root: &DependencyNodeId) -> BrainResult<KnowledgePredicate> {
     let key_digest = Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:DEPENDENCY-OBSERVATION-KEY:v1\0",
+        b"TIDEX:DEPENDENCY-OBSERVATION-KEY:v1\0",
         &serde_json::to_vec(root)?,
     );
     Ok(KnowledgePredicate::BoolEquals {
@@ -1813,7 +1813,7 @@ fn calculate_executor_version_digest(
         observed_implementation_digest,
     ))?;
     Ok(ExecutorVersionDigest::computed(
-        b"CEREBRO:TIDEX:COGNITIVE-EXECUTOR-VERSION:v1\0",
+        b"TIDEX:COGNITIVE-EXECUTOR-VERSION:v1\0",
         &version_payload,
     ))
 }
@@ -2305,7 +2305,7 @@ pub enum BoundedActionReason {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutorInterfaceVersion {
-    #[serde(rename = "cerebro.tidex.cognitive_executor/v1")]
+    #[serde(rename = "tidex.cognitive_executor/v1")]
     V1,
 }
 
@@ -4001,7 +4001,7 @@ impl KnowledgeEngine {
         let maximum_depth = steps.iter().map(|step| step.depth).max().unwrap_or(0);
         let next = self.plan(state)?;
         let mut projection = LivingStaircaseProjection {
-            schema: "cerebro.tidex.living_staircase_projection/v1".into(),
+            schema: "tidex.living_staircase_projection/v1".into(),
             inquiry_id: state.inquiry_id.clone(),
             knowledge_state: state.manifest_digest.clone(),
             revision: state.revision,
@@ -4013,7 +4013,7 @@ impl KnowledgeEngine {
         let mut unsigned = projection.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
         projection.manifest_sha256 = Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:LIVING-STAIRCASE-PROJECTION:v1\0",
+            b"TIDEX:LIVING-STAIRCASE-PROJECTION:v1\0",
             &serde_json::to_vec(&unsigned)?,
         );
         Ok(projection)
@@ -6136,7 +6136,7 @@ mod tests {
             trace_contract(KnowledgeBudget::conservative_default()),
         );
         let projection = fixture.engine.living_staircase(&state).unwrap();
-        assert_eq!(projection.schema, "cerebro.tidex.living_staircase_projection/v1");
+        assert_eq!(projection.schema, "tidex.living_staircase_projection/v1");
         assert_eq!(projection.inquiry_id, state.inquiry_id);
         assert_eq!(projection.knowledge_state, state.manifest_digest);
         assert_eq!(projection.revision, 0);
@@ -6150,7 +6150,7 @@ mod tests {
         assert_eq!(
             projection.manifest_sha256,
             Sha256Digest::digest_domain(
-                b"CEREBRO:TIDEX:LIVING-STAIRCASE-PROJECTION:v1\0",
+                b"TIDEX:LIVING-STAIRCASE-PROJECTION:v1\0",
                 &serde_json::to_vec(&unsigned).unwrap(),
             )
         );
@@ -6174,7 +6174,7 @@ mod tests {
         assert_eq!(
             projection.manifest_sha256,
             Sha256Digest::digest_domain(
-                b"CEREBRO:TIDEX:LIVING-STAIRCASE-PROJECTION:v1\0",
+                b"TIDEX:LIVING-STAIRCASE-PROJECTION:v1\0",
                 &serde_json::to_vec(&unsigned).unwrap(),
             )
         );

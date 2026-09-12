@@ -1,5 +1,5 @@
 {
-  "schema": "cerebro.tidex.sparse_shadow_policy/v1",
+  "schema": "tidex.sparse_shadow_policy/v1",
   "maximum_nonzero_count": 1048576,
   "maximum_density": 0.1,
   "absolute_zero_threshold": 1e-10,

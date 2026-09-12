@@ -42,9 +42,9 @@ receipt_bytes = pathlib.Path(receipt_path).read_bytes()
 receipt = json.loads(receipt_bytes)
 anchor = json.load(open(anchor_path, encoding='utf-8'))
 
-if anchor.get('schema') != 'cerebro.tidex.p3_reuse_anchor/v1':
+if anchor.get('schema') != 'tidex.p3_reuse_anchor/v1':
     raise SystemExit('P3 reuse rejected: anchor_schema_invalid')
-if receipt.get('schema') != 'cerebro.tidex.quality_assurance_receipt/v1' or receipt.get('gate') != 'P3' or receipt.get('result') != 'passed':
+if receipt.get('schema') != 'tidex.quality_assurance_receipt/v1' or receipt.get('gate') != 'P3' or receipt.get('result') != 'passed':
     raise SystemExit('P3 reuse rejected: source_receipt_invalid')
 receipt_sha = hashlib.sha256(receipt_bytes).hexdigest()
 if receipt_sha != anchor.get('receipt_sha256'):
@@ -95,7 +95,7 @@ ROOT_FILES = {
     'quality/gate2-verification.sh','quality/gate3-assurance.sh',
 }
 PREFIXES = ('src/','tests/','fuzz/fuzz_targets/','fuzz/seeds/')
-DOMAIN = b'CEREBRO:TIDEX:P3-REUSABLE-INPUTS:v1\0'
+DOMAIN = b'TIDEX:P3-REUSABLE-INPUTS:v1\0'
 
 def selected_snapshot_rows():
     rows=[]
@@ -170,7 +170,7 @@ if nightly != receipt.get('toolchains',{}).get('nightly_rustc_vv','').strip():
     raise SystemExit('P3 reuse rejected: nightly_toolchain_drift')
 
 result={
-    'schema':'cerebro.tidex.p3_reuse_receipt/v1',
+    'schema':'tidex.p3_reuse_receipt/v1',
     'result':'reused',
     'current_head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
     'source_p3_receipt_sha256':receipt_sha,

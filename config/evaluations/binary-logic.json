@@ -1,5 +1,5 @@
 {
-  "schema": "cerebro.cross_model.behavioral_benchmark/v1",
+  "schema": "tidex.cross_model.behavioral_benchmark/v1",
   "benchmark_id": "binary_logic_v1",
   "domain": "reasoning",
   "probes": [

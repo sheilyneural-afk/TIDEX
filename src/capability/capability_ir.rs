@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::{Component, Path, PathBuf};
 
-const IR_DOMAIN: &[u8] = b"CEREBRO:TIDEX:CAPABILITY-IR:v2\0";
+const IR_DOMAIN: &[u8] = b"TIDEX:CAPABILITY-IR:v2\0";
 const MAX_IR_INPUTS: usize = 4_096;
 const MAX_IR_PARAMETERS: usize = 4_096;
 const MAX_CAPABILITY_IR_BYTES: u64 = 256 * 1024 * 1024;
@@ -29,7 +29,7 @@ const MAX_NODE_PROVENANCE: usize = 4_096;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CapabilityIrSchema {
-    #[serde(rename = "cerebro.tidex.capability_ir/v2")]
+    #[serde(rename = "tidex.capability_ir/v2")]
     Current,
 }
 
@@ -266,10 +266,7 @@ impl PrimitiveSet {
     fn calculate_digest(&self) -> BrainResult<Sha256Digest> {
         let mut unsigned = self.clone();
         unsigned.sha256 = Sha256Digest::zero();
-        Ok(domain_digest(
-            b"CEREBRO:TIDEX:PRIMITIVE-SET:v1\0",
-            &serde_json::to_vec(&unsigned)?,
-        ))
+        Ok(domain_digest(b"TIDEX:PRIMITIVE-SET:v1\0", &serde_json::to_vec(&unsigned)?))
     }
 }
 
@@ -732,16 +729,12 @@ pub fn execute_linear_readout(
     // Reuse the existing scaled, compensated dot product through Matrix.
     // Each row is one [d, 1] activation passed to the same [1, d] readout.
     let raw_margins = crate::foundation::linalg::Matrix::from_rows(inputs)?.matvec(weights)?;
-    let weights_sha256 = domain_digest(
-        b"CEREBRO:TIDEX:LINEAR-READOUT-WEIGHTS-JSON:v1\0",
-        &serde_json::to_vec(weights)?,
-    );
-    let inputs_sha256 = domain_digest(
-        b"CEREBRO:TIDEX:LINEAR-READOUT-INPUTS-JSON:v1\0",
-        &serde_json::to_vec(inputs)?,
-    );
+    let weights_sha256 =
+        domain_digest(b"TIDEX:LINEAR-READOUT-WEIGHTS-JSON:v1\0", &serde_json::to_vec(weights)?);
+    let inputs_sha256 =
+        domain_digest(b"TIDEX:LINEAR-READOUT-INPUTS-JSON:v1\0", &serde_json::to_vec(inputs)?);
     Ok(LinearReadoutExecution {
-        schema: "cerebro.tidex.linear_readout_execution/v1".into(),
+        schema: "tidex.linear_readout_execution/v1".into(),
         capability_ir_sha256: ir.manifest_digest().clone(),
         operator_node_id: node.node_id.clone(),
         parameter_port_id: parameter.name.clone(),
@@ -807,7 +800,7 @@ pub struct OperationalInterfaceVerification {
 
 impl OperationalCapabilityContract {
     pub fn validate_against(&self, ir: &CapabilityIr) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.operational_capability/v1"
+        if self.schema != "tidex.operational_capability/v1"
             || self.capability_id != *ir.capability_id()
             || self.capability_ir_sha256 != *ir.manifest_digest()
             || self.state_dimension == 0
@@ -993,7 +986,7 @@ impl OperationalCapabilityContract {
         let closure_satisfied = max_closure <= self.maximum_closure_error;
         let contraction_satisfied = max_contraction <= self.maximum_contraction_ratio;
         Ok(OperationalInterfaceVerification {
-            schema: "cerebro.tidex.operational_interface_verification/v1".into(),
+            schema: "tidex.operational_interface_verification/v1".into(),
             transition_count: self.transitions.len(),
             maximum_observed_closure_error: max_closure,
             maximum_observed_contraction_ratio: max_contraction,
@@ -1810,7 +1803,7 @@ mod tests {
         )
         .unwrap();
         let contract = OperationalCapabilityContract {
-            schema: "cerebro.tidex.operational_capability/v1".into(),
+            schema: "tidex.operational_capability/v1".into(),
             capability_id: ir.capability_id().clone(),
             capability_ir_sha256: ir.manifest_digest().clone(),
             state_dimension: 2,

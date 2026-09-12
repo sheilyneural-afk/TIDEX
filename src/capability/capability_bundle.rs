@@ -22,12 +22,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
 
-const BUNDLE_DOMAIN: &[u8] = b"CEREBRO:TIDEX:CAPABILITY-BUNDLE:v4\0";
+const BUNDLE_DOMAIN: &[u8] = b"TIDEX:CAPABILITY-BUNDLE:v4\0";
 const MAX_CAPABILITY_BUNDLE_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CapabilityBundleSchema {
-    #[serde(rename = "cerebro.tidex.capability_bundle/v4")]
+    #[serde(rename = "tidex.capability_bundle/v4")]
     Current,
 }
 

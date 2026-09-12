@@ -30,13 +30,13 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-const RECEIPT_DOMAIN: &[u8] = b"CEREBRO:TIDEX:CAPTURE-RECEIPT:v2\0";
+const RECEIPT_DOMAIN: &[u8] = b"TIDEX:CAPTURE-RECEIPT:v2\0";
 const MAX_RETAINED_OBJECTS: usize = 500_000;
 const MAX_CAPTURE_RECEIPT_BYTES: u64 = 512 << 20;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CaptureReceiptSchema {
-    #[serde(rename = "cerebro.tidex.capture_receipt/v2")]
+    #[serde(rename = "tidex.capture_receipt/v2")]
     Current,
 }
 
@@ -667,7 +667,7 @@ mod tests {
         let tampered: CaptureReceipt = serde_json::from_value(tampered_json).unwrap();
         assert!(tampered.verify(&root).is_err());
         let mut obsolete_json = serde_json::to_value(&receipt).unwrap();
-        obsolete_json["schema"] = serde_json::json!("cerebro.tidex.capture_receipt/v1");
+        obsolete_json["schema"] = serde_json::json!("tidex.capture_receipt/v1");
         assert!(serde_json::from_value::<CaptureReceipt>(obsolete_json).is_err());
         let object = &receipt.objects()[0];
         let path = vault_object_path(&root, object.content_sha256());

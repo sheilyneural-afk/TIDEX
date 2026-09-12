@@ -102,7 +102,7 @@ fn certified_runtime_identity_sha256() -> Result<String, Box<dyn Error + Send + 
         "python_minor": HF_RUNTIME_PYTHON_MINOR,
     });
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:HF-RUNTIME-IDENTITY:v1\0",
+        b"TIDEX:HF-RUNTIME-IDENTITY:v1\0",
         &serde_json::to_vec(&payload)?,
     )
     .into_string())
@@ -459,7 +459,7 @@ pub(crate) fn active_interventions_sha256<T: serde::Serialize>(
     interventions: &T,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     let payload = serde_json::to_vec(interventions)?;
-    let mut framed = b"CEREBRO:CROSS-MODEL:ACTIVE-INTERVENTIONS:v1\0".to_vec();
+    let mut framed = b"TIDEX:CROSS-MODEL:ACTIVE-INTERVENTIONS:v1\0".to_vec();
     framed.extend_from_slice(&payload);
     Ok(sha256_hex(&framed))
 }
@@ -486,7 +486,7 @@ pub(crate) fn generation_execution_sha256(
         return Err("generation_execution_evidence_invalid".into());
     }
     let commitment = serde_json::json!({
-        "schema": "cerebro.cross_model.generation_execution/v1",
+        "schema": "tidex.cross_model.generation_execution/v1",
         "model": evidence.config.name,
         "runtime_model": evidence.config.runtime_model,
         "runtime_metadata_sha256": evidence.config.runtime_metadata_sha256,
@@ -500,7 +500,7 @@ pub(crate) fn generation_execution_sha256(
         "done_reason": evidence.done_reason,
     });
     let payload = serde_json::to_vec(&commitment)?;
-    let mut framed = b"CEREBRO:CROSS-MODEL:GENERATION-EXECUTION:v1\0".to_vec();
+    let mut framed = b"TIDEX:CROSS-MODEL:GENERATION-EXECUTION:v1\0".to_vec();
     framed.extend_from_slice(&payload);
     Ok(sha256_hex(&framed))
 }
@@ -595,7 +595,7 @@ struct HfWorkerHello {
 impl HfWorkerHello {
     fn validate(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
         let expected_identity = certified_runtime_identity_sha256()?;
-        if self.schema != "cerebro.tidex.hf_worker_hello/v1"
+        if self.schema != "tidex.hf_worker_hello/v1"
             || self.model_type.trim().is_empty()
             || self.hidden_size == 0
             || self.intermediate_size == 0
@@ -806,7 +806,7 @@ impl HfWorker {
             .ok_or("hf_worker_request_counter_overflow")?;
         let request_id = format!("rust-{:016x}", self.next_request);
         let request = json!({
-            "schema": "cerebro.cross_model.hf_worker_request/v1",
+            "schema": "tidex.cross_model.hf_worker_request/v1",
             "request_id": request_id,
             "operation": operation,
             "payload": payload,
@@ -827,7 +827,7 @@ impl HfWorker {
 
         let line = self.receive_line(operation)?;
         let response: HfWorkerResponse = serde_json::from_slice(&line)?;
-        if response.schema != "cerebro.cross_model.hf_worker_response/v1"
+        if response.schema != "tidex.cross_model.hf_worker_response/v1"
             || response.request_id != request_id
             || response.operation != operation
             || !is_sha256(&response.response_sha256)
@@ -1276,7 +1276,7 @@ impl LLMModel for HfTransformersModel {
             return Err("hf_activation_intervention_receipt_mismatch".into());
         }
         let receipt = ActivationInterventionReceipt {
-            schema: "cerebro.cross_model.activation_intervention_receipt/v1".into(),
+            schema: "tidex.cross_model.activation_intervention_receipt/v1".into(),
             model: self.config.name.clone(),
             runtime_metadata_sha256: self.config.runtime_metadata_sha256.clone(),
             layer_index,
@@ -1318,7 +1318,7 @@ impl LLMModel for HfTransformersModel {
             return Err("hf_deep_instrumentation_payload_invalid".into());
         }
         let mut evidence = DeepInstrumentationEvidence {
-            schema: "cerebro.cross_model.deep_instrumentation/v1".into(),
+            schema: "tidex.cross_model.deep_instrumentation/v1".into(),
             model: self.config.name.clone(),
             runtime_metadata_sha256: self.config.runtime_metadata_sha256.clone(),
             module_path: payload.module_path,
@@ -1401,7 +1401,7 @@ impl LLMModel for HfTransformersModel {
             })
             .collect::<Vec<_>>();
         let mut evidence = SparseAutoencoderEvidence {
-            schema: "cerebro.tidex.sparse_autoencoder_evidence/v1".into(),
+            schema: "tidex.sparse_autoencoder_evidence/v1".into(),
             model: self.config.name.clone(),
             runtime_metadata_sha256: self.config.runtime_metadata_sha256.clone(),
             module_path: payload.module_path,
@@ -1456,7 +1456,7 @@ pub(crate) fn f64_vector_sha256(values: &[f64]) -> Result<String, Box<dyn Error 
     }
     let len = u64::try_from(values.len()).map_err(|_| "f64_vector_length_overflow")?;
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:CROSS-MODEL:F64-VECTOR:v1\0");
+    hasher.update(b"TIDEX:CROSS-MODEL:F64-VECTOR:v1\0");
     hasher.update(len.to_le_bytes());
     for value in values {
         hasher.update(value.to_le_bytes());
@@ -1543,7 +1543,7 @@ mod evidence_tests {
             "python_minor": HF_RUNTIME_PYTHON_MINOR,
         });
         assert_eq!(serde_json::to_vec(&payload).unwrap().len(), 1402);
-        assert_eq!(identity, "6f878b9a0c499cbca153d263337b8116bc4861a3ca2002307a78bbfb21c2722b");
+        assert_eq!(identity, "ed479cda37207613a421f585ddeaedd007ffd15e96532f7ad00ed2080f6d03dd");
         assert!(HF_RUNTIME_LOCK
             .lines()
             .filter(|line| !line.trim_start().starts_with('#'))

@@ -36,7 +36,7 @@ pub struct PromotionResult {
 
 impl PromotionResult {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "cerebro.cross_model.promotion_readiness/v1"
+        if self.schema != "tidex.cross_model.promotion_readiness/v1"
             || self.capability_name != self.validation.capability_name
             || self.production_activated
             || (self.ready_for_core_authorization
@@ -101,7 +101,7 @@ impl Promoter {
             PromotionStage::EvidenceInsufficient
         };
         let mut result = PromotionResult {
-            schema: "cerebro.cross_model.promotion_readiness/v1".into(),
+            schema: "tidex.cross_model.promotion_readiness/v1".into(),
             capability_name: capability.name.clone(),
             promotion_stage: stage,
             ready_for_core_authorization: ready,

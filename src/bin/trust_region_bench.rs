@@ -69,14 +69,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|field| field.skill_id.clone())
         .collect::<Vec<_>>();
-    if protected.schema != "cerebro.tidex.protected_map_benchmark/v2"
+    if protected.schema != "tidex.protected_map_benchmark/v2"
         || protected.task_labels_used
-        || plan.schema != "cerebro.tidex.causal_replay_plan/v2"
+        || plan.schema != "tidex.causal_replay_plan/v2"
         || plan.blind_data_accessed
         || plan.current_report_sha256 != report_sha256
         || !report.promotion.allowed
         || report.fields.is_empty()
-        || causal.schema != "cerebro.tidex.causal_credit_benchmark/v3"
+        || causal.schema != "tidex.causal_credit_benchmark/v3"
         || causal.blind_data_accessed
         || causal.replay_sha256.len() != 64
         || causal.report_sha256 != report_sha256
@@ -146,7 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.trust_region_benchmark/v3",
+            "schema":"tidex.trust_region_benchmark/v3",
             "report_sha256":report_sha256,
             "protected_map_sha256":sha256_file(protected_path)?,
             "causal_plan_sha256":plan_sha256,

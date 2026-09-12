@@ -61,24 +61,22 @@ const MAX_RECORD_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_AXES: usize = 64;
 const MAX_ANCHORS: usize = 128;
 const MAX_RESPONSE_DIMENSION: usize = 128;
-const BASIS_SCHEMA_V1: &str = "cerebro.tidex.receiver_weight_basis/v1";
-const BASIS_SCHEMA: &str = "cerebro.tidex.receiver_weight_basis/v2";
-const REALIZATION_SCHEMA: &str = "cerebro.tidex.receiver_realization_manifest/v1";
-const PROTOCOL_SCHEMA: &str = "cerebro.tidex.receiver_response_protocol/v1";
-const CROSS_MODEL_PROTOCOL_SCHEMA: &str =
-    "cerebro.tidex.cross_model_functional_signature_protocol/v2";
-const CROSS_MODEL_FUNCTIONAL_EVIDENCE_SCHEMA: &str =
-    "cerebro.tidex.cross_model_functional_evidence/v2";
+const BASIS_SCHEMA_V1: &str = "tidex.receiver_weight_basis/v1";
+const BASIS_SCHEMA: &str = "tidex.receiver_weight_basis/v2";
+const REALIZATION_SCHEMA: &str = "tidex.receiver_realization_manifest/v1";
+const PROTOCOL_SCHEMA: &str = "tidex.receiver_response_protocol/v1";
+const CROSS_MODEL_PROTOCOL_SCHEMA: &str = "tidex.cross_model_functional_signature_protocol/v2";
+const CROSS_MODEL_FUNCTIONAL_EVIDENCE_SCHEMA: &str = "tidex.cross_model_functional_evidence/v2";
 const CROSS_MODEL_RECEIVER_SOLUTION_EVIDENCE_SCHEMA: &str =
-    "cerebro.tidex.cross_model_receiver_solution_evidence/v1";
+    "tidex.cross_model_receiver_solution_evidence/v1";
 const RECEIVER_BEHAVIORAL_CALIBRATION_EVIDENCE_SCHEMA: &str =
-    "cerebro.tidex.receiver_behavioral_calibration_evidence/v1";
-const CROSS_MODEL_PROJECTION_SCHEMA: &str = "cerebro.tidex.v69_donor_functional_projection/v2";
+    "tidex.receiver_behavioral_calibration_evidence/v1";
+const CROSS_MODEL_PROJECTION_SCHEMA: &str = "tidex.v69_donor_functional_projection/v2";
 const PROJECTION_ARITHMETIC: &str = "f64_sequential_sub_mul_add/v1";
-const TARGET_SCHEMA: &str = "cerebro.tidex.functional_response_target/v1";
-const OBSERVATION_SCHEMA: &str = "cerebro.tidex.receiver_response_observation/v1";
-pub const REQUEST_SCHEMA: &str = "cerebro.tidex.receiver_weight_request/v1";
-const CANDIDATE_SCHEMA: &str = "cerebro.tidex.receiver_weight_candidate/v1";
+const TARGET_SCHEMA: &str = "tidex.functional_response_target/v1";
+const OBSERVATION_SCHEMA: &str = "tidex.receiver_response_observation/v1";
+pub const REQUEST_SCHEMA: &str = "tidex.receiver_weight_request/v1";
+const CANDIDATE_SCHEMA: &str = "tidex.receiver_weight_candidate/v1";
 
 fn invalid(code: &str) -> BrainError {
     BrainError::Invalid(code.into())
@@ -95,8 +93,8 @@ fn read_record<T: DeserializeOwned>(
     )?)
 }
 
-const OBSERVED_LINEAR_READOUT_SCHEMA: &str = "cerebro.tidex.observed_linear_readout/v1";
-const READOUT_ACQUISITION_SCHEMA: &str = "cerebro.tidex.linear_readout_acquisition/v1";
+const OBSERVED_LINEAR_READOUT_SCHEMA: &str = "tidex.observed_linear_readout/v1";
+const READOUT_ACQUISITION_SCHEMA: &str = "tidex.linear_readout_acquisition/v1";
 const READOUT_EVIDENCE_SCOPE: &str =
     "locally_captured_readout_parameters_and_activations_not_independently_attested";
 
@@ -123,7 +121,7 @@ pub struct DescribeLinearReadoutReport {
 pub fn describe_linear_readout(
     input: &DescribeLinearReadoutInput,
 ) -> BrainResult<DescribeLinearReadoutReport> {
-    if input.schema != "cerebro.tidex.describe_linear_readout_input/v1" {
+    if input.schema != "tidex.describe_linear_readout_input/v1" {
         return Err(invalid("describe_linear_readout_schema"));
     }
     let inspection = inspect_linear_readout(
@@ -139,7 +137,7 @@ pub fn describe_linear_readout(
         inspection.difference_weights.clone(),
     )?;
     Ok(DescribeLinearReadoutReport {
-        schema: "cerebro.tidex.describe_linear_readout_report/v1".into(),
+        schema: "tidex.describe_linear_readout_report/v1".into(),
         descriptor_json: serde_json::to_string(&descriptor)?,
         inspection,
     })
@@ -502,7 +500,7 @@ pub fn acquire_linear_readout(
     input: &AcquireLinearReadoutInput,
 ) -> BrainResult<PrivateFileReference> {
     let root = verify_internal_private_root(root)?;
-    if input.schema != "cerebro.tidex.acquire_linear_readout_input/v1"
+    if input.schema != "tidex.acquire_linear_readout_input/v1"
         || input.descriptor_relative_path == input.evidence_relative_path
         || !input.model_path.is_absolute()
     {
@@ -621,10 +619,9 @@ pub struct ReceiverWeightAxis {
     pub source_import_receipt: Option<PrivateFileReference>,
 }
 
-pub const DISTRIBUTED_LORA_BASIS_INPUT_SCHEMA: &str =
-    "cerebro.tidex.distributed_lora_basis_input/v1";
+pub const DISTRIBUTED_LORA_BASIS_INPUT_SCHEMA: &str = "tidex.distributed_lora_basis_input/v1";
 pub const DISTRIBUTED_LORA_BASIS_EVIDENCE_SCHEMA: &str =
-    "cerebro.tidex.distributed_lora_basis_construction/v1";
+    "tidex.distributed_lora_basis_construction/v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -1164,11 +1161,11 @@ fn exact_f64_vector_digest(domain: &[u8], values: &[f64]) -> Sha256Digest {
 }
 
 fn functional_signature_digest(values: &[f64]) -> Sha256Digest {
-    exact_f64_vector_digest(b"cerebro.tidex.functional_signature_f64_le/v1\0", values)
+    exact_f64_vector_digest(b"tidex.functional_signature_f64_le/v1\0", values)
 }
 
 fn receiver_coordinates_digest(values: &[f64]) -> Sha256Digest {
-    exact_f64_vector_digest(b"cerebro.tidex.receiver_coordinates_f64_le/v1\0", values)
+    exact_f64_vector_digest(b"tidex.receiver_coordinates_f64_le/v1\0", values)
 }
 
 fn validate_cross_model_functional_evidence(
@@ -1316,7 +1313,7 @@ fn validate_behavioral_calibration_evidence(
     basis: &ReceiverWeightBasis,
     proposal_method: ReceiverProposalMethod,
 ) -> BrainResult<ReceiverBehavioralCalibrationSummary> {
-    if policy.schema != "cerebro.tidex.receiver_behavioral_calibration_policy/v1"
+    if policy.schema != "tidex.receiver_behavioral_calibration_policy/v1"
         || !policy.minimum_mean_accuracy.is_finite()
         || !(0.0..=1.0).contains(&policy.minimum_mean_accuracy)
         || !policy.minimum_mean_gain.is_finite()
@@ -2132,7 +2129,7 @@ pub fn materialize_receiver_weight_candidate(
         return Err(integrity("receiver_weight_materialization_layout_mismatch"));
     }
     let receipt = ReceiverWeightCheckpointReceipt {
-        schema: "cerebro.tidex.receiver_weight_checkpoint/v1".into(),
+        schema: "tidex.receiver_weight_checkpoint/v1".into(),
         candidate: candidate_reference.clone(),
         output_path: output.to_path_buf(),
         materialization,
@@ -2322,7 +2319,7 @@ mod tests {
                 ),
             },
             policy: ReceiverCompilerPolicy {
-                schema: "cerebro.tidex.receiver_compiler_policy/v1".into(),
+                schema: "tidex.receiver_compiler_policy/v1".into(),
                 ridge: 1e-9,
                 minimum_decoder_loo_r2: 0.99,
                 minimum_encoder_loo_r2: 0.99,
@@ -2403,7 +2400,7 @@ mod tests {
             observation.receiver_solution_evidence = Some(put(
                 &f.root,
                 &serde_json::json!({
-                    "schema":"cerebro.tidex.cross_model_receiver_solution_evidence/v1",
+                    "schema":"tidex.cross_model_receiver_solution_evidence/v1",
                     "capability_id": observation.capability_id,
                     "receiver_model_sha256": basis.base_model_sha256,
                     "receiver_coordinates_sha256": receiver_coordinates_digest(&observation.receiver_coordinates),
@@ -2471,7 +2468,7 @@ mod tests {
             }),
         ));
         f.request.behavioral_calibration_policy = Some(ReceiverBehavioralCalibrationPolicy {
-            schema: "cerebro.tidex.receiver_behavioral_calibration_policy/v1".into(),
+            schema: "tidex.receiver_behavioral_calibration_policy/v1".into(),
             minimum_mean_accuracy: 0.5,
             minimum_mean_gain: 0.1,
             minimum_non_degrading_count: 1,
@@ -2538,7 +2535,7 @@ mod tests {
         fs::write(&model_path, bytes).unwrap();
         let target: FunctionalResponseTarget = read_record(&f.root, &f.request.target).unwrap();
         let description = describe_linear_readout(&DescribeLinearReadoutInput {
-            schema: "cerebro.tidex.describe_linear_readout_input/v1".into(),
+            schema: "tidex.describe_linear_readout_input/v1".into(),
             model_path: model_path.clone(),
             tensor_id: TensorId::parse("lm_head.weight").unwrap(),
             positive_row: 0,
@@ -2583,7 +2580,7 @@ mod tests {
         };
         let result = ReadoutFixture {
             input: AcquireLinearReadoutInput {
-                schema: "cerebro.tidex.acquire_linear_readout_input/v1".into(),
+                schema: "tidex.acquire_linear_readout_input/v1".into(),
                 source_root,
                 model_path,
                 descriptor_relative_path: "operator.json".into(),
@@ -2993,11 +2990,11 @@ mod tests {
         let coordinates = [1.0, -2.5, 0.0, 3.25];
         assert_eq!(
             functional_signature_digest(&functional).as_str(),
-            "b8e65755b09cb335298a94bc2cb75713d5c96110edbc42699862916dcfc0593d"
+            "341e6b5a5e6c2d532ea4b1984990dff5800e48f7cd65659271859c926c7f2d52"
         );
         assert_eq!(
             receiver_coordinates_digest(&coordinates).as_str(),
-            "63e56aaf80e69e4468bd0633880bda4ba08321a358600abf0ee9029fffb5bb93"
+            "41124e649cf53852d030f580319cfa39ea8eeaab40323017a5c29b856bae8ab5"
         );
     }
 
@@ -3016,7 +3013,7 @@ mod tests {
             .iter()
             .map(|item| item.as_f64().unwrap())
             .collect::<Vec<_>>();
-        let expected = "b8e65755b09cb335298a94bc2cb75713d5c96110edbc42699862916dcfc0593d";
+        let expected = "341e6b5a5e6c2d532ea4b1984990dff5800e48f7cd65659271859c926c7f2d52";
         assert_eq!(functional_signature_digest(&typed).as_str(), expected);
         assert_eq!(functional_signature_digest(&untyped).as_str(), expected);
         assert_eq!(typed[3].to_bits(), 0xbfff78f89532b7f0);
@@ -3544,7 +3541,7 @@ mod tests {
         }
         f.request.protocol = protocol_reference;
         let profile_input = ReceiverModelProfileInput {
-            schema: "cerebro.tidex.receiver_model_profile_input/v1".into(),
+            schema: "tidex.receiver_model_profile_input/v1".into(),
             model_id: ModelId::parse("measured.receiver").unwrap(),
             architecture_id: ArchitectureId::parse("measured.readout").unwrap(),
             source_revision: None,
@@ -3562,7 +3559,7 @@ mod tests {
                 "sparse",
                 PhysicalMaterializationBackend::Sparse {
                     policy: SparseShadowPolicy {
-                        schema: "cerebro.tidex.sparse_shadow_policy/v1".into(),
+                        schema: "tidex.sparse_shadow_policy/v1".into(),
                         maximum_nonzero_count: 2,
                         maximum_density: 0.5,
                         absolute_zero_threshold: 0.0,
@@ -3574,7 +3571,7 @@ mod tests {
             ),
         ] {
             let request = PhysicalMaterializationRequest {
-                schema: "cerebro.tidex.physical_materialization_request/v1".into(),
+                schema: "tidex.physical_materialization_request/v1".into(),
                 physical_profile: profile.profile_reference.clone(),
                 source: CompiledMaterializationSource::MeasuredReceiver {
                     candidate: candidate.clone(),
@@ -3605,7 +3602,7 @@ mod tests {
         fs::write(&changed.tokenizer_path, b"{\"different\":true}").unwrap();
         let wrong_profile = profile_receiver_model(&f.root, &changed).unwrap();
         let invalid = PhysicalMaterializationRequest {
-            schema: "cerebro.tidex.physical_materialization_request/v1".into(),
+            schema: "tidex.physical_materialization_request/v1".into(),
             physical_profile: wrong_profile.profile_reference,
             source: CompiledMaterializationSource::MeasuredReceiver { candidate },
             backend: PhysicalMaterializationBackend::Dense,

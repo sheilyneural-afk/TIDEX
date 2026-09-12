@@ -539,7 +539,7 @@ fn validated_from_predictions(
     let min_loo_cosine = cosines.iter().copied().fold(f64::INFINITY, f64::min);
     let resolved = loo_cv_r2 > 0.0 && min_loo_cosine > 0.0;
     Ok(ValidatedTransportMap {
-        schema: "cerebro.tidex.validated_transport/v1".into(),
+        schema: "tidex.validated_transport/v1".into(),
         map,
         anchor_count: target.len(),
         loo_cv_r2,
@@ -706,7 +706,7 @@ pub fn learn_transport_validated_with_policy(
     Ok((
         validated_from_predictions(map, target, &predictions)?,
         AffineTransportDiagnostics {
-            schema: "cerebro.tidex.affine_transport_diagnostics/v1".into(),
+            schema: "tidex.affine_transport_diagnostics/v1".into(),
             policy: policy.clone(),
             full_fit,
             leave_one_out,
@@ -733,7 +733,7 @@ pub fn learn_functional_transplant_with_policy(
     )?;
     Ok((
         FunctionalTransplantMap {
-            schema: "cerebro.tidex.functional_transplant/v1".into(),
+            schema: "tidex.functional_transplant/v1".into(),
             functional_dim,
             target_dim,
             target_decoder: validated.map,
@@ -764,7 +764,7 @@ pub fn learn_functional_transplant(
     let validated =
         learn_transport_validated(functional_anchors, target_capability_anchors, ridge)?;
     Ok(FunctionalTransplantMap {
-        schema: "cerebro.tidex.functional_transplant/v1".into(),
+        schema: "tidex.functional_transplant/v1".into(),
         functional_dim,
         target_dim,
         target_decoder: validated.map,
@@ -962,7 +962,7 @@ pub fn learn_relational_transport(
         && min_loo_target_cosine + numerical_tolerance >= min_loo_source_cosine
         && max_loo_coefficient_norm.is_finite();
     Ok(RelationalTransportMap {
-        schema: "cerebro.tidex.relational_transport/v1".into(),
+        schema: "tidex.relational_transport/v1".into(),
         source_signature_dim: source[0].len(),
         target_signature_dim: target[0].len(),
         anchor_count: source.len(),

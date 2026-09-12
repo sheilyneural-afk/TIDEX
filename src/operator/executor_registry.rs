@@ -270,7 +270,7 @@ impl ExecutorDescriptor {
         let production_authority = draft.authority == ExecutorAuthorityClass::LifecycleAuthority
             && draft.effect_class == ExecutorEffectClass::ProductionLifecycle;
         let mut value = Self {
-            schema: "cerebro.tidex.executor_descriptor/v1".into(),
+            schema: "tidex.executor_descriptor/v1".into(),
             executor_id: draft.executor_id.into(),
             title: draft.title.into(),
             module_path: draft.module_path.into(),
@@ -304,7 +304,7 @@ impl ExecutorDescriptor {
     }
 
     fn validate_without_digest(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.executor_descriptor/v1"
+        if self.schema != "tidex.executor_descriptor/v1"
             || self.executor_id.trim().is_empty()
             || self.title.trim().is_empty()
             || self.module_path.trim().is_empty()
@@ -360,7 +360,7 @@ fn descriptor_digest(value: &ExecutorDescriptor) -> BrainResult<Sha256Digest> {
     let mut unsigned = value.clone();
     unsigned.descriptor_sha256 = Sha256Digest::zero();
     Ok(Sha256Digest::digest_domain(
-        b"CEREBRO:TIDEX:EXECUTOR-DESCRIPTOR:v1\0",
+        b"TIDEX:EXECUTOR-DESCRIPTOR:v1\0",
         &serde_json::to_vec(&unsigned)?,
     ))
 }
@@ -506,7 +506,7 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             "Procedural memory advisor",
             "procedural_memory",
             "procedural_memory",
-            OperationalNeedsWorkflow,
+            Operational,
             AdvisoryOnly,
             AdvisorySignal,
             [CoreEngine, InternalLibrary],
@@ -679,7 +679,7 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             "Temporal coherence tracking",
             "temporal_tracking",
             "temporal_tracking",
-            ArchitectureOnly,
+            Operational,
             AdvisoryOnly,
             AdvisorySignal,
             [CoreEngine, InternalLibrary],

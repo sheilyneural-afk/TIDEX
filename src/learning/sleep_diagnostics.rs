@@ -127,7 +127,7 @@ pub fn diagnose_consolidation(
         }
     }
     Ok(SleepConsolidationDiagnostics {
-        schema: "cerebro.tidex.sleep_consolidation_diagnostics/v1".into(),
+        schema: "tidex.sleep_consolidation_diagnostics/v1".into(),
         prior_skill_count: prior.fields.len(),
         reconstructed_skill_count: reconstructed.len(),
         retained,

@@ -1,6 +1,6 @@
 {
   "plan": {
-    "schema": "cerebro.tidex.external_lm_eval_plan/v1",
+    "schema": "tidex.external_lm_eval_plan/v1",
     "internal_gate": {
       "source": "/home/yo/Future/quality/experiments/universality_augmented.json",
       "summary": {

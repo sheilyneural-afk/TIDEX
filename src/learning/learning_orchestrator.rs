@@ -242,7 +242,7 @@ fn validate_target(target: &LearningTarget) -> BrainResult<()> {
 }
 
 fn validate_policy(policy: &AdaptiveLearningPolicy) -> BrainResult<()> {
-    if policy.schema != "cerebro.tidex.adaptive_learning_policy/v1"
+    if policy.schema != "tidex.adaptive_learning_policy/v1"
         || !policy.outcome_utility_weight.is_finite()
         || policy.outcome_utility_weight <= 0.0
     {
@@ -264,7 +264,7 @@ fn normalized(mut values: Vec<f64>) -> BrainResult<Vec<f64>> {
 
 fn stable_u64(target_id: &str, counter: u64) -> u64 {
     let mut hasher = Sha256::new();
-    hasher.update(b"CEREBRO:TIDEX:LEARNING-APERTURE-SEED:v1\0");
+    hasher.update(b"TIDEX:LEARNING-APERTURE-SEED:v1\0");
     hasher.update(target_id.as_bytes());
     hasher.update(counter.to_be_bytes());
     let digest = hasher.finalize();
@@ -445,7 +445,7 @@ pub fn plan_autonomous_learning(target: &LearningTarget) -> BrainResult<Autonomo
     }
     let target_digest = target_digest(target)?;
     Ok(AutonomousLearningPlan {
-        schema: "cerebro.tidex.autonomous_learning_plan/v1".into(),
+        schema: "tidex.autonomous_learning_plan/v1".into(),
         target_id: target.target_id.clone(),
         target_digest,
         capability_ids: target.capability_ids.clone(),
@@ -478,7 +478,7 @@ pub fn start_adaptive_learning(
     validate_policy(policy)?;
     let dimension = target.capability_ids.len();
     Ok(AdaptiveLearningSession {
-        schema: "cerebro.tidex.adaptive_learning_session/v1".into(),
+        schema: "tidex.adaptive_learning_session/v1".into(),
         target_digest: target_digest(target)?,
         policy: policy.clone(),
         policy_digest: policy_digest(policy)?,
@@ -502,7 +502,7 @@ fn validate_adaptive_session(
     session: &AdaptiveLearningSession,
 ) -> BrainResult<()> {
     validate_target(target)?;
-    if session.schema != "cerebro.tidex.adaptive_learning_session/v1"
+    if session.schema != "tidex.adaptive_learning_session/v1"
         || session.target_digest != target_digest(target)?
         || session.policy_digest != policy_digest(&session.policy)?
         || session.capability_ids != target.capability_ids
@@ -695,7 +695,7 @@ pub fn next_learning_aperture(
         .map(|(index, _)| target.capability_ids[index].clone())
         .collect::<Vec<_>>();
     Ok(AdaptiveLearningStep {
-        schema: "cerebro.tidex.adaptive_learning_step/v1".into(),
+        schema: "tidex.adaptive_learning_step/v1".into(),
         aperture_id: selected.aperture_id,
         capability_weights: selected.sensing_vector,
         active_capability_ids,
@@ -716,7 +716,7 @@ pub fn assimilate_learning_result(
     observed_value: f64,
 ) -> BrainResult<AdaptiveLearningSession> {
     validate_adaptive_session(target, session)?;
-    if step.schema != "cerebro.tidex.adaptive_learning_step/v1"
+    if step.schema != "tidex.adaptive_learning_step/v1"
         || session
             .completed_aperture_ids
             .iter()
@@ -886,7 +886,7 @@ fn validate_experiment_evidence(
     aperture_id: &ApertureId,
     capability_weights: &[f64],
 ) -> BrainResult<()> {
-    if evidence.schema != "cerebro.tidex.learning_experiment_evidence/v1"
+    if evidence.schema != "tidex.learning_experiment_evidence/v1"
         || evidence.session_id != *session_id
         || evidence.target_digest != *target_digest
         || evidence.aperture_id != *aperture_id
@@ -974,7 +974,7 @@ fn validate_experiment_evidence(
 }
 
 fn validate_cycle(root: &Path, cycle: &AdaptiveLearningCycle) -> BrainResult<()> {
-    if cycle.schema != "cerebro.tidex.adaptive_learning_cycle/v1"
+    if cycle.schema != "tidex.adaptive_learning_cycle/v1"
         || cycle.target_digest != target_digest(&cycle.target)?
         || cycle.policy_digest != policy_digest(&cycle.session.policy)?
         || cycle.session.target_digest != cycle.target_digest
@@ -1052,7 +1052,7 @@ fn validate_cycle(root: &Path, cycle: &AdaptiveLearningCycle) -> BrainResult<()>
 }
 
 fn validate_receipt_shape(root: &Path, receipt: &AdaptiveLearningReceipt) -> BrainResult<()> {
-    if receipt.schema != "cerebro.tidex.adaptive_learning_receipt/v1"
+    if receipt.schema != "tidex.adaptive_learning_receipt/v1"
         || receipt.cycle.session_id != receipt.session_id
         || receipt.cycle.target_digest != receipt.target_digest
         || receipt.cycle.policy_digest != receipt.policy_digest
@@ -1273,7 +1273,7 @@ fn load_current_receipt_under_root(
         BrainError::Integrity("adaptive_learning_current_pointer_missing_or_invalid".into())
     })?;
     let pointer: AdaptiveLearningPointer = serde_json::from_slice(&pointer_raw)?;
-    if pointer.schema != "cerebro.tidex.adaptive_learning_pointer/v1"
+    if pointer.schema != "tidex.adaptive_learning_pointer/v1"
         || pointer.session_id.as_str() != session_id
     {
         return Err(BrainError::Integrity(
@@ -1311,7 +1311,7 @@ fn persist_receipt_under_root(
         root,
         "adaptive_learning_receipt",
         json!({
-            "schema":"cerebro.tidex.adaptive_learning_ledger_binding/v1",
+            "schema":"tidex.adaptive_learning_ledger_binding/v1",
             "receipt_sha256":&digest,
             "session_id":&receipt.session_id,
             "target_digest":&receipt.target_digest,
@@ -1331,7 +1331,7 @@ fn persist_receipt_under_root(
         ));
     }
     let pointer = AdaptiveLearningPointer {
-        schema: "cerebro.tidex.adaptive_learning_pointer/v1".into(),
+        schema: "tidex.adaptive_learning_pointer/v1".into(),
         session_id: receipt.session_id.clone(),
         receipt_sha256: digest.clone(),
     };
@@ -1376,7 +1376,7 @@ fn start_persistent_adaptive_learning_under_root(
         let policy_digest = policy_digest(policy)?;
         let session_id = SessionId::parse(session_id)?;
         let marker = json!({
-            "schema":"cerebro.tidex.adaptive_learning_session_marker/v1",
+            "schema":"tidex.adaptive_learning_session_marker/v1",
             "session_id":&session_id,
             "target_digest":&target_digest,
             "policy_digest":&policy_digest,
@@ -1388,7 +1388,7 @@ fn start_persistent_adaptive_learning_under_root(
         )?;
         let session = start_adaptive_learning(target, policy)?;
         let cycle = AdaptiveLearningCycle {
-            schema: "cerebro.tidex.adaptive_learning_cycle/v1".into(),
+            schema: "tidex.adaptive_learning_cycle/v1".into(),
             session_id: session_id.clone(),
             target: target.clone(),
             target_digest: target_digest.clone(),
@@ -1401,7 +1401,7 @@ fn start_persistent_adaptive_learning_under_root(
         persist_receipt_under_root(
             root,
             AdaptiveLearningReceipt {
-                schema: "cerebro.tidex.adaptive_learning_receipt/v1".into(),
+                schema: "tidex.adaptive_learning_receipt/v1".into(),
                 event_kind: AdaptiveLearningEventKind::SessionStarted,
                 generation: 0,
                 session_id,
@@ -1445,7 +1445,7 @@ fn issue_next_persistent_learning_aperture_under_root(
         persist_receipt_under_root(
             root,
             AdaptiveLearningReceipt {
-                schema: "cerebro.tidex.adaptive_learning_receipt/v1".into(),
+                schema: "tidex.adaptive_learning_receipt/v1".into(),
                 event_kind: AdaptiveLearningEventKind::ApertureIssued,
                 generation: current.receipt.generation.saturating_add(1),
                 session_id: current.receipt.session_id.clone(),
@@ -1553,7 +1553,7 @@ fn assimilate_persistent_learning_evidence_under_root(
         persist_receipt_under_root(
             root,
             AdaptiveLearningReceipt {
-                schema: "cerebro.tidex.adaptive_learning_receipt/v1".into(),
+                schema: "tidex.adaptive_learning_receipt/v1".into(),
                 event_kind: AdaptiveLearningEventKind::ResultAssimilated,
                 generation: current.receipt.generation.saturating_add(1),
                 session_id: current.receipt.session_id.clone(),
@@ -1598,7 +1598,7 @@ mod tests {
 
     fn policy(weight: f64) -> AdaptiveLearningPolicy {
         AdaptiveLearningPolicy {
-            schema: "cerebro.tidex.adaptive_learning_policy/v1".into(),
+            schema: "tidex.adaptive_learning_policy/v1".into(),
             outcome_utility_weight: weight,
             maximize_observed_value: true,
         }
@@ -1607,7 +1607,7 @@ mod tests {
     #[test]
     fn versioned_learning_policy_rejects_unknown_wire_fields() {
         let wire = serde_json::json!({
-            "schema": "cerebro.tidex.adaptive_learning_policy/v1",
+            "schema": "tidex.adaptive_learning_policy/v1",
             "outcome_utility_weight": 1.0,
             "maximize_observed_value": true,
             "unreviewed_override": true
@@ -1648,7 +1648,7 @@ mod tests {
         target_digest: &LearningTargetDigest,
         step: &AdaptiveLearningStep,
     ) -> PathBuf {
-        let layout_raw = br#"{\"schema\":\"cerebro.tidex.parameter_layout/test\"}"#.to_vec();
+        let layout_raw = br#"{\"schema\":\"tidex.parameter_layout/test\"}"#.to_vec();
         let layout_digest = sha256_bytes(&layout_raw);
         let layout_path = root
             .join("state/parameter_layouts/by-sha")
@@ -1700,7 +1700,7 @@ mod tests {
         let support_raw = br#"{\"measurement\":\"sealed\"}"#.to_vec();
         write_new_private(root, &support_path, &support_raw).unwrap();
         let evidence = LearningExperimentEvidence {
-            schema: "cerebro.tidex.learning_experiment_evidence/v1".into(),
+            schema: "tidex.learning_experiment_evidence/v1".into(),
             session_id: SessionId::parse(session_id).unwrap(),
             target_digest: target_digest.clone(),
             aperture_id: step.aperture_id.clone(),

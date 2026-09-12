@@ -311,7 +311,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             add_model(
                 &home,
                 ModelProfile {
-                    schema: "cerebro.tidex.model_profile/v1".into(),
+                    schema: "tidex.model_profile/v1".into(),
                     name: name.clone(),
                     provider,
                     endpoint: endpoint.clone(),
@@ -590,7 +590,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "schema":"cerebro.tidex.frozen_receiver_compiler_verification/v1",
+                    "schema":"tidex.frozen_receiver_compiler_verification/v1",
                     "manifest_sha256":frozen.manifest_sha256(),
                     "verified":true
                 }))?
@@ -613,7 +613,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "schema":"cerebro.tidex.universal_capability_compilation_replay/v2",
+                    "schema":"tidex.universal_capability_compilation_replay/v2",
                     "request_sha256":receipt.request_sha256,
                     "replayed":true
                 }))?
@@ -637,7 +637,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(
-                    &json!({"schema":"cerebro.tidex.universal_shadow_plan_replay/v2","planning_request_sha256":receipt.planning_request_sha256,"replayed":true})
+                    &json!({"schema":"tidex.universal_shadow_plan_replay/v2","planning_request_sha256":receipt.planning_request_sha256,"replayed":true})
                 )?
             );
         }
@@ -776,7 +776,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         }
         [area, command, runner_path, input_path] if area == "shadow" && command == "run" => {
             let input: ShadowEvaluationInput = read_json_bounded(Path::new(input_path))?;
-            if input.schema != "cerebro.tidex.shadow_evaluation_input/v1" {
+            if input.schema != "tidex.shadow_evaluation_input/v1" {
                 return Err("shadow_evaluation_input_schema_invalid".into());
             }
             let runner = AuthenticatedBytes::from_trusted_bytes(read_bytes_bounded(
@@ -862,7 +862,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         [area, command, model_id, dataset_sha] if area == "operator" && command == "evaluate" => {
             let home = configured_operator_home()?;
             let request = OperatorDirectWorkflowRequest {
-                schema: "cerebro.tidex.operator_direct_workflow/v1".into(),
+                schema: "tidex.operator_direct_workflow/v1".into(),
                 operation: OperatorDirectOperation::BehavioralEvaluation,
                 model_ids: vec![tidex::foundation::digest::Sha256Digest::parse(model_id)?],
                 dataset_sha256: Some(tidex::foundation::digest::Sha256Digest::parse(dataset_sha)?),
@@ -878,7 +878,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         {
             let home = configured_operator_home()?;
             let request = BehavioralDiscoveryWorkflowRequest {
-                schema: "cerebro.tidex.operator_behavioral_discovery/v1".into(),
+                schema: "tidex.operator_behavioral_discovery/v1".into(),
                 model_ids: model_ids
                     .iter()
                     .map(tidex::foundation::digest::Sha256Digest::parse)
@@ -925,7 +925,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         [area, command, recipe_id, assets @ ..] if area == "operator" && command == "run" => {
             let home = configured_operator_home()?;
             let request = OperatorRunRequest {
-                schema: "cerebro.tidex.operator_run_request/v1".into(),
+                schema: "tidex.operator_run_request/v1".into(),
                 recipe_id: recipe_id.clone(),
                 assets: assets
                     .iter()
@@ -965,7 +965,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "schema":"cerebro.tidex.capabilities/v1",
+                    "schema":"tidex.capabilities/v1",
                     "workspace":workspace.name,
                     "target":workspace.target,
                     "capabilities":[
@@ -1013,7 +1013,7 @@ fn execute_residency_decision(
     path: &Path,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let request: ResidencyDecisionRequest = read_json_bounded(path)?;
-    if request.schema != "cerebro.tidex.residency_decision_request/v1" {
+    if request.schema != "tidex.residency_decision_request/v1" {
         return Err("residency_decision_request_schema_invalid".into());
     }
     let root = configured_private_root()?;
@@ -1022,7 +1022,7 @@ fn execute_residency_decision(
     let authority = ResidencyDecisionAuthority::current(&root, &knowledge)?;
     let (decision, reference) = authority.decide_and_persist(&request.precommit_reference)?;
     Ok(json!({
-        "schema":"cerebro.tidex.residency_decision_operator_receipt/v1",
+        "schema":"tidex.residency_decision_operator_receipt/v1",
         "decision":decision,
         "decision_reference":reference,
         "authorizes_production":false
@@ -1031,7 +1031,7 @@ fn execute_residency_decision(
 
 fn execute_knowledge_plan(path: &Path) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let request: KnowledgePlanRequest = read_json_bounded(path)?;
-    if request.schema != "cerebro.tidex.knowledge_plan_request/v1" {
+    if request.schema != "tidex.knowledge_plan_request/v1" {
         return Err("knowledge_plan_request_schema_invalid".into());
     }
     let root = configured_private_root()?;
@@ -1041,7 +1041,7 @@ fn execute_knowledge_plan(path: &Path) -> Result<serde_json::Value, Box<dyn std:
     let decision = engine.plan(&state)?;
     let staircase = engine.living_staircase(&state)?;
     Ok(json!({
-        "schema":"cerebro.tidex.knowledge_plan_receipt/v1",
+        "schema":"tidex.knowledge_plan_receipt/v1",
         "state_reference":request.state_reference,
         "decision":decision,
         "staircase":staircase,
@@ -1054,7 +1054,7 @@ fn execute_knowledge_staircase(
     path: &Path,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let request: KnowledgePlanRequest = read_json_bounded(path)?;
-    if request.schema != "cerebro.tidex.knowledge_plan_request/v1" {
+    if request.schema != "tidex.knowledge_plan_request/v1" {
         return Err("knowledge_plan_request_schema_invalid".into());
     }
     let root = configured_private_root()?;
@@ -1063,7 +1063,7 @@ fn execute_knowledge_staircase(
     let state = engine.authenticate_state(&request.state_reference)?;
     let staircase = engine.living_staircase(&state)?;
     Ok(json!({
-        "schema":"cerebro.tidex.living_staircase_receipt/v1",
+        "schema":"tidex.living_staircase_receipt/v1",
         "state_reference":request.state_reference,
         "staircase":staircase,
         "authorizes_execution":false,
@@ -1083,7 +1083,7 @@ fn execute_tomography_analysis(
     let engine = BrainEngine::open(&root, BrainConfig::default())?;
     let report = engine.analyze(&observations)?;
     Ok(json!({
-        "schema":"cerebro.tidex.tomography_operator_receipt/v1",
+        "schema":"tidex.tomography_operator_receipt/v1",
         "report":report,
         "authorizes_production":false
     }))
@@ -1105,7 +1105,7 @@ fn execute_geometry_analysis(path: &Path) -> Result<serde_json::Value, Box<dyn s
         }),
     };
     Ok(json!({
-        "schema":"cerebro.tidex.geometry_analysis_receipt/v1",
+        "schema":"tidex.geometry_analysis_receipt/v1",
         "result":result,
         "authorizes_production":false
     }))
@@ -1113,7 +1113,7 @@ fn execute_geometry_analysis(path: &Path) -> Result<serde_json::Value, Box<dyn s
 
 fn execute_protected_map(path: &Path) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let request: ProtectedMapRequest = read_json_bounded(path)?;
-    if request.schema != "cerebro.tidex.protected_map_request/v1"
+    if request.schema != "tidex.protected_map_request/v1"
         || request.task_labels_used
         || request.evidence.len() < 2
     {
@@ -1142,7 +1142,7 @@ fn execute_protected_map(path: &Path) -> Result<serde_json::Value, Box<dyn std::
     )?;
     let artifact = persist_protected_map(&root, &map)?;
     Ok(json!({
-        "schema":"cerebro.tidex.protected_map_operator_receipt/v1",
+        "schema":"tidex.protected_map_operator_receipt/v1",
         "artifact":artifact,
         "evidence_count":evidence.len(),
         "task_labels_used":false,
@@ -1248,8 +1248,7 @@ fn execute_numerical_evolution(
     path: &Path,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let request: NumericalEvolutionRequest = read_json_bounded(path)?;
-    if request.schema != "cerebro.tidex.numerical_evolution_request/v1" || request.cycles.is_empty()
-    {
+    if request.schema != "tidex.numerical_evolution_request/v1" || request.cycles.is_empty() {
         return Err("numerical_evolution_request_contract_invalid".into());
     }
     let policy = build_numerical_policy(&request.policy)?;
@@ -1300,7 +1299,7 @@ fn execute_numerical_evolution(
         }));
     }
     Ok(json!({
-        "schema":"cerebro.tidex.numerical_evolution_receipt/v1",
+        "schema":"tidex.numerical_evolution_receipt/v1",
         "solver_profile":request.policy.solver_profile,
         "cycles":receipts,
         "procedural_attempt_count":engine.procedural_memory().attempt_count(),
@@ -1373,7 +1372,7 @@ fn acquire_workspace(
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schema":"cerebro.tidex.workspace_acquisition/v1",
+            "schema":"tidex.workspace_acquisition/v1",
             "workspace":workspace.name,
             "target":workspace.target,
             "capture_receipt_sha256":receipt.manifest_sha256(),

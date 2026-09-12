@@ -74,9 +74,9 @@ RECEIVER_PATH = (
     / RECEIVER_REVISION
 )
 RECEIVER_MODEL_ID = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-RECEIVER_SCHEMA = "cerebro.tidex.v66_receiver_code_capability/v1"
-ADAPTER_ARTIFACT_SCHEMA = "cerebro.tidex.v66_compiled_adapter_artifact/v1"
-ADAPTER_REPLAY_SCHEMA = "cerebro.tidex.v66_compiled_adapter_replay/v1"
+RECEIVER_SCHEMA = "tidex.v66_receiver_code_capability/v1"
+ADAPTER_ARTIFACT_SCHEMA = "tidex.v66_compiled_adapter_artifact/v1"
+ADAPTER_REPLAY_SCHEMA = "tidex.v66_compiled_adapter_replay/v1"
 LORA_RANK = 8
 LORA_ALPHA = 16
 LORA_TARGETS = ["q_proj", "v_proj"]

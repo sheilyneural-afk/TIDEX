@@ -9,8 +9,8 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-const WORKSPACE_SCHEMA: &str = "cerebro.tidex.workspace/v1";
-const MODEL_SCHEMA: &str = "cerebro.tidex.model_profile/v1";
+const WORKSPACE_SCHEMA: &str = "tidex.workspace/v1";
+const MODEL_SCHEMA: &str = "tidex.model_profile/v1";
 const MAX_RECORD_BYTES: u64 = 16 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -94,7 +94,7 @@ pub fn use_workspace(home: &Path, name: &str) -> BrainResult<()> {
         home,
         &home.join("current-workspace.json"),
         &serde_json::json!({
-            "schema":"cerebro.tidex.current_workspace/v1",
+            "schema":"tidex.current_workspace/v1",
             "name":name
         }),
     )
@@ -106,7 +106,7 @@ pub fn current_workspace(home: &Path) -> BrainResult<WorkspaceManifest> {
         .get("name")
         .and_then(|v| v.as_str())
         .ok_or_else(|| BrainError::Integrity("current_workspace_invalid".into()))?;
-    if value.get("schema").and_then(|v| v.as_str()) != Some("cerebro.tidex.current_workspace/v1")
+    if value.get("schema").and_then(|v| v.as_str()) != Some("tidex.current_workspace/v1")
         || value.as_object().map(|o| o.len()) != Some(2)
     {
         return Err(BrainError::Integrity("current_workspace_invalid".into()));
@@ -132,7 +132,7 @@ pub fn use_model(home: &Path, name: &str) -> BrainResult<()> {
         home,
         &home.join("current-model.json"),
         &serde_json::json!({
-            "schema":"cerebro.tidex.current_model/v1",
+            "schema":"tidex.current_model/v1",
             "name":profile.name
         }),
     )

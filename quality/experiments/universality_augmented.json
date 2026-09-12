@@ -1,12 +1,12 @@
 {
-  "schema": "cerebro.tidex.universality_evidence_input/v1",
+  "schema": "tidex.universality_evidence_input/v1",
   "calibration_capabilities": [
     "contract_mix",
     "mix"
   ],
   "trials": [
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "calibration:contract_mix",
       "capability_id": "contract_mix",
       "receiver_id": "receiver.seen.calibration",
@@ -22,7 +22,7 @@
       "unmodified_receiver_score": 0.0
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "calibration:mix",
       "capability_id": "mix",
       "receiver_id": "receiver.seen.calibration",
@@ -38,7 +38,7 @@
       "unmodified_receiver_score": 0.0
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.a.identity:1000:1000",
       "capability_id": "identity",
       "receiver_id": "receiver.a.identity:1000",
@@ -54,7 +54,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.a.identity:1001:1001",
       "capability_id": "identity",
       "receiver_id": "receiver.a.identity:1001",
@@ -70,7 +70,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.a.identity:1002:1002",
       "capability_id": "identity",
       "receiver_id": "receiver.a.identity:1002",
@@ -86,7 +86,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.a.identity:1003:1003",
       "capability_id": "identity",
       "receiver_id": "receiver.a.identity:1003",
@@ -102,7 +102,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.a.identity:1004:1004",
       "capability_id": "identity",
       "receiver_id": "receiver.a.identity:1004",
@@ -118,7 +118,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.a.identity:1005:1005",
       "capability_id": "identity",
       "receiver_id": "receiver.a.identity:1005",
@@ -134,7 +134,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.b.identity:1006:1006",
       "capability_id": "identity",
       "receiver_id": "receiver.b.identity:1006",
@@ -150,7 +150,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.b.identity:1007:1007",
       "capability_id": "identity",
       "receiver_id": "receiver.b.identity:1007",
@@ -166,7 +166,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.b.identity:1008:1008",
       "capability_id": "identity",
       "receiver_id": "receiver.b.identity:1008",
@@ -182,7 +182,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.b.identity:1009:1009",
       "capability_id": "identity",
       "receiver_id": "receiver.b.identity:1009",
@@ -198,7 +198,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.b.identity:1010:1010",
       "capability_id": "identity",
       "receiver_id": "receiver.b.identity:1010",
@@ -214,7 +214,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "identity:receiver.b.identity:1011:1011",
       "capability_id": "identity",
       "receiver_id": "receiver.b.identity:1011",
@@ -230,7 +230,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.a.swap:1000:1000",
       "capability_id": "swap",
       "receiver_id": "receiver.a.swap:1000",
@@ -246,7 +246,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.a.swap:1001:1001",
       "capability_id": "swap",
       "receiver_id": "receiver.a.swap:1001",
@@ -262,7 +262,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.a.swap:1002:1002",
       "capability_id": "swap",
       "receiver_id": "receiver.a.swap:1002",
@@ -278,7 +278,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.a.swap:1003:1003",
       "capability_id": "swap",
       "receiver_id": "receiver.a.swap:1003",
@@ -294,7 +294,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.a.swap:1004:1004",
       "capability_id": "swap",
       "receiver_id": "receiver.a.swap:1004",
@@ -310,7 +310,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.a.swap:1005:1005",
       "capability_id": "swap",
       "receiver_id": "receiver.a.swap:1005",
@@ -326,7 +326,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.b.swap:1006:1006",
       "capability_id": "swap",
       "receiver_id": "receiver.b.swap:1006",
@@ -342,7 +342,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.b.swap:1007:1007",
       "capability_id": "swap",
       "receiver_id": "receiver.b.swap:1007",
@@ -358,7 +358,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.b.swap:1008:1008",
       "capability_id": "swap",
       "receiver_id": "receiver.b.swap:1008",
@@ -374,7 +374,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.b.swap:1009:1009",
       "capability_id": "swap",
       "receiver_id": "receiver.b.swap:1009",
@@ -390,7 +390,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.b.swap:1010:1010",
       "capability_id": "swap",
       "receiver_id": "receiver.b.swap:1010",
@@ -406,7 +406,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "swap:receiver.b.swap:1011:1011",
       "capability_id": "swap",
       "receiver_id": "receiver.b.swap:1011",
@@ -422,7 +422,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.a.sign_x:1000:1000",
       "capability_id": "sign_x",
       "receiver_id": "receiver.a.sign_x:1000",
@@ -438,7 +438,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.a.sign_x:1001:1001",
       "capability_id": "sign_x",
       "receiver_id": "receiver.a.sign_x:1001",
@@ -454,7 +454,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.a.sign_x:1002:1002",
       "capability_id": "sign_x",
       "receiver_id": "receiver.a.sign_x:1002",
@@ -470,7 +470,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.a.sign_x:1003:1003",
       "capability_id": "sign_x",
       "receiver_id": "receiver.a.sign_x:1003",
@@ -486,7 +486,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.a.sign_x:1004:1004",
       "capability_id": "sign_x",
       "receiver_id": "receiver.a.sign_x:1004",
@@ -502,7 +502,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.a.sign_x:1005:1005",
       "capability_id": "sign_x",
       "receiver_id": "receiver.a.sign_x:1005",
@@ -518,7 +518,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.b.sign_x:1006:1006",
       "capability_id": "sign_x",
       "receiver_id": "receiver.b.sign_x:1006",
@@ -534,7 +534,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.b.sign_x:1007:1007",
       "capability_id": "sign_x",
       "receiver_id": "receiver.b.sign_x:1007",
@@ -550,7 +550,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.b.sign_x:1008:1008",
       "capability_id": "sign_x",
       "receiver_id": "receiver.b.sign_x:1008",
@@ -566,7 +566,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.b.sign_x:1009:1009",
       "capability_id": "sign_x",
       "receiver_id": "receiver.b.sign_x:1009",
@@ -582,7 +582,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.b.sign_x:1010:1010",
       "capability_id": "sign_x",
       "receiver_id": "receiver.b.sign_x:1010",
@@ -598,7 +598,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_x:receiver.b.sign_x:1011:1011",
       "capability_id": "sign_x",
       "receiver_id": "receiver.b.sign_x:1011",
@@ -614,7 +614,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.a.sign_y:1000:1000",
       "capability_id": "sign_y",
       "receiver_id": "receiver.a.sign_y:1000",
@@ -630,7 +630,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.a.sign_y:1001:1001",
       "capability_id": "sign_y",
       "receiver_id": "receiver.a.sign_y:1001",
@@ -646,7 +646,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.a.sign_y:1002:1002",
       "capability_id": "sign_y",
       "receiver_id": "receiver.a.sign_y:1002",
@@ -662,7 +662,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.a.sign_y:1003:1003",
       "capability_id": "sign_y",
       "receiver_id": "receiver.a.sign_y:1003",
@@ -678,7 +678,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.a.sign_y:1004:1004",
       "capability_id": "sign_y",
       "receiver_id": "receiver.a.sign_y:1004",
@@ -694,7 +694,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.a.sign_y:1005:1005",
       "capability_id": "sign_y",
       "receiver_id": "receiver.a.sign_y:1005",
@@ -710,7 +710,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.b.sign_y:1006:1006",
       "capability_id": "sign_y",
       "receiver_id": "receiver.b.sign_y:1006",
@@ -726,7 +726,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.b.sign_y:1007:1007",
       "capability_id": "sign_y",
       "receiver_id": "receiver.b.sign_y:1007",
@@ -742,7 +742,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.b.sign_y:1008:1008",
       "capability_id": "sign_y",
       "receiver_id": "receiver.b.sign_y:1008",
@@ -758,7 +758,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.b.sign_y:1009:1009",
       "capability_id": "sign_y",
       "receiver_id": "receiver.b.sign_y:1009",
@@ -774,7 +774,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.b.sign_y:1010:1010",
       "capability_id": "sign_y",
       "receiver_id": "receiver.b.sign_y:1010",
@@ -790,7 +790,7 @@
       "unmodified_receiver_score": 0.5
     },
     {
-      "schema": "cerebro.tidex.universality_trial/v1",
+      "schema": "tidex.universality_trial/v1",
       "trial_id": "sign_y:receiver.b.sign_y:1011:1011",
       "capability_id": "sign_y",
       "receiver_id": "receiver.b.sign_y:1011",
@@ -807,7 +807,7 @@
     }
   ],
   "protocol": {
-    "schema": "cerebro.tidex.universality_protocol/v1",
+    "schema": "tidex.universality_protocol/v1",
     "minimum_calibration_capabilities": 1,
     "minimum_held_out_capabilities": 2,
     "minimum_receivers_per_capability": 2,

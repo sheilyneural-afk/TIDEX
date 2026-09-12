@@ -1,4 +1,4 @@
-schema = "cerebro.cross_model.control_plane/v1"
+schema = "tidex.cross_model.control_plane/v1"
 
 [bcm]
 initial_theta = 0.5

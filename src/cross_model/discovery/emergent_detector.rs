@@ -149,7 +149,7 @@ impl EmergentDetector {
         let evidence_bytes =
             serde_json::to_vec(&ordered).map_err(|error| format!("emergence_serialize:{error}"))?;
         Ok(Some(EmergentCapability {
-            schema: "cerebro.cross_model.emergent_capability/v1".into(),
+            schema: "tidex.cross_model.emergent_capability/v1".into(),
             benchmark_id,
             emergence_type,
             first_model: first.model.clone(),

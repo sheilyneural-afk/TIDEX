@@ -1,5 +1,5 @@
 {
-  "schema": "cerebro.tidex.v67_weight_actuator_smoke/v1",
+  "schema": "tidex.v67_weight_actuator_smoke/v1",
   "purpose": "engineering proof that the Rust data plane can merge an authenticated receiver delta into standalone model weights; not functional-compiler evidence",
   "source_delta_kind": "v66_lora_reconstructed_as_dense_delta",
   "source_v66_manifest_sha256": "4efedbc22d6bbd4f265eedba31dd244b35e34472f4d9be59c1bd040c4e852e6b",
@@ -68,7 +68,7 @@
     "parameter_count": 201326592
   },
   "parameter_layout": {
-    "schema": "cerebro.tidex.parameter_block_layout/v1",
+    "schema": "tidex.parameter_block_layout/v1",
     "blocks": [
       {
         "name": "model.layers.0.self_attn.q_proj.weight",
@@ -506,7 +506,7 @@
     "total_parameter_count": 201326592
   },
   "materialization": {
-    "schema": "cerebro.tidex.weight_materialization_receipt/v1",
+    "schema": "tidex.weight_materialization_receipt/v1",
     "lifecycle": "candidate_only_not_promoted",
     "base_model_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
     "base_model_byte_len": 3422777952,

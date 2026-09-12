@@ -31,9 +31,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-const POLICY_DOMAIN: &[u8] = b"CEREBRO:TIDEX:RESIDENCY-POLICY:v1\0";
-const PRECOMMIT_DOMAIN: &[u8] = b"CEREBRO:TIDEX:RESIDENCY-PRECOMMIT:v1\0";
-const DECISION_DOMAIN: &[u8] = b"CEREBRO:TIDEX:RESIDENCY-DECISION:v1\0";
+const POLICY_DOMAIN: &[u8] = b"TIDEX:RESIDENCY-POLICY:v1\0";
+const PRECOMMIT_DOMAIN: &[u8] = b"TIDEX:RESIDENCY-PRECOMMIT:v1\0";
+const DECISION_DOMAIN: &[u8] = b"TIDEX:RESIDENCY-DECISION:v1\0";
 const MAX_PRECOMMIT_BYTES: u64 = 1 << 20;
 const MAX_DECISION_BYTES: u64 = 8 << 20;
 const MAX_BUNDLE_BYTES: u64 = 64 << 20;
@@ -98,7 +98,7 @@ fn integrity(code: &str) -> BrainError {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 enum ResidencySchema {
-    #[serde(rename = "cerebro.tidex.residency_decision/v1")]
+    #[serde(rename = "tidex.residency_decision/v1")]
     Current,
 }
 

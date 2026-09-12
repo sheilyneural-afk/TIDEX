@@ -149,7 +149,7 @@ impl ConsensusBuilder {
             .as_bytes(),
         );
         let proposal = ConsensusProposal {
-            schema: "cerebro.cross_model.consensus_proposal/v1".into(),
+            schema: "tidex.cross_model.consensus_proposal/v1".into(),
             proposal_id: proposal_id.clone(),
             proposal_type,
             proposer: proposer.into(),
@@ -188,7 +188,7 @@ impl ConsensusBuilder {
             .proposals
             .get(proposal_id)
             .ok_or("consensus_proposal_missing")?;
-        if proposal.schema != "cerebro.cross_model.consensus_proposal/v1" {
+        if proposal.schema != "tidex.cross_model.consensus_proposal/v1" {
             return Err("consensus_proposal_schema_invalid".into());
         }
         let expires = chrono::DateTime::parse_from_rfc3339(&proposal.expires_at)

@@ -66,7 +66,7 @@ pub struct ReceiverProfile {
 
 impl ReceiverProfile {
     pub fn validate(&self) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.receiver_profile/v1"
+        if self.schema != "tidex.receiver_profile/v1"
             || self.parameter_dimension == 0
             || self.regions.is_empty()
         {
@@ -97,7 +97,7 @@ impl ReceiverProfile {
     pub fn digest(&self) -> BrainResult<Sha256Digest> {
         self.validate()?;
         Ok(Sha256Digest::digest_domain(
-            b"CEREBRO:TIDEX:RECEIVER-PROFILE:v1\0",
+            b"TIDEX:RECEIVER-PROFILE:v1\0",
             &serde_json::to_vec(self)?,
         ))
     }
@@ -117,7 +117,7 @@ pub struct CapabilityRequirements {
 
 impl CapabilityRequirements {
     pub fn validate_against(&self, ir: &CapabilityIr) -> BrainResult<()> {
-        if self.schema != "cerebro.tidex.capability_requirements/v1"
+        if self.schema != "tidex.capability_requirements/v1"
             || self.capability_id != *ir.capability_id()
             || self.capability_ir_sha256 != *ir.manifest_digest()
             || self.acceptable_strategies.is_empty()
@@ -160,7 +160,7 @@ pub fn assess_compatibility(
     requirements: &CapabilityRequirements,
 ) -> BrainResult<CompatibilityAssessment> {
     profile.validate()?;
-    if requirements.schema != "cerebro.tidex.capability_requirements/v1"
+    if requirements.schema != "tidex.capability_requirements/v1"
         || requirements.acceptable_strategies.is_empty()
     {
         return Err(BrainError::Invalid("capability_requirements_invalid".into()));
@@ -197,7 +197,7 @@ pub fn assess_compatibility(
         CompatibilityDisposition::Partial
     };
     Ok(CompatibilityAssessment {
-        schema: "cerebro.tidex.compatibility_assessment/v1".into(),
+        schema: "tidex.compatibility_assessment/v1".into(),
         receiver_profile_sha256: profile.digest()?,
         disposition,
         reasons,
@@ -230,7 +230,7 @@ impl MaterializationPlan {
     /// authority because persisted or transported bytes may be hostile.
     pub fn validate_against_profile(&self, profile: &ReceiverProfile) -> BrainResult<()> {
         profile.validate()?;
-        if self.schema != "cerebro.tidex.materialization_plan/v1"
+        if self.schema != "tidex.materialization_plan/v1"
             || self.receiver_profile_sha256 != profile.digest()?
             || self.lifecycle != PlanLifecycle::ShadowOnly
             || self.affected_regions.is_empty()
@@ -266,7 +266,7 @@ pub fn create_shadow_plan(
     affected_regions: Vec<TensorId>,
 ) -> BrainResult<MaterializationPlan> {
     profile.validate()?;
-    if assessment.schema != "cerebro.tidex.compatibility_assessment/v1"
+    if assessment.schema != "tidex.compatibility_assessment/v1"
         || assessment.receiver_profile_sha256 != profile.digest()?
         || assessment.disposition != CompatibilityDisposition::Compatible
         || !assessment.available_strategies.contains(&strategy)
@@ -294,7 +294,7 @@ pub fn create_shadow_plan(
         return Err(BrainError::Invalid("materialization_plan_regions_invalid".into()));
     }
     let plan = MaterializationPlan {
-        schema: "cerebro.tidex.materialization_plan/v1".into(),
+        schema: "tidex.materialization_plan/v1".into(),
         capability_id: requirements.capability_id.clone(),
         capability_ir_sha256: requirements.capability_ir_sha256.clone(),
         compilation_request_sha256,
@@ -312,7 +312,7 @@ mod tests {
     use super::*;
     fn profile() -> ReceiverProfile {
         ReceiverProfile {
-            schema: "cerebro.tidex.receiver_profile/v1".into(),
+            schema: "tidex.receiver_profile/v1".into(),
             model_id: ModelId::parse("receiver.v1").unwrap(),
             architecture_id: ArchitectureId::parse("transformer.v1").unwrap(),
             architecture: ReceiverArchitecture::Transformer,
@@ -333,7 +333,7 @@ mod tests {
     fn compatible_receiver_only_produces_shadow_plan() {
         let profile = profile();
         let requirements = CapabilityRequirements {
-            schema: "cerebro.tidex.capability_requirements/v1".into(),
+            schema: "tidex.capability_requirements/v1".into(),
             capability_id: CapabilityId::parse("test.capability:v1").unwrap(),
             capability_ir_sha256: CapabilityIrDigest::draft_marker(),
             required_modalities: BTreeSet::from([CapabilityModality::Text]),
@@ -357,7 +357,7 @@ mod tests {
     #[test]
     fn absent_modality_is_incompatible() {
         let requirements = CapabilityRequirements {
-            schema: "cerebro.tidex.capability_requirements/v1".into(),
+            schema: "tidex.capability_requirements/v1".into(),
             capability_id: CapabilityId::parse("test.capability:v1").unwrap(),
             capability_ir_sha256: CapabilityIrDigest::draft_marker(),
             required_modalities: BTreeSet::from([CapabilityModality::Vision]),
