@@ -273,8 +273,10 @@ fn prepare_v67(receipt: V67AdmissionReceipt) -> BrainResult<PreparedAdmission> {
             let mut legacy = receipt.parameter_layout.clone();
             legacy.schema = "cerebro.tidex.parameter_block_layout/v1".into();
             match serde_json::to_vec(&legacy) {
-                Ok(bytes) => Sha256Digest::digest_bytes(&bytes)
-                    == receipt.materialization.parameter_layout_sha256,
+                Ok(bytes) => {
+                    Sha256Digest::digest_bytes(&bytes)
+                        == receipt.materialization.parameter_layout_sha256
+                }
                 Err(_) => false,
             }
         };

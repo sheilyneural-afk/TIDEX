@@ -839,13 +839,8 @@ mod tests {
             coupling_gain: 0.0,
             ..CognitiveFieldConfig::default()
         };
-        let model = DynamicCognitiveField::build(
-            &fields,
-            &Matrix::identity(3),
-            &causal(),
-            config,
-        )
-        .unwrap();
+        let model =
+            DynamicCognitiveField::build(&fields, &Matrix::identity(3), &causal(), config).unwrap();
 
         let hot = vec![ConfounderValue {
             name: "receiver_temperature".into(),
@@ -859,10 +854,7 @@ mod tests {
         let design = Sha256Digest::parse("a".repeat(64)).unwrap();
         let mut observations = Vec::new();
         let mut nonce = 1u8;
-        for (context, effects) in [
-            (&hot, [1.0, 0.2, -1.0]),
-            (&cold, [-1.0, 0.2, 1.0]),
-        ] {
+        for (context, effects) in [(&hot, [1.0, 0.2, -1.0]), (&cold, [-1.0, 0.2, 1.0])] {
             for (source, effect) in ["a", "b", "c"].into_iter().zip(effects) {
                 for group in ["g1", "g2", "g3"] {
                     observations.push(DirectedFacilitationObservation {

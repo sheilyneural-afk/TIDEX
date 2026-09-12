@@ -397,22 +397,13 @@ mod tests {
         assert!(!receipt.authorizes_production);
         assert_eq!(receipt.hot_selected_field, "a");
         assert_eq!(receipt.cold_selected_field, "c");
-        assert_eq!(
-            receipt.hot_bound_operation,
-            "activation_transfer_experiment"
-        );
+        assert_eq!(receipt.hot_bound_operation, "activation_transfer_experiment");
         assert_eq!(receipt.cold_bound_operation, "probe_runtime");
         assert!(receipt.fail_closed_missing_binding);
         assert!(receipt.next_action_changed);
         assert!(receipt.b_loop.start_evidence_receipt_present);
-        assert_eq!(
-            receipt.b_loop.tick1.next_action_operation,
-            "calibrate_alignment"
-        );
-        assert_eq!(
-            receipt.b_loop.tick2.next_action_operation,
-            "activation_transfer_experiment"
-        );
+        assert_eq!(receipt.b_loop.tick1.next_action_operation, "calibrate_alignment");
+        assert_eq!(receipt.b_loop.tick2.next_action_operation, "activation_transfer_experiment");
         assert!(receipt.covered_chain.len() >= 10);
         assert!(!receipt.still_outside_e2e.is_empty());
         let _ = fs::remove_dir_all(home);

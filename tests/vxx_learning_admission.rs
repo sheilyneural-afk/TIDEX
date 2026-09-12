@@ -29,10 +29,8 @@ fn temporary_root(label: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
-        "tidex-vxx-admission-itest-{label}-{}-{nonce}",
-        std::process::id()
-    ));
+    let root = std::env::temp_dir()
+        .join(format!("tidex-vxx-admission-itest-{label}-{}-{nonce}", std::process::id()));
     fs::create_dir(&root).unwrap();
     secure_dir(&root).unwrap();
     root
@@ -72,7 +70,6 @@ fn target_two_cap(id: &str) -> LearningTarget {
         risk_weight: 0.0,
     }
 }
-
 
 fn target_v68_two_cap(id: &str) -> LearningTarget {
     LearningTarget {
@@ -208,31 +205,22 @@ fn integration_real_v68_admit_assimilate_changes_next_aperture() {
         Path::new("collected_receipts/tidex-v68-definitive-prepost-20260912T1535Z-receipt.json");
     let raw = fs::read(receipt_path).expect("collected real V68 receipt");
     let wire: Value = serde_json::from_slice(&raw).unwrap();
-    assert_eq!(
-        wire["schema"],
-        "tidex.v68_receiver_response_probe/v1",
-        "unexpected V68 schema"
-    );
+    assert_eq!(wire["schema"], "tidex.v68_receiver_response_probe/v1", "unexpected V68 schema");
     assert_eq!(
         wire["claim_boundary"]["new_semantic_capability_transfer_established"],
         Value::Bool(false),
         "V68 claim_boundary must stay transfer=false"
     );
-    assert_eq!(
-        wire["claim_boundary"]["mbpp_transfer_established"],
-        Value::Bool(false)
-    );
-    assert_eq!(
-        wire["claim_boundary"]["authorizes_promotion"],
-        Value::Bool(false)
-    );
-    let dense = wire.get("dense_delta").expect("V68 wire dense_delta required");
+    assert_eq!(wire["claim_boundary"]["mbpp_transfer_established"], Value::Bool(false));
+    assert_eq!(wire["claim_boundary"]["authorizes_promotion"], Value::Bool(false));
+    let dense = wire
+        .get("dense_delta")
+        .expect("V68 wire dense_delta required");
     let layout = wire
         .get("parameter_layout")
         .expect("V68 wire parameter_layout required");
     assert_eq!(
-        dense["parameter_count"],
-        layout["total_parameter_count"],
+        dense["parameter_count"], layout["total_parameter_count"],
         "dense/layout contract"
     );
     let dense_path = PathBuf::from(dense["path"].as_str().unwrap());
@@ -261,22 +249,13 @@ fn integration_real_v68_admit_assimilate_changes_next_aperture() {
 
         let (admitted, assimilated) =
             admit_and_assimilate_vxx_receipt_under_root(&root, session, &raw).unwrap();
-        assert_eq!(
-            admitted.source_schema,
-            "tidex.v68_receiver_response_probe/v1"
-        );
+        assert_eq!(admitted.source_schema, "tidex.v68_receiver_response_probe/v1");
         assert_eq!(
             admitted.claim_boundary["new_semantic_capability_transfer_established"],
             Value::Bool(false)
         );
-        assert_eq!(
-            admitted.claim_boundary["mbpp_transfer_established"],
-            Value::Bool(false)
-        );
-        assert_eq!(
-            admitted.claim_boundary["authorizes_promotion"],
-            Value::Bool(false)
-        );
+        assert_eq!(admitted.claim_boundary["mbpp_transfer_established"], Value::Bool(false));
+        assert_eq!(admitted.claim_boundary["authorizes_promotion"], Value::Bool(false));
         assert!(assimilated.receipt.cycle.pending_step.is_none());
         assert_eq!(assimilated.receipt.cycle.completed_evidence.len(), 1);
 
@@ -290,4 +269,3 @@ fn integration_real_v68_admit_assimilate_changes_next_aperture() {
         );
     });
 }
-

@@ -121,8 +121,8 @@ use tidex::runtime::isolated_execution::AuthenticatedBytes;
 mod procedure_selector_vertical;
 mod weights_ir_receptor_vertical;
 mod workflow_b_loop;
-mod workflow_organism_e2e;
 mod workflow_next_action;
+mod workflow_organism_e2e;
 
 const MAX_CLI_JSON_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ANALYSIS_INPUT_BYTES: u64 = 64 * 1024 * 1024;

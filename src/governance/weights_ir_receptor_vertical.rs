@@ -150,10 +150,7 @@ impl WeightsIrReceptorVerticalReceipt {
     fn calculate_digest(&self) -> BrainResult<Sha256Digest> {
         let mut unsigned = self.clone();
         unsigned.manifest_sha256 = Sha256Digest::zero();
-        Ok(Sha256Digest::digest_domain(
-            RECEIPT_DOMAIN,
-            &serde_json::to_vec(&unsigned)?,
-        ))
+        Ok(Sha256Digest::digest_domain(RECEIPT_DOMAIN, &serde_json::to_vec(&unsigned)?))
     }
 
     pub fn verify(&self) -> BrainResult<()> {
@@ -173,19 +170,14 @@ impl WeightsIrReceptorVerticalReceipt {
             || matches!(self.capability_ir_path, CapabilityIrPath::Stopped { .. })
         {
             if self.capability_ir_emitted || self.receptor_entered || self.emitted_ir.is_some() {
-                return Err(integrity(
-                    "stopped_residency_must_not_emit_ir_or_enter_receptor",
-                ));
+                return Err(integrity("stopped_residency_must_not_emit_ir_or_enter_receptor"));
             }
         }
         if self.capability_ir_emitted != self.emitted_ir.is_some() {
             return Err(integrity("capability_ir_emitted_inconsistent"));
         }
         if self.receptor_entered
-            && matches!(
-                self.receptor_progress,
-                ReceptorEntryProgress::NotEntered { .. }
-            )
+            && matches!(self.receptor_progress, ReceptorEntryProgress::NotEntered { .. })
         {
             return Err(integrity("receptor_entered_without_progress"));
         }
@@ -194,9 +186,7 @@ impl WeightsIrReceptorVerticalReceipt {
             self.package_donor_kind,
             DonorKind::GpemV2Recommend | DonorKind::FixtureProcedureSelector
         ) {
-            return Err(integrity(
-                "weights_ir_vertical_must_not_use_procedure_selector_donor",
-            ));
+            return Err(integrity("weights_ir_vertical_must_not_use_procedure_selector_donor"));
         }
         Ok(())
     }
@@ -365,8 +355,8 @@ fn construct_ir_from_measured_descriptor(
     let capture = capture_to_vault(&donor, &root, &request)?;
     let capture_reference = capture.persist(&root)?;
     let envelope = capture.envelope().clone();
-    let dim = u64::try_from(weights.len())
-        .map_err(|_| invalid("measured_weights_dimension_overflow"))?;
+    let dim =
+        u64::try_from(weights.len()).map_err(|_| invalid("measured_weights_dimension_overflow"))?;
 
     // Real IR from measured shape/params: scalar linear readout profile already
     // supported by execute_linear_readout / compile_receiver_readout_capability.
@@ -418,7 +408,8 @@ fn construct_ir_from_measured_descriptor(
     Ok((record, ir, envelope, weights.to_vec()))
 }
 
-fn experimental_readout_calibration() -> (ReceiverCalibrationSet, ReceiverCompilerPolicy, ProtectedCortex) {
+fn experimental_readout_calibration(
+) -> (ReceiverCalibrationSet, ReceiverCompilerPolicy, ProtectedCortex) {
     let receiver = vec![
         vec![1.0, 0.0],
         vec![0.0, 1.0],
@@ -556,9 +547,7 @@ pub fn run_from_package(
 ) -> BrainResult<WeightsIrReceptorVerticalReceipt> {
     package.verify()?;
     if !matches!(package.donor_kind(), DonorKind::MeasuredClosedLinearMap) {
-        return Err(invalid(
-            "weights_ir_vertical_requires_measured_closed_linear_map_donor",
-        ));
+        return Err(invalid("weights_ir_vertical_requires_measured_closed_linear_map_donor"));
     }
     let root = verify_internal_private_root(private_root)?;
     let outcome = decide_from_authenticated_capacity(&package)?;
@@ -686,10 +675,7 @@ mod tests {
                 candidate: ResidencyCandidate::Weights
             }
         ));
-        assert!(!matches!(
-            receipt.receptor_progress(),
-            ReceptorEntryProgress::NotEntered { .. }
-        ));
+        assert!(!matches!(receipt.receptor_progress(), ReceptorEntryProgress::NotEntered { .. }));
         receipt.verify().unwrap();
         fs::remove_dir_all(root).unwrap();
     }
@@ -721,10 +707,7 @@ mod tests {
         )
         .unwrap();
         let outcome = decide_from_authenticated_capacity(&package).unwrap();
-        assert!(matches!(
-            outcome.decision(),
-            ResidencyDecision::BoundedUnknown { .. }
-        ));
+        assert!(matches!(outcome.decision(), ResidencyDecision::BoundedUnknown { .. }));
         assert!(!outcome.admits_capability_ir());
     }
 

@@ -31,8 +31,8 @@ use serde_json::json;
 use std::path::Path;
 use tidex::engine::cognitive_field::FieldRoutingDecision;
 use tidex::foundation::digest::Sha256Digest;
-use tidex::foundation::identity::SkillId;
 use tidex::foundation::error::{BrainError, BrainResult};
+use tidex::foundation::identity::SkillId;
 use tidex::learning::procedural_memory::{AdviceDisposition, RetrievalReport, SolverFamily};
 use tidex::learning::procedural_memory::{ProceduralMemory, RetrievalQuery};
 use tidex::learning::procedural_replay::retrieve_procedural_advice;
@@ -734,8 +734,15 @@ mod tests {
         ];
         let route = |selected: &str| FieldRoutingDecision {
             schema: "tidex.cognitive_field_routing/v1".into(),
-            field_ids: vec![SkillId::parse("route-a").unwrap(), SkillId::parse("route-c").unwrap()],
-            coefficients: if selected == "route-a" { vec![1.0, 0.0] } else { vec![0.0, 1.0] },
+            field_ids: vec![
+                SkillId::parse("route-a").unwrap(),
+                SkillId::parse("route-c").unwrap(),
+            ],
+            coefficients: if selected == "route-a" {
+                vec![1.0, 0.0]
+            } else {
+                vec![0.0, 1.0]
+            },
             selected_field_ids: vec![SkillId::parse(selected).unwrap()],
             selected_activation_mass: 1.0,
         };
@@ -772,12 +779,8 @@ mod tests {
         executor_by_id(&a.executor_id).unwrap();
         executor_by_id(&c.executor_id).unwrap();
 
-        let missing = directive_from_field_route(
-            &route("route-a"),
-            &bindings[1..],
-            "must fail closed",
-            None,
-        );
+        let missing =
+            directive_from_field_route(&route("route-a"), &bindings[1..], "must fail closed", None);
         assert!(missing.is_err());
     }
 

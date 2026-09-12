@@ -639,8 +639,8 @@ fn invoke_gpem_bridge(request: &serde_json::Value) -> BrainResult<GpemBridgeResp
         let _ = stderr;
         return Err(invalid("gpem_v2_recommend_invoke_failed"));
     }
-    let parsed: GpemBridgeResponse = serde_json::from_str(&stdout)
-        .map_err(|_| invalid("gpem_v2_recommend_invoke_failed"))?;
+    let parsed: GpemBridgeResponse =
+        serde_json::from_str(&stdout).map_err(|_| invalid("gpem_v2_recommend_invoke_failed"))?;
     if !parsed.ok {
         let code = parsed
             .error
@@ -697,10 +697,7 @@ impl GpemV2RecommendDonorWire {
             ),
         );
 
-        let prefer_get_gpem = matches!(
-            gpem_donor_mode().as_str(),
-            "get_gpem" | "prefer_get_gpem"
-        );
+        let prefer_get_gpem = matches!(gpem_donor_mode().as_str(), "get_gpem" | "prefer_get_gpem");
         let request = serde_json::json!({
             "action": "recommend",
             "store_root": self.store_root,
@@ -764,8 +761,6 @@ impl GpemV2RecommendDonorWire {
         Ok(ids)
     }
 }
-
-
 
 /// Fixture donor: prefer the historically best successful candidate, else explore.
 #[derive(Debug, Clone, Default)]
@@ -1311,11 +1306,7 @@ impl MeasuredClosedLinearMapDonor {
     }
 
     fn margin(&self, weights: &[f64]) -> f64 {
-        self.input
-            .iter()
-            .zip(weights)
-            .map(|(x, w)| x * w)
-            .sum()
+        self.input.iter().zip(weights).map(|(x, w)| x * w).sum()
     }
 
     pub fn observe(&self, stimulus: &SelectorStimulus) -> BrainResult<DonorAction> {
@@ -1331,8 +1322,7 @@ impl MeasuredClosedLinearMapDonor {
         }
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         let best = scored[0];
-        let unique_best = scored.len() == 1
-            || scored[1].1 < best.1 - 1e-12;
+        let unique_best = scored.len() == 1 || scored[1].1 < best.1 - 1e-12;
         // Flat / near-zero margins → explore (no confident weights selection).
         if !unique_best || best.1.abs() < 1e-12 {
             return Ok(DonorAction::explore());
@@ -1425,8 +1415,7 @@ pub fn seal_measured_closed_linear_map_capacity(
     // Ablation: remove map.alpha weights from the donor view (causal intervention).
     let mut ablated_weights = donor.weights_by_candidate.clone();
     ablated_weights.remove("map.alpha");
-    let ablated_donor =
-        MeasuredClosedLinearMapDonor::new(donor.input.clone(), ablated_weights)?;
+    let ablated_donor = MeasuredClosedLinearMapDonor::new(donor.input.clone(), ablated_weights)?;
     let ablated_action = ablated_donor.observe(&ablated_stimulus)?;
     let ablated_observation = CapacityObservation::seal(
         ObservationId::parse("obs.linear-intervene-ablate-best-01")?,
@@ -1587,11 +1576,9 @@ mod tests {
         let store = root.join("gpem-store");
         fs::create_dir_all(&store).unwrap();
         fs::write(store.join(".tidex_gpem_force_unavailable"), b"1").unwrap();
-        let wire = GpemV2RecommendDonorWire::new(
-            store,
-            vec!["route".into(), "capability_id".into()],
-        )
-        .unwrap();
+        let wire =
+            GpemV2RecommendDonorWire::new(store, vec!["route".into(), "capability_id".into()])
+                .unwrap();
         assert_eq!(wire.schema, GpemV2RecommendDonorWire::SCHEMA);
         let stimulus =
             SelectorStimulus::new("route:analysis", Vec::new(), vec!["proc.alpha".into()]).unwrap();
@@ -1610,15 +1597,21 @@ mod tests {
         // missing, fail-closed without pretending fixture success.
         if resolve_shei_research_python().is_err() {
             let err = resolve_shei_research_python().unwrap_err().to_string();
-            assert!(err.contains("gpem_v2_recommend_donor_unavailable")
-                || err.contains("gpem_v2_recommend_donor_misconfigured"));
+            assert!(
+                err.contains("gpem_v2_recommend_donor_unavailable")
+                    || err.contains("gpem_v2_recommend_donor_misconfigured")
+            );
             return;
         }
         let (base, root) = tempfile_private_root("gpem-live");
         let store = root.join("gpem-store");
         let wire = GpemV2RecommendDonorWire::new(
             store.clone(),
-            vec!["route".into(), "capability_id".into(), "prior_procedure".into()],
+            vec![
+                "route".into(),
+                "capability_id".into(),
+                "prior_procedure".into(),
+            ],
         )
         .unwrap();
         let seeded = wire.seed_demo_traces().expect("live GPEM seed");
@@ -1635,10 +1628,7 @@ mod tests {
         .expect("live GPEM seal");
         package.verify().unwrap();
         assert_eq!(package.donor_kind(), DonorKind::GpemV2Recommend);
-        assert_eq!(
-            package.completeness(),
-            PackageCompleteness::SufficientForResidencyHandoff
-        );
+        assert_eq!(package.completeness(), PackageCompleteness::SufficientForResidencyHandoff);
         let _ = fs::remove_dir_all(&base);
     }
 
