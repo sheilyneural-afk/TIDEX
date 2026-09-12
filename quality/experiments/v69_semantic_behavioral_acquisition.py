@@ -699,20 +699,25 @@ def run(base_dir: Path, binary: Path, root: Path, threads: int) -> dict[str, Any
             },
         )
         write_new(root / "verbalizer_evidence.json", canonical({"reference": verbalizer_evidence}))
-        coordinates = torch.cat(
-            [
-                torch.eye(4),
-                -torch.eye(4),
-                torch.tensor(
-                    [
-                        [0.5, 0.5, 0.5, 0.5],
-                        [-0.5, 0.5, -0.5, 0.5],
-                        [0.5, -0.5, -0.5, 0.5],
-                        [-0.5, -0.5, 0.5, 0.5],
-                    ]
-                ),
-            ]
-        ).double()
+        # Broader calibrated support (±0.5..±4 on axes). Does not loosen
+        # maximum_quadratic_cost / maximum_functional_relative_error gates.
+        axis_rows = []
+        for scale in (1.0, 2.0, 4.0):
+            axis_rows.append(torch.eye(4) * scale)
+            axis_rows.append(-torch.eye(4) * scale)
+        axis_rows.append(
+            torch.tensor(
+                [
+                    [0.5, 0.5, 0.5, 0.5],
+                    [-0.5, 0.5, -0.5, 0.5],
+                    [0.5, -0.5, -0.5, 0.5],
+                    [-0.5, -0.5, 0.5, 0.5],
+                    [1.0, 1.0, -1.0, -1.0],
+                    [-1.0, 1.0, 1.0, -1.0],
+                ]
+            )
+        )
+        coordinates = torch.cat(axis_rows).double()
         observation_refs, control_changes = [], []
         try:
             for index, coordinate in enumerate(coordinates):
