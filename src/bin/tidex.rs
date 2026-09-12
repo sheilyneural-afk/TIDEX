@@ -17,7 +17,7 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tidex::analysis::protected_map::{
     build_protected_cortex_map, persist_protected_map, SensitivityEvidence,
 };
@@ -122,6 +122,7 @@ mod procedure_selector_vertical;
 mod weights_ir_receptor_vertical;
 mod workflow_b_loop;
 mod workflow_organism_e2e;
+mod workflow_start_live;
 mod workflow_next_action;
 
 const MAX_CLI_JSON_BYTES: u64 = 64 * 1024 * 1024;
@@ -1083,6 +1084,21 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             let proof = workflow_b_loop::prove_b_loop(&home)?;
             println!("{}", serde_json::to_string_pretty(&proof)?);
         }
+                [area, command, rest @ ..] if area == "workflow" && command == "prove-start-live" => {
+            let home = if rest.is_empty() {
+                configured_operator_home()?
+            } else {
+                PathBuf::from(&rest[0])
+            };
+            let hub = if rest.len() >= 2 {
+                PathBuf::from(&rest[1])
+            } else {
+                workflow_start_live::default_hub_root()
+            };
+            let proof = workflow_start_live::prove_start_live_hf(&home, &hub)?;
+            println!("{}", serde_json::to_string_pretty(&proof)?);
+        }
+
         [area, command] if area == "workflow" && command == "prove-organism-chain" => {
             let home = configured_tidex_home()?;
             let proof = workflow_organism_e2e::prove_organism_chain_e2e(&home)?;
@@ -1617,7 +1633,7 @@ fn usage() -> &'static str {
         "  tidex operator graph\n",
         "  tidex staircase\n",
         "  tidex operator staircase\n",
-        "  tidex residency decide <request.json>\n  tidex demo procedure-selector\n  tidex demo weights-ir-receptor\n  tidex workflow prove-b-loop\n  tidex workflow prove-organism-chain\n",
+        "  tidex residency decide <request.json>\n  tidex demo procedure-selector\n  tidex demo weights-ir-receptor\n  tidex workflow prove-b-loop\n  tidex workflow prove-organism-chain\n  tidex workflow prove-start-live [tidex_home] [hub_root]\n",
         "  tidex operator executors\n",
         "  tidex executors\n",
         "  tidex executor <executor-id>\n",
