@@ -152,7 +152,7 @@ def tidex(binary: Path, root: Path, *arguments: str) -> Any:
     result = subprocess.run(
         [str(binary), "receiver", *arguments], cwd=REPO,
         env={**os.environ, "TIDEX_PRIVATE_ROOT": str(root)},
-        capture_output=True, text=True, timeout=240,
+        capture_output=True, text=True, timeout=3600,
     )
     if result.returncode:
         raise RuntimeError(f"Rust command rejected: {result.stderr.strip()}")
@@ -460,7 +460,7 @@ def compile_and_replay(
         package = round_dir / f"replay-package-{arm}.json"
         write_new(package, canonical({"checkpoint_sha256": checkpoint["materialization"]["output_model_sha256"], "model_files_sha256": files_sha, "prompts": all_prompts, "label_ids": labels}))
         replay_path = round_dir / f"replay-{arm}.json"
-        subprocess.run([sys.executable, str(SOURCE), "--replay-model", str(model_dir), "--package", str(package), "--output", str(replay_path), "--threads", str(threads)], check=True, timeout=240)
+        subprocess.run([sys.executable, str(SOURCE), "--replay-model", str(model_dir), "--package", str(package), "--output", str(replay_path), "--threads", str(threads)], check=True, timeout=3600)
         replay_values = torch.tensor(json.loads(replay_path.read_bytes())["margins"], dtype=torch.float64)
         results[arm].update({"checkpoint": checkpoint, "actual_response_change": (replay_values-baseline).tolist(), "replay_sha256": sha_file(replay_path)})
         print(f"{arm} checkpoint evaluated in fresh process", flush=True)
