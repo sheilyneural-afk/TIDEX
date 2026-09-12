@@ -22,7 +22,7 @@ Punto de entrada único. Si un doc de `directories/` o `systems/` parece corto o
 | [QUALITY_AND_TESTING.md](QUALITY_AND_TESTING.md) | Modelo de pruebas y evidencia |
 | [README_CROSS_MODEL.md](README_CROSS_MODEL.md) | Feature cross-model |
 | [../README.md](../README.md) | README raíz |
-| [TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md](TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md) | Dos aprendizajes; A ❌ / B 🟡; camino crítico 6 pasos (Paso 1 CERTIFIED) |
+| [TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md](TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md) | Dos aprendizajes; A ❌ / B 🟡; Paso 1 CLOSED @ 6b7d912; Paso 2A replay canónico |
 
 ## Sistemas (flujos transversales)
 

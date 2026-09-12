@@ -1,7 +1,7 @@
 # TIDE-X: dos aprendizajes y los dos eslabones que faltan
 
 **Fecha:** 2026-09-12 (Europe/Madrid)  
-**Checkout:** `/home/yo/Future` @ `456d1eb` (`feat/durable-plasticity-controllers`)  
+**Checkout:** `/home/yo/Future` @ `6b7d912`+ (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A in progress on tip  
 **Contexto de código:** [PR #1](https://github.com/sheilyneural-afk/TIDEX/pull/1) — controladores durables + coevolución causal + `plan_next_tick`. Aún no es el organismo cerrado.  
 **Naturaleza de este doc:** dos partes explícitas. **Parte I** = mapa del problema (qué falta y por qué; los dos eslabones siguen siendo el mapa correcto). **Parte II** = orden de implementación (camino crítico de 6 pasos; **no** es el mismo orden que el mapa). No es código. No pide algoritmos nuevos de plasticidad.
 
@@ -15,7 +15,7 @@
 |--------|--------|
 | Visión de producto / dos aprendizajes / dos eslabones / B antes que A / no más BCM / residencia antes que IR / coordinador = workflow | **CORRECTO** |
 | Paso 1 (plasticidad durable) | **CLOSED / CERTIFIED** — 18+ tests verdes; docs + push; no más plasticidad |
-| Paso 2 (ProceduralMemory útil) | Necesita **replay canónico primero** (memoria derivada, no otro store) |
+| Paso 2 (ProceduralMemory útil) | **2A implemented** (canonical replay + tests); **2B** advisory retrieve helper; **2C** pending (fold into NextAction) |
 | Paso 3 (cerrar `NextAction` → executor) | **Hito central** del organismo |
 | Pasos 4–5 (adquisición + residencia/IR) | Después de cerrar B |
 | Paso 6 (demo real) | Criterio de aceptación bueno |
@@ -474,9 +474,9 @@ Seis pasos. Este es el roadmap. No invertir, no saltar, no sustituir por otro BC
    (GPEM → autonomous TIDE-X → small LLM → measure → learn how → better second attempt)
 ```
 
-### Paso 1 — CERTIFY `456d1eb` (**CLOSED** 2026-09-12)
+### Paso 1 — CERTIFY `456d1eb` (**CLOSED** 2026-09-12 @ tip `6b7d912`)
 
-**Estado:** **CLOSED / CERTIFIED**. Sustancia en `456d1eb`; certificación re-ejecutada verde; roadmap + INDEX see-also empujados a la rama / PR#1.
+**Estado:** **CLOSED / CERTIFIED**. Sustancia en `456d1eb`; tip de rama de certificación / formato `6b7d912`; certificación re-ejecutada verde; roadmap + INDEX see-also empujados a la rama / PR#1. **No reabrir plasticidad.**
 
 **Checklist certificación:**
 
@@ -527,7 +527,16 @@ Sin 2A, “conectar retrieve al decisor” sería teatro sobre memoria vacía o 
 | Colección local | `collected_receipts/*.json` (muestras; no son aún el feed canónico de replay) |
 | Frontera | `build.rs`: engine↛operator cruzado silencioso — replay debe componerse en workflow (`tidex.rs` / capa composición), no importar KE/PM dentro de Operator |
 
-Siguiente acción Paso 2: diseñar **replay canónico** que lea receipts/stdout autenticados → `SolverAttempt` → `ProceduralMemory::rebuild`, sin `procedural_memory.json`.
+**Estado 2A (2026-09-12):** **IMPLEMENTED** on branch tip after `6b7d912`.
+
+| Pieza | Path |
+|-------|------|
+| Replay canónico | `src/learning/procedural_replay.rs` — `rebuild_from_authenticated_stdout` / `rebuild_from_numerical_evolution_stdout` → `ProceduralMemory::rebuild_with_solver_failures` |
+| 2B helper | `retrieve_procedural_advice(memory, query)` (advisory-only; Paso 3 hook documented in-module) |
+| Composición Operator | `src/bin/tidex.rs` — `rebuild_procedural_memory_from_operator_run` + CLI `tidex procedural replay-from-run-receipt` |
+| Tests | `procedural_replay::tests` — fixture replay → ranked retrieve; tamper / digest / schema / production / count fail-closed |
+
+**No** `procedural_memory.json`. **No** import de PM/KE en `operator/control_plane.rs`. Siguiente: **2C** / Paso 3 = plegar `retrieve` en `NextAction` → executor existente.
 
 ### Antes del Paso 3 — frontera de composición (decidir explícitamente)
 
@@ -638,4 +647,4 @@ No abrir Ola RALF / Minimum Space / otros BCM como sustituto de estos seis pasos
 
 ---
 
-*Doc de mapa (Parte I) + orden de implementación (Parte II). No implementa. No pide módulos nuevos de plasticidad hasta cerrar los seis pasos. Paso 1 CLOSED. Paso 2 = replay canónico → retrieve → decisión. Paso 3 = hito central. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
+*Doc de mapa (Parte I) + orden de implementación (Parte II). No implementa. No pide módulos nuevos de plasticidad hasta cerrar los seis pasos. Paso 1 CLOSED @ 6b7d912. Paso 2A replay canónico DONE; 2B retrieve helper DONE; 2C/Paso 3 = decisión. Paso 3 = hito central. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*

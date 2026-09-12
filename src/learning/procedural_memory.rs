@@ -970,7 +970,7 @@ pub struct ResearchValidation {
 }
 
 impl ResearchValidation {
-    fn new(
+    pub(crate) fn new(
         report_receipt_digest: ResearchReportReceiptDigest,
         receipt_digest: EvaluationReceiptDigest,
         evaluator_policy_digest: EvaluatorPolicyDigest,
@@ -1208,7 +1208,7 @@ pub struct OutcomeMetrics {
 impl OutcomeMetrics {
     /// Test/internal constructor. Production code derives these fields from a
     /// selected solver evaluation and its step-local independent gate.
-    fn new(
+    pub(crate) fn new(
         solver_relative_residual: Option<f64>,
         independent_gate_advanced: Option<bool>,
         deterministic_work_units: Option<u64>,

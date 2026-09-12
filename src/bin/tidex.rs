@@ -54,7 +54,10 @@ use tidex::learning::portfolio_governance::{
     CandidateGatePolicy, MetricId, PetfcConservationLimits, PetfcMetricPolicy, PetfcPathLimits,
     PetfcPolicy, PetfcUtilityPolicy, RobustEvaluationPolicy,
 };
-use tidex::learning::procedural_memory::CapabilityContext;
+use tidex::learning::procedural_memory::{CapabilityContext, ProceduralMemory, RetrievalQuery};
+use tidex::learning::procedural_replay::{
+    rebuild_from_authenticated_stdout, retrieve_procedural_advice,
+};
 use tidex::learning::solver_portfolio::{
     CandidateRepresentation, LeastSquaresProblem, PortfolioPolicy,
 };
@@ -83,7 +86,7 @@ use tidex::operator::control_plane::{
     execute_behavioral_discovery_workflow, execute_direct_workflow, execute_operator_run,
     import_dataset_bytes, list_catalog_models, list_datasets, recipe_catalog, serve,
     BehavioralDiscoveryWorkflowRequest, OperatorDatasetFormat, OperatorDirectOperation,
-    OperatorDirectWorkflowRequest, OperatorRunRequest,
+    OperatorDirectWorkflowRequest, OperatorRunReceipt, OperatorRunRequest,
 };
 use tidex::operator::executor_registry::{executor_by_id, executor_catalog};
 use tidex::operator::graph::compute_operator_graph;
@@ -355,6 +358,21 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&execute_numerical_evolution(Path::new(path))?)?
+            );
+        }
+        [area, command, path] if area == "procedural" && command == "replay-from-run-receipt" => {
+            let receipt: OperatorRunReceipt = read_json_bounded(Path::new(path))?;
+            let memory = rebuild_procedural_memory_from_operator_run(&receipt)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schema":"tidex.procedural_memory_replay/v1",
+                    "attempt_count":memory.attempt_count(),
+                    "solver_run_failure_count":memory.solver_run_failure_count(),
+                    "drift_count":memory.drift_count(),
+                    "authorizes_production":false,
+                    "paso3_hook":"retrieve_procedural_advice(memory, query) -> RetrievalReport; fold into NextAction in Paso 3"
+                }))?
             );
         }
         [area, command, path] if area == "analysis" && command == "tomography" => {
@@ -1244,6 +1262,32 @@ fn numerical_disposition_name(value: NumericalEvolutionDisposition) -> &'static 
     }
 }
 
+/// Workflow composition root for Paso 2A: Operator run receipt → authenticated
+/// stdout → [`ProceduralMemory`] via canonical replay (no second store).
+///
+/// Paso 2B: call [`retrieve_procedural_advice`] with a [`RetrievalQuery`].
+/// Paso 3 will fold that advice into `NextAction` (not implemented here).
+fn rebuild_procedural_memory_from_operator_run(
+    receipt: &OperatorRunReceipt,
+) -> Result<ProceduralMemory, Box<dyn std::error::Error>> {
+    if receipt.schema != "tidex.operator_run_receipt/v1" {
+        return Err("operator_run_receipt_schema_invalid".into());
+    }
+    if receipt.authorizes_production {
+        return Err("procedural_replay_operator_run_claims_production".into());
+    }
+    let stdout_bytes = read_bytes_bounded(&receipt.stdout, MAX_CLI_JSON_BYTES)?;
+    Ok(rebuild_from_authenticated_stdout(&stdout_bytes, &receipt.stdout_sha256)?)
+}
+
+#[allow(dead_code)] // Workflow hook for Paso 2B / Paso 3 composition.
+fn procedural_advice_for_query(
+    memory: &ProceduralMemory,
+    query: &RetrievalQuery,
+) -> Result<tidex::learning::procedural_memory::RetrievalReport, Box<dyn std::error::Error>> {
+    Ok(retrieve_procedural_advice(memory, query)?)
+}
+
 fn execute_numerical_evolution(
     path: &Path,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
@@ -1398,7 +1442,7 @@ fn usage() -> &'static str {
         "  tidex acquire [--path <relative-project-path>]\n",
         "  tidex knowledge plan <input.json>\n",
         "  tidex knowledge staircase <input.json>\n",
-        "  tidex numerical evolve <input.json>\n",
+        "  tidex numerical evolve <input.json>\n  tidex procedural replay-from-run-receipt <operator-run-receipt.json>\n",
         "  tidex analysis tomography <observations.json>\n",
         "  tidex analysis protected-map <input.json>\n",
         "  tidex analysis geometry <input.json>\n",
