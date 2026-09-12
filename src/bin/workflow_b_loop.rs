@@ -260,6 +260,9 @@ fn require_chain_success_start(
         .evidence_receipt
         .as_ref()
         .ok_or_else(|| invalid("b_loop_start_missing_evidence_receipt"))?;
+    if chain_start_accepted(terminal) {
+        return Ok(receipt);
+    }
     if !matches!(terminal.state, OperatorJobState::Completed) {
         return Err(invalid("b_loop_start_job_not_completed"));
     }
