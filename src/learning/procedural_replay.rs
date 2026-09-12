@@ -12,10 +12,11 @@
 //! never imports `crate::operator` (build.rs frontier).
 //!
 //! # Paso 3 hook
-//! [`retrieve_procedural_advice`] is advisory-only. Paso 3 will fold its
-//! [`RetrievalReport`] into a single workflow `NextAction` together with
-//! KnowledgeEngine, `CoEvolutionDirective`, and RoutingPlasticity — without
-//! promoting or selecting an executor here.
+//! [`retrieve_procedural_advice`] is advisory-only. The workflow coordinator in
+//! `src/bin/workflow_next_action.rs` folds its [`RetrievalReport`] (via
+//! `procedural_hint_from_retrieval`) into a single `NextAction` together with
+//! KnowledgeEngine signals, `CoEvolutionDirective`, and RoutingPlasticity —
+//! without promoting or selecting an executor *here*.
 
 use crate::foundation::digest::Sha256Digest;
 use crate::foundation::error::{BrainError, BrainResult};
@@ -122,7 +123,8 @@ fn rebuild_from_numerical_evolution_receipt(
 /// Workflow-facing advisory retrieve (Paso 2B).
 ///
 /// Returns ranked procedural experience for the next tick. Does **not** emit
-/// `NextAction`, choose an executor, or authorize promotion — that is Paso 3.
+/// `NextAction`, choose an executor, or authorize promotion — see
+/// `src/bin/workflow_next_action.rs` (Paso 3).
 pub fn retrieve_procedural_advice(
     memory: &ProceduralMemory,
     query: &RetrievalQuery,

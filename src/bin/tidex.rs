@@ -114,6 +114,8 @@ use tidex::receiver::receiver_weight_binding::{
 };
 use tidex::runtime::isolated_execution::AuthenticatedBytes;
 
+mod workflow_next_action;
+
 const MAX_CLI_JSON_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ANALYSIS_INPUT_BYTES: u64 = 64 * 1024 * 1024;
 
@@ -371,7 +373,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
                     "solver_run_failure_count":memory.solver_run_failure_count(),
                     "drift_count":memory.drift_count(),
                     "authorizes_production":false,
-                    "paso3_hook":"retrieve_procedural_advice(memory, query) -> RetrievalReport; fold into NextAction in Paso 3"
+                    "paso3_hook":"retrieve_procedural_advice -> procedural_hint_from_retrieval -> decide_next_action -> invoke_next_action (tidex workflow decide)"
                 }))?
             );
         }
@@ -1022,6 +1024,13 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
                 }))?
             );
         }
+        [area, command, path] if area == "workflow" && command == "decide" => {
+            let input: workflow_next_action::WorkflowDecisionInput =
+                read_json_bounded(Path::new(path))?;
+            let home = configured_tidex_home()?;
+            let receipt = workflow_next_action::decide_and_dry_run(&home, &input)?;
+            println!("{}", serde_json::to_string_pretty(&receipt)?);
+        }
         _ => return Err(usage().into()),
     }
     Ok(())
@@ -1442,7 +1451,7 @@ fn usage() -> &'static str {
         "  tidex acquire [--path <relative-project-path>]\n",
         "  tidex knowledge plan <input.json>\n",
         "  tidex knowledge staircase <input.json>\n",
-        "  tidex numerical evolve <input.json>\n  tidex procedural replay-from-run-receipt <operator-run-receipt.json>\n",
+        "  tidex numerical evolve <input.json>\n  tidex procedural replay-from-run-receipt <operator-run-receipt.json>\n  tidex workflow decide <workflow-decision-input.json>\n",
         "  tidex analysis tomography <observations.json>\n",
         "  tidex analysis protected-map <input.json>\n",
         "  tidex analysis geometry <input.json>\n",

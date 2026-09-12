@@ -1,7 +1,7 @@
 # TIDE-X: dos aprendizajes y los dos eslabones que faltan
 
 **Fecha:** 2026-09-12 (Europe/Madrid)  
-**Checkout:** `/home/yo/Future` @ `6b7d912`+ (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A in progress on tip  
+**Checkout:** `/home/yo/Future` @ `bc531d7`+ (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A DONE @ `bc531d7`; Paso 3 workflow NextAction on tip  
 **Contexto de código:** [PR #1](https://github.com/sheilyneural-afk/TIDEX/pull/1) — controladores durables + coevolución causal + `plan_next_tick`. Aún no es el organismo cerrado.  
 **Naturaleza de este doc:** dos partes explícitas. **Parte I** = mapa del problema (qué falta y por qué; los dos eslabones siguen siendo el mapa correcto). **Parte II** = orden de implementación (camino crítico de 6 pasos; **no** es el mismo orden que el mapa). No es código. No pide algoritmos nuevos de plasticidad.
 
@@ -15,8 +15,8 @@
 |--------|--------|
 | Visión de producto / dos aprendizajes / dos eslabones / B antes que A / no más BCM / residencia antes que IR / coordinador = workflow | **CORRECTO** |
 | Paso 1 (plasticidad durable) | **CLOSED / CERTIFIED** — 18+ tests verdes; docs + push; no más plasticidad |
-| Paso 2 (ProceduralMemory útil) | **2A implemented** (canonical replay + tests); **2B** advisory retrieve helper; **2C** pending (fold into NextAction) |
-| Paso 3 (cerrar `NextAction` → executor) | **Hito central** del organismo |
+| Paso 2 (ProceduralMemory útil) | **2A DONE** @ `bc531d7` (canonical replay + tests); **2B DONE** (`retrieve_procedural_advice`); **2C DONE** (fold into NextAction via workflow coordinator) |
+| Paso 3 (cerrar `NextAction` → executor) | **IMPLEMENTED** (workflow coordinator → registry executor → dry-run/start_operator_job hook); hito B cerrado a nivel decisor |
 | Pasos 4–5 (adquisición + residencia/IR) | Después de cerrar B |
 | Paso 6 (demo real) | Criterio de aceptación bueno |
 
@@ -527,7 +527,7 @@ Sin 2A, “conectar retrieve al decisor” sería teatro sobre memoria vacía o 
 | Colección local | `collected_receipts/*.json` (muestras; no son aún el feed canónico de replay) |
 | Frontera | `build.rs`: engine↛operator cruzado silencioso — replay debe componerse en workflow (`tidex.rs` / capa composición), no importar KE/PM dentro de Operator |
 
-**Estado 2A (2026-09-12):** **IMPLEMENTED** on branch tip after `6b7d912`.
+**Estado 2A (2026-09-12):** **DONE** @ `bc531d7` (`feat: canonical ProceduralMemory replay from authenticated evolve receipts`).
 
 | Pieza | Path |
 |-------|------|
@@ -536,7 +536,7 @@ Sin 2A, “conectar retrieve al decisor” sería teatro sobre memoria vacía o 
 | Composición Operator | `src/bin/tidex.rs` — `rebuild_procedural_memory_from_operator_run` + CLI `tidex procedural replay-from-run-receipt` |
 | Tests | `procedural_replay::tests` — fixture replay → ranked retrieve; tamper / digest / schema / production / count fail-closed |
 
-**No** `procedural_memory.json`. **No** import de PM/KE en `operator/control_plane.rs`. Siguiente: **2C** / Paso 3 = plegar `retrieve` en `NextAction` → executor existente.
+**No** `procedural_memory.json`. **No** import de PM/KE en `operator/control_plane.rs`. **2C / Paso 3:** plegado en `src/bin/workflow_next_action.rs` (`decide_next_action` → `invoke_next_action`).
 
 ### Antes del Paso 3 — frontera de composición (decidir explícitamente)
 
@@ -551,9 +551,20 @@ Por tanto `operator/control_plane.rs` **no** puede importar a la ligera `Knowled
 
 La raíz de composición que hoy ve casi todo: `src/bin/tidex.rs`.
 
-**Antes de escribir `NextAction`:** documentar y decidir la frontera de composición de forma explícita. **Sin dependencias cruzadas silenciosas hacia Operator.** El coordinador sigue siendo workflow; no tiene por qué vivir *para siempre* dentro de `tidex.rs`, pero el límite debe ser consciente.
+**Decisión de frontera (Paso 3):** el coordinador vive en `src/bin/workflow_next_action.rs` (módulo del bin `tidex`), que ya es raíz de composición. **Sin** importar KE/PM/Residency en `operator/control_plane.rs`. Los únicos añadidos en Operator son wrappers públicos del enqueue ya existente (`start_operator_direct_job` / `start_operator_behavioral_discovery_job`). El límite queda documentado en el módulo.
 
-### Paso 3 — CLOSE WORKFLOW DECIDER (hito central)
+### Paso 3 — CLOSE WORKFLOW DECIDER (hito central) — **IMPLEMENTED**
+
+**Estado (2026-09-12):** coordinador de workflow en la raíz de composición del bin `tidex` (no dentro de BrainEngine / KnowledgeEngine / AdapterBank / `operator/control_plane.rs`).
+
+| Pieza | Path |
+|-------|------|
+| Frontera | `src/bin/workflow_next_action.rs` — ve learning + operator sin romper `build.rs` |
+| `NextAction` | schema `tidex.workflow.next_action/v1` — un executor existente, inputs autenticados, rationale, info-gain, cost/risk, stop |
+| Decisión | `decide_next_action` pliega KE signals + `CoEvolutionDirective` snapshot + RoutingPreference + `ProceduralWorkflowHint` (desde `retrieve_procedural_advice`) |
+| Job path | `invoke_next_action` DryRun/Start → `start_operator_direct_job` / `start_operator_behavioral_discovery_job` → private `start_operator_job` (mismo path HTTP) |
+| CLI | `tidex workflow decide <workflow-decision-input.json>` (dry-run) |
+| Tests | bin tests: steering-failed→`cross_model.align`; calibrated+reliable→`cross_model.transfer_steering`; fail-closed; dry-run hook |
 
 La transición final de B:
 
@@ -578,6 +589,8 @@ KnowledgeEngine
 ```
 
 Criterio de cierre de B (= congelación de aceptación §0): el sistema emite y **ejecuta** una sola siguiente acción, re-mide, actualiza estado plástico / procedural (vía replay), y la siguiente decisión **cambia por evidencia** — sin que un humano elija el job a mano. Los gates siguen siendo gates. El coordinador no promociona.
+
+**Hecho en Paso 3:** decisión tipada + mapping a executor de registro + hook/dry-run a `start_operator_job` + evidencia sintética cambia la decisión. **Pendiente antes de Paso 4 / demo:** cableado vivo end-to-end (plasticity advice → decide → Start job → receipt → replay → re-decide) en un home Operator real; KE signals aún son proyección advisory hacia el DTO (no un query KE automático en cada tick).
 
 Ver agudeza de `NextAction` y el ejemplo de trasplante en §5.3.
 
@@ -647,4 +660,4 @@ No abrir Ola RALF / Minimum Space / otros BCM como sustituto de estos seis pasos
 
 ---
 
-*Doc de mapa (Parte I) + orden de implementación (Parte II). No implementa. No pide módulos nuevos de plasticidad hasta cerrar los seis pasos. Paso 1 CLOSED @ 6b7d912. Paso 2A replay canónico DONE; 2B retrieve helper DONE; 2C/Paso 3 = decisión. Paso 3 = hito central. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
+*Doc de mapa (Parte I) + orden de implementación (Parte II). No implementa. No pide módulos nuevos de plasticidad hasta cerrar los seis pasos. Paso 1 CLOSED. Paso 2A DONE @ bc531d7; 2B/2C + Paso 3 workflow NextAction IMPLEMENTED (bin composition). Siguiente = Paso 4 adquisición funcional. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*

@@ -1410,6 +1410,26 @@ fn list_all_job_records(tidex_home: &Path) -> BrainResult<Vec<OperatorJobRecord>
     collect_job_records(tidex_home, None)
 }
 
+/// Production enqueue for direct workflows (HTTP control plane + workflow NextAction).
+///
+/// Same path as `POST /api/workflows/direct` → `start_operator_job(Direct)`.
+pub fn start_operator_direct_job(
+    tidex_home: &Path,
+    request: OperatorDirectWorkflowRequest,
+) -> BrainResult<OperatorJobRecord> {
+    start_operator_job(tidex_home, OperatorJobRequest::Direct(request))
+}
+
+/// Production enqueue for behavioral discovery (HTTP control plane + workflow NextAction).
+///
+/// Same path as `POST /api/workflows/behavioral-discovery` → `start_operator_job(BehavioralDiscovery)`.
+pub fn start_operator_behavioral_discovery_job(
+    tidex_home: &Path,
+    request: BehavioralDiscoveryWorkflowRequest,
+) -> BrainResult<OperatorJobRecord> {
+    start_operator_job(tidex_home, OperatorJobRequest::BehavioralDiscovery(request))
+}
+
 fn start_operator_job(
     tidex_home: &Path,
     request: OperatorJobRequest,
