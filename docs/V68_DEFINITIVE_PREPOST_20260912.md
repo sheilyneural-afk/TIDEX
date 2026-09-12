@@ -70,17 +70,23 @@ PRE baseline margins (12): see receipt `baseline_margins`.
 
 Semantic donor→receiver capability transfer / MBPP acquisition still requires a separate verifiable capability protocol with honest claim_boundary. V68 here only proves measured local response control on the receptor without training it.
 
-## Learning admission
+## Learning admission (plasticity wire)
 
-Attempted:
+Top-level `dense_delta` + `parameter_layout` are sourced **only** from existing correct-arm artifacts (never invented):
+
+- `dense_delta` ← `arms.correct.candidate` → `tidex.receiver_weight_candidate/v1.dense_delta` (2048-d `.dvec` under `artifacts/deltas/by-sha/`)
+- `parameter_layout` ← that candidate’s basis (`tidex.receiver_weight_basis/v1.layout`, `model.norm.weight` 2048)
+
+The probe (`quality/experiments/v68_receiver_response_probe.py`) now emits these on successful standalone evaluation via `admission_wire_from_correct_arm` (fail-closed if candidate/basis/dvec missing). In-repo evidence copies were re-sealed from the same live run paths/hashes; `claim_boundary` semantics are unchanged (`new_semantic_capability_transfer_established=false`, no MBPP/promotion).
 
 ```bash
+export TIDEX_PRIVATE_ROOT=/path/to/private   # absolute, mode 0700
+adaptive-learning-cycle start vxx-v68-definitive-prepost-20260912 \
+  /tmp/v68-learning-target.json /tmp/v68-learning-policy.json
+adaptive-learning-cycle next vxx-v68-definitive-prepost-20260912
 tidex learning admit-vxx vxx-v68-definitive-prepost-20260912 \
-  /tmp/tidex-v68-definitive-prepost-20260912T1535Z/receipt.json
+  /tmp/tidex-v68-definitive-prepost-20260912T1535Z/receipt.json --assimilate
+adaptive-learning-cycle next vxx-v68-definitive-prepost-20260912
 ```
 
-Result (fail-closed, expected given current wire contract):
-
-`integrity:vxx_admission_dense_or_layout_missing`
-
-Admission requires top-level `dense_delta` + `parameter_layout` on the V68 receipt (see `prepare_v68` / fixture `tests/fixtures/vxx_admission/v68_schema_sample.json`). The live probe receipt keeps those inside arm candidate references and does not currently surface them at the top level. **Do not invent those fields post hoc on the authenticated receipt.** Next unblock: extend the probe (or a separate binder that hashes to the run’s candidate artifacts) to emit the admission wire fields without changing scientific claim_boundary.
+Automated proof: `integration_real_v68_admit_assimilate_changes_next_aperture` (skips only if the absolute `.dvec` is absent).

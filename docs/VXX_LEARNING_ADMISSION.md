@@ -82,6 +82,12 @@ requires the dense artifact file referenced by `dense_delta.path` (or an already
 installed canonical private copy) plus a pending aperture whose weight dimension
 is 2.
 
+`collected_receipts/tidex-v68-definitive-prepost-20260912T1535Z-receipt.json` is
+the V68 wire form: top-level `dense_delta` + `parameter_layout` lifted from the
+correct-arm candidate / basis of the live run (2048-d RMSNorm). Same dense-file
+and arity-2 aperture requirements. Claim boundary stays transfer/MBPP/promotion
+false. See `docs/V68_DEFINITIVE_PREPOST_20260912.md`.
+
 
 ## Reproduce (real V67 on-disk receipt)
 
@@ -143,6 +149,7 @@ Lib unit `real_v67_receipt_admits_assimilates_and_changes_next_aperture` is opt-
 Relevant tests:
 
 - `integration_real_v67_admit_assimilate_changes_next_aperture`
+- `integration_real_v68_admit_assimilate_changes_next_aperture`
 - `integration_v68_forbidden_transfer_claim_fails_closed`
 - `real_v67_receipt_admits_assimilates_and_changes_next_aperture`
 - `v68_transfer_claim_true_is_rejected`

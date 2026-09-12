@@ -165,6 +165,47 @@ def reference_file(root: Path, name: str, reference: dict[str, str]) -> Path:
     return path
 
 
+
+def admission_wire_from_correct_arm(
+    request: dict[str, Any], correct_candidate_ref: dict[str, str]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Lift top-level dense_delta + parameter_layout from existing artifacts.
+
+    Fail-closed: never invent dense vectors or fabricate a layout. Sources are
+    the correct-arm candidate's dense_delta and the request basis layout that
+    compiled that candidate.
+    """
+    candidate = read_reference(correct_candidate_ref)
+    dense_delta = candidate.get("dense_delta")
+    if not isinstance(dense_delta, dict):
+        raise RuntimeError("correct-arm candidate missing dense_delta; refuse to invent")
+    for key in ("path", "sha256", "parameter_count"):
+        if key not in dense_delta:
+            raise RuntimeError(f"correct-arm dense_delta missing {key}; refuse to invent")
+    dense_path = Path(dense_delta["path"])
+    if dense_path.is_symlink() or not dense_path.is_file():
+        raise RuntimeError("correct-arm dense_delta artifact missing; refuse to invent")
+    if sha_file(dense_path) != dense_delta["sha256"]:
+        raise RuntimeError("correct-arm dense_delta digest mismatch; refuse to invent")
+    if int(dense_delta["parameter_count"]) <= 0:
+        raise RuntimeError("correct-arm dense_delta parameter_count invalid")
+    basis = read_reference(request["basis"])
+    layout = basis.get("layout")
+    if not isinstance(layout, dict):
+        raise RuntimeError("basis missing parameter_layout; refuse to invent")
+    if layout.get("schema") != "tidex.parameter_block_layout/v1":
+        raise RuntimeError("basis parameter_layout schema mismatch")
+    if int(layout.get("total_parameter_count", -1)) != int(dense_delta["parameter_count"]):
+        raise RuntimeError("dense_delta/parameter_layout count mismatch; refuse to invent")
+    if candidate.get("basis_sha256") and candidate["basis_sha256"] != request["basis"]["sha256"]:
+        raise RuntimeError("candidate basis_sha256 does not match request basis")
+    return {
+        "path": str(dense_path),
+        "sha256": dense_delta["sha256"],
+        "parameter_count": int(dense_delta["parameter_count"]),
+    }, layout
+
+
 def load_reference_file(root: Path, name: str) -> tuple[Path, dict[str, str]]:
     path = root / "references" / name
     if path.is_symlink() or not path.is_file():
@@ -475,7 +516,8 @@ def compile_and_replay(
     passed = correct_error <= criteria["maximum_actual_target_relative_error"] and ratio >= criteria["minimum_correct_wrong_error_ratio"] and unseen_rms <= criteria["maximum_unseen_control_margin_rms_change"]
     if sha_file(SOURCE) != source_sha or sha_file(binary) != binary_sha or sha_file(base_file) != BASE_SHA:
         raise RuntimeError("source, compiler or original checkpoint changed during experiment")
-    return {"schema": SCHEMA, "complete": True, "pass": passed, "stage": "standalone_forward_evaluated", "scope": plan["purpose"], "precommit_sha256": sha_file(round_dir/"precommit.json"), "collector_sha256": source_sha, "tidex_binary_sha256": binary_sha, "baseline_margins": baseline.tolist(), "requested_response": plan["requested_response"], "actual_target_relative_error": correct_error, "wrong_target_relative_error": wrong_error, "correct_wrong_error_ratio": ratio, "unseen_control_margin_rms_change": unseen_rms, "criteria": criteria, "arms": results, "claim_boundary": {"rust_generated_delta_from_measured_responses": True, "lora_delta_source_used": False, "receiver_optimizer_steps": 0, "backpropagation_used": False, "fresh_process_checkpoint_execution": True, "donor_model_used": False, "new_semantic_capability_transfer_established": False, "mbpp_transfer_established": False, "general_language_preservation_established": False, "authorizes_promotion": False}}
+    dense_delta, parameter_layout = admission_wire_from_correct_arm(request, results["correct"]["candidate"])
+    return {"schema": SCHEMA, "complete": True, "pass": passed, "stage": "standalone_forward_evaluated", "scope": plan["purpose"], "precommit_sha256": sha_file(round_dir/"precommit.json"), "collector_sha256": source_sha, "tidex_binary_sha256": binary_sha, "baseline_margins": baseline.tolist(), "requested_response": plan["requested_response"], "actual_target_relative_error": correct_error, "wrong_target_relative_error": wrong_error, "correct_wrong_error_ratio": ratio, "unseen_control_margin_rms_change": unseen_rms, "criteria": criteria, "arms": results, "dense_delta": dense_delta, "parameter_layout": parameter_layout, "claim_boundary": {"rust_generated_delta_from_measured_responses": True, "lora_delta_source_used": False, "receiver_optimizer_steps": 0, "backpropagation_used": False, "fresh_process_checkpoint_execution": True, "donor_model_used": False, "new_semantic_capability_transfer_established": False, "mbpp_transfer_established": False, "general_language_preservation_established": False, "authorizes_promotion": False}}
 
 
 def reuse_calibration(base_dir: Path, binary: Path, root: Path, threads: int, round_label: str) -> dict[str, Any]:

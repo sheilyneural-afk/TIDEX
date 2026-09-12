@@ -1,11 +1,11 @@
-//! Integration: real on-disk V67 receipt → admit+assimilate → next aperture changes.
+//! Integration: real on-disk V67/V68 receipts → admit+assimilate → next aperture changes.
 //!
 //! Library code under integration tests is built *without* `cfg(test)`, so the
 //! private root must be the configured `TIDEX_PRIVATE_ROOT`. Tests serialize on
 //! a process mutex when mutating that env var.
 //!
 //! Dense artifact must exist at the absolute path on the collected receipt;
-//! otherwise the real-V67 case skips rather than fabricating success.
+//! otherwise real-V67/V68 cases skip rather than fabricating success.
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -65,6 +65,22 @@ fn target_two_cap(id: &str) -> LearningTarget {
         .into_iter()
         .map(|name| CapabilityId::parse(name).unwrap())
         .collect(),
+        candidate_budget: 8,
+        plan_steps: 4,
+        noise_variance: 0.1,
+        cost_weight: 0.0,
+        risk_weight: 0.0,
+    }
+}
+
+
+fn target_v68_two_cap(id: &str) -> LearningTarget {
+    LearningTarget {
+        target_id: LearningTargetId::parse(id).unwrap(),
+        capability_ids: ["v68.pass", "v68.correct_wrong_error_ratio"]
+            .into_iter()
+            .map(|name| CapabilityId::parse(name).unwrap())
+            .collect(),
         candidate_budget: 8,
         plan_steps: 4,
         noise_variance: 0.1,
@@ -185,3 +201,93 @@ fn integration_v68_forbidden_transfer_claim_fails_closed() {
         );
     });
 }
+
+#[test]
+fn integration_real_v68_admit_assimilate_changes_next_aperture() {
+    let receipt_path =
+        Path::new("collected_receipts/tidex-v68-definitive-prepost-20260912T1535Z-receipt.json");
+    let raw = fs::read(receipt_path).expect("collected real V68 receipt");
+    let wire: Value = serde_json::from_slice(&raw).unwrap();
+    assert_eq!(
+        wire["schema"],
+        "tidex.v68_receiver_response_probe/v1",
+        "unexpected V68 schema"
+    );
+    assert_eq!(
+        wire["claim_boundary"]["new_semantic_capability_transfer_established"],
+        Value::Bool(false),
+        "V68 claim_boundary must stay transfer=false"
+    );
+    assert_eq!(
+        wire["claim_boundary"]["mbpp_transfer_established"],
+        Value::Bool(false)
+    );
+    assert_eq!(
+        wire["claim_boundary"]["authorizes_promotion"],
+        Value::Bool(false)
+    );
+    let dense = wire.get("dense_delta").expect("V68 wire dense_delta required");
+    let layout = wire
+        .get("parameter_layout")
+        .expect("V68 wire parameter_layout required");
+    assert_eq!(
+        dense["parameter_count"],
+        layout["total_parameter_count"],
+        "dense/layout contract"
+    );
+    let dense_path = PathBuf::from(dense["path"].as_str().unwrap());
+    if !dense_path.is_file() {
+        eprintln!(
+            "skip integration_real_v68_admit_assimilate_changes_next_aperture: dense missing at {}",
+            dense_path.display()
+        );
+        return;
+    }
+
+    let root = temporary_root("real-v68");
+    let session = "vxx-v68-itest-real";
+    with_private_root(&root, || {
+        bind_dense_from_receipt(&root, &wire);
+
+        let _ = start_persistent_adaptive_learning(
+            &root,
+            session,
+            &target_v68_two_cap(session),
+            &policy(),
+        )
+        .unwrap();
+        let issued = issue_next_persistent_learning_aperture(&root, session).unwrap();
+        let pending_before = issued.receipt.cycle.pending_step.clone().unwrap();
+
+        let (admitted, assimilated) =
+            admit_and_assimilate_vxx_receipt_under_root(&root, session, &raw).unwrap();
+        assert_eq!(
+            admitted.source_schema,
+            "tidex.v68_receiver_response_probe/v1"
+        );
+        assert_eq!(
+            admitted.claim_boundary["new_semantic_capability_transfer_established"],
+            Value::Bool(false)
+        );
+        assert_eq!(
+            admitted.claim_boundary["mbpp_transfer_established"],
+            Value::Bool(false)
+        );
+        assert_eq!(
+            admitted.claim_boundary["authorizes_promotion"],
+            Value::Bool(false)
+        );
+        assert!(assimilated.receipt.cycle.pending_step.is_none());
+        assert_eq!(assimilated.receipt.cycle.completed_evidence.len(), 1);
+
+        let next = issue_next_persistent_learning_aperture(&root, session).unwrap();
+        let pending_after = next.receipt.cycle.pending_step.unwrap();
+        assert_ne!(pending_before.aperture_id, pending_after.aperture_id);
+        assert!(
+            pending_before.capability_weights != pending_after.capability_weights
+                || (pending_before.information_gain - pending_after.information_gain).abs() > 1e-12
+                || pending_before.aperture_id != pending_after.aperture_id
+        );
+    });
+}
+

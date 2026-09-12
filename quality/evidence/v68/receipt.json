@@ -1,1 +1,304 @@
-{"actual_target_relative_error":9.214685309741161e-05,"arms":{"correct":{"actual_response_change":[0.03999805450439453,-0.030002593994140625,0.019998550415039062,-0.009996414184570312,0.008503913879394531,0.013821601867675781,-0.009066581726074219,-0.020832061767578125,0.01088714599609375,-0.013948440551757812,0.016172409057617188,-0.0055141448974609375],"blockers":[],"candidate":{"path":"/tmp/tidex-v68-definitive-prepost-20260912T1535Z/state/receiver_weight_candidates/by-sha/05c4e38942dd97107e64fcc536265783d456a79878166fa3b497244cc932bde3.json","sha256":"05c4e38942dd97107e64fcc536265783d456a79878166fa3b497244cc932bde3"},"checkpoint":{"authorizes_promotion":false,"candidate":{"path":"/tmp/tidex-v68-definitive-prepost-20260912T1535Z/state/receiver_weight_candidates/by-sha/05c4e38942dd97107e64fcc536265783d456a79878166fa3b497244cc932bde3.json","sha256":"05c4e38942dd97107e64fcc536265783d456a79878166fa3b497244cc932bde3"},"materialization":{"authorizes_promotion":false,"base_model_byte_len":3422777952,"base_model_sha256":"f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8","delta_parameter_count":2048,"delta_sha256":"0884bd9f410d395a89373ed11be8114053a5f0c3219c61535fb1c97d3a954bb1","dtype_policy":"modified_tensors_f32_untouched_source_bytes/v1","lifecycle":"candidate_only_not_promoted","modified_parameter_count":2048,"modified_tensor_count":1,"output_model_byte_len":3422782032,"output_model_sha256":"c2dce70f611a68042fcb89b263b43067e7bc5d3defcb7e25dac096dbb6129035","parameter_layout_sha256":"0dbb538ecbde24a6f91692355ebbbc5a5384f9174b017dd7fcbc5babbbd2f082","requires_adapter_at_runtime":false,"schema":"tidex.weight_materialization_receipt/v1","source_parameter_count":1711376384,"source_tensor_count":218,"trains_target_capability":false},"model_execution_verified":false,"output_path":"/tmp/tidex-v68-definitive-prepost-20260912T1535Z/models/correct/model.safetensors","schema":"tidex.receiver_weight_checkpoint/v1"},"numerical":{"allowed":true,"calibration_anchor_count":12,"correct_cosine":1.0,"decoder_loo_r2":0.9999999993665053,"decoder_min_loo_cosine":0.9999999995163878,"encoder_loo_r2":0.9999999999441328,"encoder_min_loo_cosine":0.999999999632826,"functional_relative_error":2.77671196370876e-09,"identity_margin":2.0,"maximum_wrong_cosine":-1.0,"predicted_functional_signature":[0.039999999885274404,-0.029999999916609246,0.01999999997833099,-0.009999999949553378],"proposal_method":"fit_protected_coordinates","proposal_within_calibrated_support":true,"proposed_receiver_coordinates":[0.07855073033330418,0.25003243853240503,-0.022972500895075566,0.1052160140231226],"protection_damage_ratio":0.08252365280371227,"protection_max_weighted_residual":0.0,"protection_removed_energy":0.0005467503153323998,"receiver_parameter_dimension":4,"schema":"tidex.receiver_signature_compilation/v1","target_delta":[0.05565801569125287,0.2452979591496476,-0.022941942812697902,0.10470836963198231],"trust_region":{"accepted_coefficients":[0.05565801569125287,0.2452979591496476,-0.022941942812697902,0.10470836963198231],"accepted_quadratic_cost":0.00019483597711202348,"allocation_policy":"uniform_quadratic_scaling/v1","causal_priority_weights":null,"component_retention":[1.0,1.0,1.0,1.0],"constrained":false,"max_quadratic_cost":0.01,"proposed_coefficients":[0.05565801569125287,0.2452979591496476,-0.022941942812697902,0.10470836963198231],"proposed_quadratic_cost":0.00019483597711202348,"scale":1.0},"validation_profile":"parametric_cross_validation"},"replay_sha256":"a6e96f7e99e3c4e25a31f44da2f531f80d05e193d33c3383475611f4de25e8e4"},"wrong":{"actual_response_change":[-0.03999614715576172,0.02999591827392578,-0.01999950408935547,0.010001182556152344,-0.00847625732421875,-0.013806343078613281,0.009076118469238281,0.02084636688232422,-0.010881423950195312,0.013958930969238281,-0.016175270080566406,0.0055217742919921875],"blockers":[],"candidate":{"path":"/tmp/tidex-v68-definitive-prepost-20260912T1535Z/state/receiver_weight_candidates/by-sha/c292ddbb833d6d72f18580ac17ab0d98de92ef2dabff2b19d10870c7780f6c66.json","sha256":"c292ddbb833d6d72f18580ac17ab0d98de92ef2dabff2b19d10870c7780f6c66"},"checkpoint":{"authorizes_promotion":false,"candidate":{"path":"/tmp/tidex-v68-definitive-prepost-20260912T1535Z/state/receiver_weight_candidates/by-sha/c292ddbb833d6d72f18580ac17ab0d98de92ef2dabff2b19d10870c7780f6c66.json","sha256":"c292ddbb833d6d72f18580ac17ab0d98de92ef2dabff2b19d10870c7780f6c66"},"materialization":{"authorizes_promotion":false,"base_model_byte_len":3422777952,"base_model_sha256":"f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8","delta_parameter_count":2048,"delta_sha256":"0d4d0e9cd64652d816db60ce1e47f45953d4f960f3e38a4821f589a250a89fc5","dtype_policy":"modified_tensors_f32_untouched_source_bytes/v1","lifecycle":"candidate_only_not_promoted","modified_parameter_count":2048,"modified_tensor_count":1,"output_model_byte_len":3422782032,"output_model_sha256":"812eed437c860c1ca6503e7c3f700791bd4b10bb9e3f8cb5536032bed3656c98","parameter_layout_sha256":"0dbb538ecbde24a6f91692355ebbbc5a5384f9174b017dd7fcbc5babbbd2f082","requires_adapter_at_runtime":false,"schema":"tidex.weight_materialization_receipt/v1","source_parameter_count":1711376384,"source_tensor_count":218,"trains_target_capability":false},"model_execution_verified":false,"output_path":"/tmp/tidex-v68-definitive-prepost-20260912T1535Z/models/wrong/model.safetensors","schema":"tidex.receiver_weight_checkpoint/v1"},"numerical":{"allowed":true,"calibration_anchor_count":12,"correct_cosine":1.0,"decoder_loo_r2":0.9999999993665053,"decoder_min_loo_cosine":0.9999999995163878,"encoder_loo_r2":0.9999999999441328,"encoder_min_loo_cosine":0.999999999632826,"functional_relative_error":2.7767905529255203e-09,"identity_margin":2.0,"maximum_wrong_cosine":-1.0,"predicted_functional_signature":[-0.03999999988527506,0.02999999991660653,-0.01999999997832355,0.009999999949546588],"proposal_method":"fit_protected_coordinates","proposal_within_calibrated_support":true,"proposed_receiver_coordinates":[-0.07854031347146248,-0.2500393828200929,0.02298583113057162,-0.10523016786127017],"protection_damage_ratio":0.08251047329884766,"protection_max_weighted_residual":0.0,"protection_removed_energy":0.0005466126412250523,"receiver_parameter_dimension":4,"schema":"tidex.receiver_signature_compilation/v1","target_delta":[-0.05565063470501151,-0.24530477194404973,0.022955255316278907,-0.1047224551809382],"trust_region":{"accepted_coefficients":[-0.05565063470501151,-0.24530477194404973,0.022955255316278907,-0.1047224551809382],"accepted_quadratic_cost":0.00019486509527445443,"allocation_policy":"uniform_quadratic_scaling/v1","causal_priority_weights":null,"component_retention":[1.0,1.0,1.0,1.0],"constrained":false,"max_quadratic_cost":0.01,"proposed_coefficients":[-0.05565063470501151,-0.24530477194404973,0.022955255316278907,-0.1047224551809382],"proposed_quadratic_cost":0.00019486509527445443,"scale":1.0},"validation_profile":"parametric_cross_validation"},"replay_sha256":"b74dba56ae24bfdea6358833feececa9dc37efe9c18901b757b67190ed4ec9af"}},"baseline_margins":[3.2451820373535156,-0.3078498840332031,2.2129077911376953,0.9705686569213867,3.0285959243774414,0.6720781326293945,2.397653579711914,1.8001022338867188,2.097323417663574,1.2034969329833984,0.9375553131103516,1.378911018371582],"claim_boundary":{"authorizes_promotion":false,"backpropagation_used":false,"donor_model_used":false,"fresh_process_checkpoint_execution":true,"general_language_preservation_established":false,"lora_delta_source_used":false,"mbpp_transfer_established":false,"new_semantic_capability_transfer_established":false,"receiver_optimizer_steps":0,"rust_generated_delta_from_measured_responses":true},"collector_sha256":"97fb285933ddbcf36307cc0ebe12fb8ba8058b20e13f7d967a11fc14ccf423d9","complete":true,"correct_wrong_error_ratio":21703.49155405716,"criteria":{"maximum_actual_target_relative_error":0.05,"maximum_unseen_control_margin_rms_change":0.1,"minimum_correct_wrong_error_ratio":4.0},"pass":true,"precommit_sha256":"d76655a74cc5f1298c4673cfbf79da618ef2bc36db98c4bb03f319a7e663bf48","requested_response":[0.04,-0.03,0.02,-0.01],"schema":"tidex.v68_receiver_response_probe/v1","scope":"native-parameter response identification; not semantic capability transfer","stage":"standalone_forward_evaluated","tidex_binary_sha256":"736d7d6273ed5a5f0ccfe7ea27df0d2ac2517d8a84918e7f2a2c32681dc227fb","unseen_control_margin_rms_change":0.012298796185432895,"wrong_target_relative_error":1.9999084479326186}
+{
+  "schema": "tidex.v68_receiver_response_probe/v1",
+  "complete": true,
+  "pass": true,
+  "stage": "standalone_forward_evaluated",
+  "scope": "native-parameter response identification; not semantic capability transfer",
+  "precommit_sha256": "d76655a74cc5f1298c4673cfbf79da618ef2bc36db98c4bb03f319a7e663bf48",
+  "collector_sha256": "97fb285933ddbcf36307cc0ebe12fb8ba8058b20e13f7d967a11fc14ccf423d9",
+  "tidex_binary_sha256": "736d7d6273ed5a5f0ccfe7ea27df0d2ac2517d8a84918e7f2a2c32681dc227fb",
+  "baseline_margins": [
+    3.2451820373535156,
+    -0.3078498840332031,
+    2.2129077911376953,
+    0.9705686569213867,
+    3.0285959243774414,
+    0.6720781326293945,
+    2.397653579711914,
+    1.8001022338867188,
+    2.097323417663574,
+    1.2034969329833984,
+    0.9375553131103516,
+    1.378911018371582
+  ],
+  "requested_response": [
+    0.04,
+    -0.03,
+    0.02,
+    -0.01
+  ],
+  "actual_target_relative_error": 9.214685309741161e-05,
+  "wrong_target_relative_error": 1.9999084479326186,
+  "correct_wrong_error_ratio": 21703.49155405716,
+  "unseen_control_margin_rms_change": 0.012298796185432895,
+  "criteria": {
+    "maximum_actual_target_relative_error": 0.05,
+    "maximum_unseen_control_margin_rms_change": 0.1,
+    "minimum_correct_wrong_error_ratio": 4.0
+  },
+  "arms": {
+    "correct": {
+      "actual_response_change": [
+        0.03999805450439453,
+        -0.030002593994140625,
+        0.019998550415039062,
+        -0.009996414184570312,
+        0.008503913879394531,
+        0.013821601867675781,
+        -0.009066581726074219,
+        -0.020832061767578125,
+        0.01088714599609375,
+        -0.013948440551757812,
+        0.016172409057617188,
+        -0.0055141448974609375
+      ],
+      "blockers": [],
+      "candidate": {
+        "path": "/tmp/tidex-v68-definitive-prepost-20260912T1535Z/state/receiver_weight_candidates/by-sha/05c4e38942dd97107e64fcc536265783d456a79878166fa3b497244cc932bde3.json",
+        "sha256": "05c4e38942dd97107e64fcc536265783d456a79878166fa3b497244cc932bde3"
+      },
+      "checkpoint": {
+        "authorizes_promotion": false,
+        "candidate": {
+          "path": "/tmp/tidex-v68-definitive-prepost-20260912T1535Z/state/receiver_weight_candidates/by-sha/05c4e38942dd97107e64fcc536265783d456a79878166fa3b497244cc932bde3.json",
+          "sha256": "05c4e38942dd97107e64fcc536265783d456a79878166fa3b497244cc932bde3"
+        },
+        "materialization": {
+          "authorizes_promotion": false,
+          "base_model_byte_len": 3422777952,
+          "base_model_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
+          "delta_parameter_count": 2048,
+          "delta_sha256": "0884bd9f410d395a89373ed11be8114053a5f0c3219c61535fb1c97d3a954bb1",
+          "dtype_policy": "modified_tensors_f32_untouched_source_bytes/v1",
+          "lifecycle": "candidate_only_not_promoted",
+          "modified_parameter_count": 2048,
+          "modified_tensor_count": 1,
+          "output_model_byte_len": 3422782032,
+          "output_model_sha256": "c2dce70f611a68042fcb89b263b43067e7bc5d3defcb7e25dac096dbb6129035",
+          "parameter_layout_sha256": "0dbb538ecbde24a6f91692355ebbbc5a5384f9174b017dd7fcbc5babbbd2f082",
+          "requires_adapter_at_runtime": false,
+          "schema": "tidex.weight_materialization_receipt/v1",
+          "source_parameter_count": 1711376384,
+          "source_tensor_count": 218,
+          "trains_target_capability": false
+        },
+        "model_execution_verified": false,
+        "output_path": "/tmp/tidex-v68-definitive-prepost-20260912T1535Z/models/correct/model.safetensors",
+        "schema": "tidex.receiver_weight_checkpoint/v1"
+      },
+      "numerical": {
+        "allowed": true,
+        "calibration_anchor_count": 12,
+        "correct_cosine": 1.0,
+        "decoder_loo_r2": 0.9999999993665053,
+        "decoder_min_loo_cosine": 0.9999999995163878,
+        "encoder_loo_r2": 0.9999999999441328,
+        "encoder_min_loo_cosine": 0.999999999632826,
+        "functional_relative_error": 2.77671196370876e-09,
+        "identity_margin": 2.0,
+        "maximum_wrong_cosine": -1.0,
+        "predicted_functional_signature": [
+          0.039999999885274404,
+          -0.029999999916609246,
+          0.01999999997833099,
+          -0.009999999949553378
+        ],
+        "proposal_method": "fit_protected_coordinates",
+        "proposal_within_calibrated_support": true,
+        "proposed_receiver_coordinates": [
+          0.07855073033330418,
+          0.25003243853240503,
+          -0.022972500895075566,
+          0.1052160140231226
+        ],
+        "protection_damage_ratio": 0.08252365280371227,
+        "protection_max_weighted_residual": 0.0,
+        "protection_removed_energy": 0.0005467503153323998,
+        "receiver_parameter_dimension": 4,
+        "schema": "tidex.receiver_signature_compilation/v1",
+        "target_delta": [
+          0.05565801569125287,
+          0.2452979591496476,
+          -0.022941942812697902,
+          0.10470836963198231
+        ],
+        "trust_region": {
+          "accepted_coefficients": [
+            0.05565801569125287,
+            0.2452979591496476,
+            -0.022941942812697902,
+            0.10470836963198231
+          ],
+          "accepted_quadratic_cost": 0.00019483597711202348,
+          "allocation_policy": "uniform_quadratic_scaling/v1",
+          "causal_priority_weights": null,
+          "component_retention": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constrained": false,
+          "max_quadratic_cost": 0.01,
+          "proposed_coefficients": [
+            0.05565801569125287,
+            0.2452979591496476,
+            -0.022941942812697902,
+            0.10470836963198231
+          ],
+          "proposed_quadratic_cost": 0.00019483597711202348,
+          "scale": 1.0
+        },
+        "validation_profile": "parametric_cross_validation"
+      },
+      "replay_sha256": "a6e96f7e99e3c4e25a31f44da2f531f80d05e193d33c3383475611f4de25e8e4"
+    },
+    "wrong": {
+      "actual_response_change": [
+        -0.03999614715576172,
+        0.02999591827392578,
+        -0.01999950408935547,
+        0.010001182556152344,
+        -0.00847625732421875,
+        -0.013806343078613281,
+        0.009076118469238281,
+        0.02084636688232422,
+        -0.010881423950195312,
+        0.013958930969238281,
+        -0.016175270080566406,
+        0.0055217742919921875
+      ],
+      "blockers": [],
+      "candidate": {
+        "path": "/tmp/tidex-v68-definitive-prepost-20260912T1535Z/state/receiver_weight_candidates/by-sha/c292ddbb833d6d72f18580ac17ab0d98de92ef2dabff2b19d10870c7780f6c66.json",
+        "sha256": "c292ddbb833d6d72f18580ac17ab0d98de92ef2dabff2b19d10870c7780f6c66"
+      },
+      "checkpoint": {
+        "authorizes_promotion": false,
+        "candidate": {
+          "path": "/tmp/tidex-v68-definitive-prepost-20260912T1535Z/state/receiver_weight_candidates/by-sha/c292ddbb833d6d72f18580ac17ab0d98de92ef2dabff2b19d10870c7780f6c66.json",
+          "sha256": "c292ddbb833d6d72f18580ac17ab0d98de92ef2dabff2b19d10870c7780f6c66"
+        },
+        "materialization": {
+          "authorizes_promotion": false,
+          "base_model_byte_len": 3422777952,
+          "base_model_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
+          "delta_parameter_count": 2048,
+          "delta_sha256": "0d4d0e9cd64652d816db60ce1e47f45953d4f960f3e38a4821f589a250a89fc5",
+          "dtype_policy": "modified_tensors_f32_untouched_source_bytes/v1",
+          "lifecycle": "candidate_only_not_promoted",
+          "modified_parameter_count": 2048,
+          "modified_tensor_count": 1,
+          "output_model_byte_len": 3422782032,
+          "output_model_sha256": "812eed437c860c1ca6503e7c3f700791bd4b10bb9e3f8cb5536032bed3656c98",
+          "parameter_layout_sha256": "0dbb538ecbde24a6f91692355ebbbc5a5384f9174b017dd7fcbc5babbbd2f082",
+          "requires_adapter_at_runtime": false,
+          "schema": "tidex.weight_materialization_receipt/v1",
+          "source_parameter_count": 1711376384,
+          "source_tensor_count": 218,
+          "trains_target_capability": false
+        },
+        "model_execution_verified": false,
+        "output_path": "/tmp/tidex-v68-definitive-prepost-20260912T1535Z/models/wrong/model.safetensors",
+        "schema": "tidex.receiver_weight_checkpoint/v1"
+      },
+      "numerical": {
+        "allowed": true,
+        "calibration_anchor_count": 12,
+        "correct_cosine": 1.0,
+        "decoder_loo_r2": 0.9999999993665053,
+        "decoder_min_loo_cosine": 0.9999999995163878,
+        "encoder_loo_r2": 0.9999999999441328,
+        "encoder_min_loo_cosine": 0.999999999632826,
+        "functional_relative_error": 2.7767905529255203e-09,
+        "identity_margin": 2.0,
+        "maximum_wrong_cosine": -1.0,
+        "predicted_functional_signature": [
+          -0.03999999988527506,
+          0.02999999991660653,
+          -0.01999999997832355,
+          0.009999999949546588
+        ],
+        "proposal_method": "fit_protected_coordinates",
+        "proposal_within_calibrated_support": true,
+        "proposed_receiver_coordinates": [
+          -0.07854031347146248,
+          -0.2500393828200929,
+          0.02298583113057162,
+          -0.10523016786127017
+        ],
+        "protection_damage_ratio": 0.08251047329884766,
+        "protection_max_weighted_residual": 0.0,
+        "protection_removed_energy": 0.0005466126412250523,
+        "receiver_parameter_dimension": 4,
+        "schema": "tidex.receiver_signature_compilation/v1",
+        "target_delta": [
+          -0.05565063470501151,
+          -0.24530477194404973,
+          0.022955255316278907,
+          -0.1047224551809382
+        ],
+        "trust_region": {
+          "accepted_coefficients": [
+            -0.05565063470501151,
+            -0.24530477194404973,
+            0.022955255316278907,
+            -0.1047224551809382
+          ],
+          "accepted_quadratic_cost": 0.00019486509527445443,
+          "allocation_policy": "uniform_quadratic_scaling/v1",
+          "causal_priority_weights": null,
+          "component_retention": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "constrained": false,
+          "max_quadratic_cost": 0.01,
+          "proposed_coefficients": [
+            -0.05565063470501151,
+            -0.24530477194404973,
+            0.022955255316278907,
+            -0.1047224551809382
+          ],
+          "proposed_quadratic_cost": 0.00019486509527445443,
+          "scale": 1.0
+        },
+        "validation_profile": "parametric_cross_validation"
+      },
+      "replay_sha256": "b74dba56ae24bfdea6358833feececa9dc37efe9c18901b757b67190ed4ec9af"
+    }
+  },
+  "dense_delta": {
+    "path": "/tmp/tidex-v68-definitive-prepost-20260912T1535Z/artifacts/deltas/by-sha/0884bd9f410d395a89373ed11be8114053a5f0c3219c61535fb1c97d3a954bb1.dvec",
+    "sha256": "0884bd9f410d395a89373ed11be8114053a5f0c3219c61535fb1c97d3a954bb1",
+    "parameter_count": 2048
+  },
+  "parameter_layout": {
+    "blocks": [
+      {
+        "count": 2048,
+        "name": "model.norm.weight",
+        "offset": 0,
+        "shape": [
+          2048
+        ]
+      }
+    ],
+    "schema": "tidex.parameter_block_layout/v1",
+    "total_parameter_count": 2048
+  },
+  "claim_boundary": {
+    "authorizes_promotion": false,
+    "backpropagation_used": false,
+    "donor_model_used": false,
+    "fresh_process_checkpoint_execution": true,
+    "general_language_preservation_established": false,
+    "lora_delta_source_used": false,
+    "mbpp_transfer_established": false,
+    "new_semantic_capability_transfer_established": false,
+    "receiver_optimizer_steps": 0,
+    "rust_generated_delta_from_measured_responses": true
+  }
+}
