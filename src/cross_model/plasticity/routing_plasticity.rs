@@ -300,7 +300,7 @@ impl RoutingPlasticity {
     }
 
     pub fn set_matrix_learning_rate(&mut self, learning_rate: f64) -> Result<(), String> {
-        if !learning_rate.is_finite() || learning_rate < 0.0 || learning_rate > 1.0 {
+        if !learning_rate.is_finite() || !(0.0..=1.0).contains(&learning_rate) {
             return Err("routing_matrix_learning_rate_invalid".into());
         }
         self.matrix.learning_rate = learning_rate;

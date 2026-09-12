@@ -166,12 +166,11 @@ impl WeightsIrReceptorVerticalReceipt {
             return Err(integrity("weights_ir_receptor_vertical_digest_mismatch"));
         }
         // HARD: Software / stopped paths never emit IR or enter receptor.
-        if matches!(self.residency_decision, ResidencyDecision::Software {})
-            || matches!(self.capability_ir_path, CapabilityIrPath::Stopped { .. })
+        if (matches!(self.residency_decision, ResidencyDecision::Software {})
+            || matches!(self.capability_ir_path, CapabilityIrPath::Stopped { .. }))
+            && (self.capability_ir_emitted || self.receptor_entered || self.emitted_ir.is_some())
         {
-            if self.capability_ir_emitted || self.receptor_entered || self.emitted_ir.is_some() {
-                return Err(integrity("stopped_residency_must_not_emit_ir_or_enter_receptor"));
-            }
+            return Err(integrity("stopped_residency_must_not_emit_ir_or_enter_receptor"));
         }
         if self.capability_ir_emitted != self.emitted_ir.is_some() {
             return Err(integrity("capability_ir_emitted_inconsistent"));

@@ -112,7 +112,7 @@ pub fn parse_plasticity_control_plane_toml(
             if schema.is_some() {
                 return Err("plasticity_toml_duplicate_schema".into());
             }
-            schema = Some(parse_toml_string(&value)?);
+            schema = Some(parse_toml_string(value)?);
         } else {
             return Err(format!("plasticity_toml_unknown_top_level:{key}"));
         }
@@ -246,13 +246,13 @@ pub fn parse_plasticity_control_plane_toml(
     )?;
 
     // Validate by constructing controllers (same fail-closed path as runtime).
-    let _ = BCMMetaplasticity::new(bcm.clone()).map_err(|e| e)?;
-    let _ = EligibilityTraces::new(eligibility.clone()).map_err(|e| e)?;
-    let _ = Neuromodulation::new(neuromodulation.clone()).map_err(|e| e)?;
-    let _ = RoutingPlasticity::new(routing.clone()).map_err(|e| e)?;
-    let _ = ContentPlasticity::new(content.clone()).map_err(|e| e)?;
-    let _ = PIController::new(pi.clone()).map_err(|e| e)?;
-    let _ = ELOSystem::new(elo.clone()).map_err(|e| e)?;
+    let _ = BCMMetaplasticity::new(bcm.clone())?;
+    let _ = EligibilityTraces::new(eligibility.clone())?;
+    let _ = Neuromodulation::new(neuromodulation.clone())?;
+    let _ = RoutingPlasticity::new(routing.clone())?;
+    let _ = ContentPlasticity::new(content.clone())?;
+    let _ = PIController::new(pi.clone())?;
+    let _ = ELOSystem::new(elo.clone())?;
 
     Ok(PlasticityControlPlaneConfigs {
         bcm,

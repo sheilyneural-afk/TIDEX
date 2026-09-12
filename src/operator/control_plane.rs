@@ -2608,20 +2608,17 @@ pub fn compute_operator_plasticity_advice(
             .map_err(|error| BrainError::Invalid(format!("plasticity_toml_load_failed:{error}")))?;
     let config_sha256 = Sha256Digest::digest_bytes(&toml_bytes).to_string();
 
-    let mut elo =
-        ELOSystem::new(configs.elo.clone()).map_err(|error| BrainError::Invalid(error))?;
-    let mut routing = RoutingPlasticity::new(configs.routing.clone())
-        .map_err(|error| BrainError::Invalid(error))?;
-    let mut bcm =
-        BCMMetaplasticity::new(configs.bcm.clone()).map_err(|error| BrainError::Invalid(error))?;
-    let mut eligibility = EligibilityTraces::new(configs.eligibility.clone())
-        .map_err(|error| BrainError::Invalid(error))?;
-    let mut neuromodulation = Neuromodulation::new(configs.neuromodulation.clone())
-        .map_err(|error| BrainError::Invalid(error))?;
-    let mut pi =
-        PIController::new(configs.pi.clone()).map_err(|error| BrainError::Invalid(error))?;
-    let mut content = ContentPlasticity::new(configs.content.clone())
-        .map_err(|error| BrainError::Invalid(error))?;
+    let mut elo = ELOSystem::new(configs.elo.clone()).map_err(BrainError::Invalid)?;
+    let mut routing =
+        RoutingPlasticity::new(configs.routing.clone()).map_err(BrainError::Invalid)?;
+    let mut bcm = BCMMetaplasticity::new(configs.bcm.clone()).map_err(BrainError::Invalid)?;
+    let mut eligibility =
+        EligibilityTraces::new(configs.eligibility.clone()).map_err(BrainError::Invalid)?;
+    let mut neuromodulation =
+        Neuromodulation::new(configs.neuromodulation.clone()).map_err(BrainError::Invalid)?;
+    let mut pi = PIController::new(configs.pi.clone()).map_err(BrainError::Invalid)?;
+    let mut content =
+        ContentPlasticity::new(configs.content.clone()).map_err(BrainError::Invalid)?;
 
     let mut applied_observation_keys = BTreeSet::new();
     let mut applied_elo_pair_keys = BTreeSet::new();
@@ -2639,30 +2636,29 @@ pub fn compute_operator_plasticity_advice(
     match load_operator_plasticity_controller_state(tidex_home)? {
         Some(state) if state.config_sha256 == config_sha256 => {
             elo.import_ratings(state.elo.into_iter().collect())
-                .map_err(|error| BrainError::Integrity(error))?;
+                .map_err(BrainError::Integrity)?;
             bcm.import_states(state.bcm.into_iter().collect())
-                .map_err(|error| BrainError::Integrity(error))?;
+                .map_err(BrainError::Integrity)?;
             eligibility
                 .import_traces(state.eligibility.into_iter().collect())
-                .map_err(|error| BrainError::Integrity(error))?;
+                .map_err(BrainError::Integrity)?;
             neuromodulation
                 .import_levels(state.neuromodulation_levels.into_iter().collect())
-                .map_err(|error| BrainError::Integrity(error))?;
-            pi.restore_state(state.pi)
-                .map_err(|error| BrainError::Integrity(error))?;
+                .map_err(BrainError::Integrity)?;
+            pi.restore_state(state.pi).map_err(BrainError::Integrity)?;
             content
                 .import_states(state.content.into_iter().collect())
-                .map_err(|error| BrainError::Integrity(error))?;
+                .map_err(BrainError::Integrity)?;
             content.import_matrix(state.content_matrix);
             routing
                 .import_history(state.routing_history.into_iter().collect())
-                .map_err(|error| BrainError::Integrity(error))?;
+                .map_err(BrainError::Integrity)?;
             routing
                 .import_matrix(state.routing_matrix)
-                .map_err(|error| BrainError::Integrity(error))?;
+                .map_err(BrainError::Integrity)?;
             coevolution_loop
                 .import_history(state.coevolution_history)
-                .map_err(|error| BrainError::Integrity(error))?;
+                .map_err(BrainError::Integrity)?;
             applied_observation_keys = state.applied_observation_keys;
             applied_elo_pair_keys = state.applied_elo_pair_keys;
             applied_routing_keys = state.applied_routing_keys;
@@ -2995,15 +2991,13 @@ pub fn compute_operator_plasticity_advice(
             .map(|row| row.observation.clone())
             .collect::<Vec<_>>();
         rows.sort_by(|left, right| left.model.cmp(&right.model));
-        if bcm.get_state(benchmark).is_none() {
-            if bcm.initialize_state(benchmark).is_err() {
-                notes.push(format!("BCM ya inicializado para {benchmark}"));
-            }
+        if bcm.get_state(benchmark).is_none() && bcm.initialize_state(benchmark).is_err() {
+            notes.push(format!("BCM ya inicializado para {benchmark}"));
         }
-        if eligibility.get_trace(benchmark).is_none() {
-            if eligibility.initialize_trace(benchmark).is_err() {
-                notes.push(format!("Eligibilidad ya inicializada para {benchmark}"));
-            }
+        if eligibility.get_trace(benchmark).is_none()
+            && eligibility.initialize_trace(benchmark).is_err()
+        {
+            notes.push(format!("Eligibilidad ya inicializada para {benchmark}"));
         }
 
         let mut pending_rows = Vec::new();
@@ -3157,17 +3151,16 @@ pub fn compute_operator_plasticity_advice(
                 }
                 Err(error) => notes.push(format!("PI ignorado en {benchmark}: {error}")),
             }
-            if content.get_state(benchmark).is_none() {
-                if content
+            if content.get_state(benchmark).is_none()
+                && content
                     .initialize_state(
                         benchmark,
                         rows[0].evidence_sha256.clone(),
                         rows[0].evidence_sha256.clone(),
                     )
                     .is_err()
-                {
-                    notes.push(format!("Contenido ya inicializado para {benchmark}"));
-                }
+            {
+                notes.push(format!("Contenido ya inicializado para {benchmark}"));
             }
             let similarity = 1.0 - spread;
             match content.update_similarity(

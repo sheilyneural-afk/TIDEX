@@ -545,7 +545,7 @@ fn stimulus_context_value(stimulus: &SelectorStimulus, key: &str) -> Option<Stri
             .map(|item| item.procedure_id.clone()),
         other => {
             // Allow `key:value` fragments inside context for declared keys.
-            for part in stimulus.context.split(|c: char| c == ',' || c == ';') {
+            for part in stimulus.context.split([',', ';']) {
                 let part = part.trim();
                 if let Some(rest) = part.strip_prefix(&format!("{other}:")) {
                     let rest = rest.trim();
