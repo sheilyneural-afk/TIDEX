@@ -129,6 +129,10 @@ impl ProcedureSelectorVerticalReceipt {
         &self.capacity_key
     }
 
+    pub fn package_donor_kind(&self) -> DonorKind {
+        self.package_donor_kind
+    }
+
     pub fn donor_execution(&self) -> &DonorExecutionRecord {
         &self.donor_execution
     }
@@ -328,9 +332,48 @@ pub fn acquire_procedure_selector_package(
     ))
 }
 
+/// Seed a governed GPEM store via canonical SHEI ingest (`seed_demo_traces`).
+///
+/// Real SHEI APIs only — not a fixture procedure selector. Fail-closed when
+/// SHEI/GPEM is unavailable or the bridge cannot write traces.
+pub fn seed_live_gpem_demo_store(gpem_store_root: PathBuf) -> BrainResult<Vec<String>> {
+    let wire = GpemV2RecommendDonorWire::new(
+        gpem_store_root,
+        vec![
+            "route".into(),
+            "capability_id".into(),
+            "prior_procedure".into(),
+        ],
+    )?;
+    wire.seed_demo_traces().map_err(|err| {
+        let msg = err.to_string();
+        if msg.contains("gpem_v2_recommend_donor_unavailable") {
+            invalid("gpem_v2_recommend_donor_unavailable")
+        } else if msg.contains("gpem_v2_recommend_donor_misconfigured") {
+            invalid("gpem_v2_recommend_donor_misconfigured")
+        } else {
+            invalid("gpem_v2_recommend_invoke_failed")
+        }
+    })
+}
+
+/// Productive demo path: seed live GPEM → seal → residency → terminal.
+///
+/// Fail-closed on seed or observe failure — never substitutes
+/// [`crate::capability::authenticated_capacity::FixtureProcedureSelector`].
+pub fn seed_and_run_procedure_selector_vertical(
+    gpem_store_root: PathBuf,
+) -> BrainResult<(Vec<String>, ProcedureSelectorVerticalReceipt)> {
+    let seeded_trace_ids = seed_live_gpem_demo_store(gpem_store_root.clone())?;
+    let receipt = run_procedure_selector_vertical(gpem_store_root)?;
+    Ok((seeded_trace_ids, receipt))
+}
+
 /// Run the productive vertical: live donor only → residency → terminal.
 ///
 /// Fail-closed when GPEM/donor is missing (no fixture continue).
+/// Prefer [`seed_and_run_procedure_selector_vertical`] for operator demos that
+/// must succeed against a freshly governed store.
 pub fn run_procedure_selector_vertical(
     gpem_store_root: PathBuf,
 ) -> BrainResult<ProcedureSelectorVerticalReceipt> {
@@ -479,11 +522,9 @@ mod tests {
     fn unit_fixture_package_concludes_software_without_ir_or_receptor() {
         // Unit fixture only — not the productive acquire path.
         let root = tmp("software");
-        let package = seal_fixture_procedure_selector_capacity(
-            CAPACITY_KEY,
-            CapacityProvenance::default(),
-        )
-        .unwrap();
+        let package =
+            seal_fixture_procedure_selector_capacity(CAPACITY_KEY, CapacityProvenance::default())
+                .unwrap();
         let receipt = run_from_package(
             package,
             DonorExecutionRecord::FixtureProcedureSelector {
@@ -553,10 +594,7 @@ mod tests {
             wire.seed_demo_traces().expect("seed live GPEM");
             let (package, donor) = acquire_procedure_selector_package(store).expect("live acquire");
             package.verify().unwrap();
-            assert!(matches!(
-                donor,
-                DonorExecutionRecord::GpemV2LiveRecommend { .. }
-            ));
+            assert!(matches!(donor, DonorExecutionRecord::GpemV2LiveRecommend { .. }));
             assert_eq!(package.donor_kind(), DonorKind::GpemV2Recommend);
             let receipt = run_from_package(package, donor).unwrap();
             receipt.verify().unwrap();
@@ -573,6 +611,48 @@ mod tests {
                 .unwrap_err()
                 .to_string();
             assert!(err.contains("gpem_v2_recommend_donor_unavailable"));
+            let _ = fs::remove_dir_all(&root);
+        }
+    }
+
+    #[test]
+    fn seed_and_run_live_gpem_vertical_software_stop_when_shei_available() {
+        if std::path::Path::new("/home/yo/Projects/SHEI/research_python").is_dir() {
+            let root = tmp("gpem-seed-run");
+            let store = root.join("gpem-store");
+            let (trace_ids, receipt) =
+                seed_and_run_procedure_selector_vertical(store).expect("seed+run");
+            assert!(!trace_ids.is_empty());
+            receipt.verify().unwrap();
+            assert!(matches!(
+                receipt.donor_execution(),
+                DonorExecutionRecord::GpemV2LiveRecommend { .. }
+            ));
+            assert_eq!(receipt.package_donor_kind(), DonorKind::GpemV2Recommend);
+            assert_eq!(receipt.residency_decision(), &ResidencyDecision::Software {});
+            assert!(!receipt.capability_ir_emitted());
+            assert!(!receipt.receptor_entered());
+            assert!(matches!(
+                receipt.terminal(),
+                VerticalTerminal::StoppedHonestly {
+                    stop_reason: CapabilityIrStopReason::SoftwareResidency,
+                    receptor_entered: false,
+                }
+            ));
+            let _ = fs::remove_dir_all(&root);
+        } else {
+            let root = tmp("gpem-seed-missing");
+            let store = root.join("gpem-store");
+            fs::create_dir_all(&store).unwrap();
+            fs::write(store.join(".tidex_gpem_force_unavailable"), b"1").unwrap();
+            let err = seed_and_run_procedure_selector_vertical(store)
+                .unwrap_err()
+                .to_string();
+            assert!(
+                err.contains("gpem_v2_recommend_donor_unavailable")
+                    || err.contains("gpem_v2_recommend_invoke_failed"),
+                "seed+run must fail-closed: {err}"
+            );
             let _ = fs::remove_dir_all(&root);
         }
     }

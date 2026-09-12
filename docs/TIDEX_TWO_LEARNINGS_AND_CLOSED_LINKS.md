@@ -1,7 +1,7 @@
 # TIDE-X: dos aprendizajes y los dos eslabones que faltan
 
 **Fecha:** 2026-09-12 (Europe/Madrid)  
-**Checkout:** `/home/yo/Future` @ `feat/durable-plasticity-controllers` — Paso 1 ✅ CLOSED; Paso 2 ✅; Paso 3 ✅ (NextAction + live B-loop proof: decide→Start→receipt→replay→redecide); Paso 4 🟡→🟢 (AuthenticatedCapacity + live GPEM donor wire); Paso 5 ✅/🟡 (ResidencyDecision from package works; Weights/Hybrid→real IR not demonstrated); Paso 6 ❌ NOT CLOSED / NOT ACCEPTED  
+**Checkout:** `/home/yo/Future` @ `feat/durable-plasticity-controllers` — Paso 1 ✅ CLOSED; Paso 2 ✅; Paso 3 ✅ (NextAction + live B-loop proof: decide→Start→receipt→replay→redecide); Paso 4 🟡→🟢 (AuthenticatedCapacity + live GPEM donor wire); Paso 5 ✅/🟡 (ResidencyDecision from package works; Weights/Hybrid→real IR not demonstrated); Paso 6 ✅ ACCEPTED (Software vertical: seeded live GPEM → seal → Software stop + real B-loop second tick)  
 **Contexto de código:** [PR #1](https://github.com/sheilyneural-afk/TIDEX/pull/1) — controladores durables + coevolución causal + `plan_next_tick`. Aún no es el organismo cerrado.  
 **Naturaleza de este doc:** dos partes explícitas. **Parte I** = mapa del problema (qué falta y por qué; los dos eslabones siguen siendo el mapa correcto). **Parte II** = orden de implementación (camino crítico de 6 pasos; **no** es el mismo orden que el mapa). No es código. No pide algoritmos nuevos de plasticidad.
 
@@ -19,7 +19,7 @@
 | Paso 3 (cerrar `NextAction` → executor) | ✅ **DONE** — `NextAction` @ `3ccd61f` + live B-loop proof (`tidex workflow prove-b-loop` / `prove_b_loop_real_evidence_start_receipt_redecide`): decide → Start → receipt → replay → redecide |
 | Paso 4 (adquisición funcional) | 🟡→🟢 **LIVE DONOR WIRED** — `AuthenticatedCapacity` + `GpemV2RecommendDonorWire::observe` → SHEI `recommend_v2` (fail-closed; no fixture substitute) |
 | Paso 5 (residencia / IR) | ✅/🟡 — `ResidencyDecision` from package works @ `85f0e60`; Weights/Hybrid→real IR **not** demonstrated |
-| Paso 6 (demo real) | ❌ **NOT CLOSED / NOT ACCEPTED** — live GPEM wire exists and productive path fail-closes without fixture; full honest demo (seeded live store → seal → residency → real B-loop second tick / receptor when admitted) still required. Status **PARTIAL / NOT ACCEPTED**. |
+| Paso 6 (demo real) | ✅ **ACCEPTED (Software vertical)** — `tidex demo procedure-selector` seeds live GPEM → seals AuthenticatedCapacity → ResidencyDecision::Software (honest stop, no IR/receptor) → non-synthetic B-loop second tick (`prove_b_loop`). Fail-closed without fixture. Weights/Hybrid→real IR+receptor **not** entered (frozen-valid: Software success). |
 
 ---
 
@@ -642,7 +642,7 @@ Fail-closed a `BoundedUnknown` + obligaciones. Nunca un peso inventado. Nunca `c
 
 **Cierre thin de A (residencia):** fixture procedure-selector produce `Software` justificada y detiene IR. Weights/Hybrid solo con evidencia causal+contratos explícitos. Cerrado en tip `85f0e60`. Paso 6 consume esta API.
 
-### Paso 6 — REAL DEMO — ❌ **NOT CLOSED / NOT ACCEPTED** (was falsely marked DONE @ `ab6a441`)
+### Paso 6 — REAL DEMO — ✅ **ACCEPTED (Software vertical)**
 
 ```text
 REQUIRED (frozen acceptance):
@@ -650,27 +650,32 @@ REQUIRED (frozen acceptance):
   → Software stop OR Weights/Hybrid with real IR → receptor only when admitted
   → real second tick from ProceduralMemory replay (not synthetic hints)
 
-CURRENT (PARTIAL — wire exists, demo not fully accepted):
-  live GPEM observe via SHEI bridge → seal OR hard fail-closed
-  (no FixtureProcedureSelector on productive path)
-  empty/unseeded demo store → insufficient_live_evidence / unavailable (honest)
-  full operator-facing demo with pre-seeded governed store + B-loop second tick
-  still outstanding
+CURRENT (ACCEPTED — Software path):
+  seed_live_gpem_demo_store (SHEI ingest) → live observe/seal
+  → ResidencyDecision::Software → honest stop (no CapabilityIR, no receptor)
+  → workflow_b_loop::prove_b_loop as non-synthetic second tick
+  (calibrate_alignment → Start → receipt → activation_transfer_experiment)
+  Fail-closed if GPEM unavailable (no FixtureProcedureSelector)
 ```
 
-**Status: PARTIAL / NOT ACCEPTED.** Live donor wire is real; Paso 6 acceptance still needs the full honest demo (seeded live GPEM → seal → residency → real second tick). Do **not** mark DONE.
+**Status: ✅ ACCEPTED for the Software vertical.** Frozen criterion explicitly allows Software stop as success. Weights/Hybrid → measured CapabilityIR + receptor materialize remains **open** (Paso 5 residual / next warrant work) — not falsely claimed here.
 
 | Pieza | Estado honesto |
 |-------|----------------|
-| Donor live GPEM | ✅ wired (`GpemV2RecommendDonorWire::observe` → SHEI `recommend_v2`); productive path **fail-closed** (no fixture continue) |
-| Fixture donor | Unit-test only (`seal_fixture_procedure_selector_capacity`); **forbidden** as substitute on `tidex demo procedure-selector` |
-| Seal / Residency APIs | ✅ Paso 4/5 + live seal; not sufficient alone for Paso 6 closure |
-| IR / Receptor | Software stop OK when live package seals; Weights/Hybrid→real IR + receptor **not** demonstrated |
-| CLI | `tidex demo procedure-selector` ends if GPEM/donor missing or evidence insufficient |
-| Second-tick | Must come from real B-loop evidence (Paso 3 criterion), not fabricated hints |
-| How to run live smoke | `TIDEX_SHEI_ROOT=/home/yo/Projects/SHEI` (default on this machine); seed via bridge `seed_demo_traces` / `GpemV2RecommendDonorWire::seed_demo_traces`; then `acquire_procedure_selector_package` / `tidex demo procedure-selector` against that store |
+| Donor live GPEM | ✅ wired + demo auto-seeds via `seed_demo_traces` / `ingest_payload` |
+| Fixture donor | Unit-test only; **forbidden** on productive/demo path |
+| Seal / Residency | ✅ live package → Software |
+| IR / Receptor | ✅ correctly **not** entered under Software; Weights/Hybrid→IR **not** demonstrated |
+| CLI | ✅ `tidex demo procedure-selector` succeeds against seeded store on this machine |
+| Second-tick | ✅ real B-loop (`prove_b_loop`), not fabricated ProceduralWorkflowHint |
+| Tests | `seed_and_run_live_gpem_vertical_software_stop_when_shei_available`; `demo_seeded_live_gpem_plus_real_b_loop_when_shei_available`; fail-closed variants |
 
-**Do NOT mark Paso 6 DONE** until seeded live GPEM demo + real learning second tick are proven end-to-end.
+**Reproduce:**
+```bash
+export TIDEX_SHEI_ROOT=/home/yo/Projects/SHEI
+export TIDEX_HOME=/tmp/tidex-paso6-demo-home
+cargo run --bin tidex -- demo procedure-selector
+```
 
 ### Fuera de este camino
 
@@ -690,4 +695,4 @@ No abrir Ola RALF / Minimum Space / otros BCM como sustituto de estos seis pasos
 
 ---
 
-*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 ✅. Paso 2 ✅. Paso 3 ✅ (NextAction + B-loop proof). Paso 4 🟡→🟢 (capacity package + live GPEM wire). Paso 5 ✅/🟡. Paso 6 ❌ NOT CLOSED / NOT ACCEPTED (live wire exists; full honest demo + second tick still open; productive path fail-closed). Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
+*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 ✅. Paso 2 ✅. Paso 3 ✅ (NextAction + B-loop proof). Paso 4 🟡→🟢 (capacity package + live GPEM wire). Paso 5 ✅/🟡. Paso 6 ✅ ACCEPTED Software vertical (seeded live GPEM → Software stop + real B-loop); Weights/Hybrid→IR still open. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*

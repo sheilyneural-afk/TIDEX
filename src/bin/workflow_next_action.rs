@@ -415,9 +415,8 @@ pub fn decide_next_action(input: &WorkflowDecisionInput) -> BrainResult<NextActi
                 || hint.steering_unreliable()
                 || hint.low_rank_unreliable()
             {
-                rationale.push(
-                    "decision:calibration_required_before_transfer (align first)".into(),
-                );
+                rationale
+                    .push("decision:calibration_required_before_transfer (align first)".into());
                 if hint.low_rank_unreliable() {
                     rationale.push(format!(
                         "procedural:low_rank_unreliable failures={} successes={}",

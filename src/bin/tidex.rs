@@ -114,9 +114,9 @@ use tidex::receiver::receiver_weight_binding::{
 };
 use tidex::runtime::isolated_execution::AuthenticatedBytes;
 
-mod workflow_next_action;
-mod workflow_b_loop;
 mod procedure_selector_vertical;
+mod workflow_b_loop;
+mod workflow_next_action;
 
 const MAX_CLI_JSON_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ANALYSIS_INPUT_BYTES: u64 = 64 * 1024 * 1024;
@@ -1036,8 +1036,9 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         [area, command] if area == "demo" && command == "procedure-selector" => {
             let home = configured_tidex_home()?;
             let gpem_store = home.join("state/demo/procedure_selector/gpem-store");
-            // Fail-closed: no fixture substitute; no synthetic second-tick.
-            let receipt = procedure_selector_vertical::run_demo(gpem_store)?;
+            // Seed live GPEM → seal → residency → real B-loop second tick.
+            // Fail-closed: no fixture substitute; no synthetic ProceduralWorkflowHint.
+            let receipt = procedure_selector_vertical::run_demo(home.clone(), gpem_store)?;
             println!("{}", serde_json::to_string_pretty(&receipt)?);
         }
         [area, command] if area == "workflow" && command == "prove-b-loop" => {

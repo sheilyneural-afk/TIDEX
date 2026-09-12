@@ -31,18 +31,20 @@ use tidex::learning::portfolio_governance::{
     PetfcPolicy, PetfcUtilityPolicy, RobustEvaluationPolicy,
 };
 use tidex::learning::procedural_memory::{
-    BaseArtifactDigest, CapabilityContext, ProblemTransferPolicy, RetrievalQuery,
-    RetrievalScope, SolverAttempt, TargetProfileDigest,
+    BaseArtifactDigest, CapabilityContext, ProblemTransferPolicy, RetrievalQuery, RetrievalScope,
+    SolverAttempt, TargetProfileDigest,
 };
 use tidex::learning::procedural_replay::rebuild_from_numerical_evolution_stdout;
-use tidex::learning::solver_portfolio::{CandidateRepresentation, LeastSquaresProblem, PortfolioPolicy};
+use tidex::learning::solver_portfolio::{
+    CandidateRepresentation, LeastSquaresProblem, PortfolioPolicy,
+};
 use tidex::operator::control_plane::{load_job_record, OperatorJobState};
 
 use crate::workflow_next_action::{
-    decide_next_action, invoke_next_action, procedural_hint_from_memory, AuthenticatedWorkflowInputs,
-    CoEvolutionDirectiveSnapshot, JobInvocationMode, KnowledgeWorkflowSignals,
-    ProceduralWorkflowHint, RoutingPreference, StopCondition, WorkflowCost, WorkflowDecisionInput,
-    WorkflowRisk, WorkflowTickReceipt,
+    decide_next_action, invoke_next_action, procedural_hint_from_memory,
+    AuthenticatedWorkflowInputs, CoEvolutionDirectiveSnapshot, JobInvocationMode,
+    KnowledgeWorkflowSignals, ProceduralWorkflowHint, RoutingPreference, StopCondition,
+    WorkflowCost, WorkflowDecisionInput, WorkflowRisk, WorkflowTickReceipt,
 };
 
 const PROOF_SCHEMA: &str = "tidex.workflow.b_loop_proof/v1";
@@ -59,7 +61,8 @@ fn capability_context() -> BrainResult<CapabilityContext> {
     // Construct via public serde surface (from_computed is pub(crate) in digest).
     let _ = CapabilityId::parse("numerical.linear-map:v1")?;
     let base = BaseArtifactDigest::bind_exact_digest(&Sha256Digest::digest_bytes(b"b-loop-base"));
-    let target = TargetProfileDigest::bind_exact_digest(&Sha256Digest::digest_bytes(b"b-loop-target"));
+    let target =
+        TargetProfileDigest::bind_exact_digest(&Sha256Digest::digest_bytes(b"b-loop-target"));
     Ok(serde_json::from_value(json!({
         "system_envelope_digest": Sha256Digest::digest_bytes(b"b-loop-envelope").to_string(),
         "capability_id": "numerical.linear-map:v1",
@@ -227,9 +230,7 @@ fn wait_job_terminal(
 }
 
 fn persist_stdout(tidex_home: &Path, label: &str, bytes: &[u8]) -> BrainResult<PathBuf> {
-    let dir = tidex_home
-        .join("state/workflow_b_loop")
-        .join(label);
+    let dir = tidex_home.join("state/workflow_b_loop").join(label);
     fs::create_dir_all(&dir)?;
     let path = dir.join("numerical_evolution_stdout.json");
     fs::write(&path, bytes)?;
@@ -273,11 +274,7 @@ pub fn prove_b_loop(tidex_home: &Path) -> BrainResult<BLoopProofReceipt> {
         .cloned()
         .ok_or_else(|| invalid("b_loop_tick1_missing_procedural_attempt"))?;
     attempt1.authenticate()?;
-    let (stdout1, digest1) = seal_evolution_stdout(&[(
-        1,
-        "solver_rejected",
-        Some(&attempt1),
-    )])?;
+    let (stdout1, digest1) = seal_evolution_stdout(&[(1, "solver_rejected", Some(&attempt1))])?;
     let _ = persist_stdout(tidex_home, "tick1", &stdout1)?;
     // Authenticate via digest match (same contract as Operator stdout_sha256).
     if Sha256Digest::digest_bytes(&stdout1) != digest1 {
@@ -295,8 +292,7 @@ pub fn prove_b_loop(tidex_home: &Path) -> BrainResult<BLoopProofReceipt> {
     }
 
     // --- Start real executor via production enqueue path ---
-    let start_invocation =
-        invoke_next_action(tidex_home, &action1, JobInvocationMode::Start)?;
+    let start_invocation = invoke_next_action(tidex_home, &action1, JobInvocationMode::Start)?;
     let job = start_invocation
         .job
         .as_ref()
@@ -329,11 +325,8 @@ pub fn prove_b_loop(tidex_home: &Path) -> BrainResult<BLoopProofReceipt> {
         .cloned()
         .ok_or_else(|| invalid("b_loop_tick2_missing_procedural_attempt"))?;
     attempt2.authenticate()?;
-    let (stdout2, digest2) = seal_evolution_stdout(&[(
-        2,
-        "candidate_validated_for_further_gates",
-        Some(&attempt2),
-    )])?;
+    let (stdout2, digest2) =
+        seal_evolution_stdout(&[(2, "candidate_validated_for_further_gates", Some(&attempt2))])?;
     let _ = persist_stdout(tidex_home, "tick2", &stdout2)?;
     if Sha256Digest::digest_bytes(&stdout2) != digest2 {
         return Err(invalid("b_loop_tick2_stdout_digest_mismatch"));
@@ -411,10 +404,7 @@ mod tests {
         assert_eq!(proof.schema, PROOF_SCHEMA);
         assert!(!proof.authorizes_production);
         assert_eq!(proof.tick1.next_action_operation, "calibrate_alignment");
-        assert_eq!(
-            proof.tick2.next_action_operation,
-            "activation_transfer_experiment"
-        );
+        assert_eq!(proof.tick2.next_action_operation, "activation_transfer_experiment");
         assert!(proof.next_action_changed);
         assert!(proof.start_evidence_receipt_present);
         assert_eq!(proof.start_invocation.mode, "start");

@@ -9,6 +9,7 @@
    - `GPEMService.recommend_v2(context)` → `GPEMServiceV2.recommend(context)`
 4. Recommendations map to `DonorAction::{Select, Explore}` (route/prior alignment)
 5. `seal_live_gpem_v2_recommend_capacity` / `acquire_procedure_selector_package` seal `AuthenticatedCapacity` with `DonorKind::GpemV2Recommend`
+6. Demo seed path: `GpemV2RecommendDonorWire::seed_demo_traces` / `seed_live_gpem_demo_store` → `GPEMServiceV2.ingest_payload`
 
 **No GPEM copy inside TIDE-X.** Fixture selector remains unit-test only.
 
@@ -28,15 +29,18 @@ Never: GPEM fails → `FixtureProcedureSelector` → continue.
 
 ```bash
 export TIDEX_SHEI_ROOT=/home/yo/Projects/SHEI   # default if present
-# From a Rust test or small harness:
-#   wire.seed_demo_traces()?;
-#   acquire_procedure_selector_package(store)?;
-# Or: cargo test -p tidex --lib gpem_wire_live_recommend_seals_when_shei_available
-#      cargo test -p tidex --lib productive_acquire_live_gpem_seals_when_shei_available
-```
+export TIDEX_HOME=/tmp/tidex-paso6-demo-home     # isolated operator home
 
-Empty demo store (`tidex demo procedure-selector`) fail-closes honestly until seeded.
+# Full Paso 6 operator demo (seed → seal → Software stop → real B-loop):
+cargo run --bin tidex -- demo procedure-selector
+
+# Focused lib / bin tests:
+cargo test -p tidex --lib seed_and_run_live_gpem_vertical_software_stop_when_shei_available
+cargo test -p tidex --bin tidex demo_seeded_live_gpem_plus_real_b_loop_when_shei_available
+cargo test -p tidex --lib productive_acquire_live_gpem_seals_when_shei_available
+```
 
 ## Paso 6
 
-Wire exists. **Paso 6 remains NOT ACCEPTED** until full honest demo with seeded live GPEM + real second tick.
+**ACCEPTED (Software vertical)** on seeded live GPEM + honest Software residency stop + non-synthetic B-loop second tick.
+Weights/Hybrid → real CapabilityIR + receptor remains **not** demonstrated (Paso 5 residual); Software stop is frozen-valid success for this vertical.
