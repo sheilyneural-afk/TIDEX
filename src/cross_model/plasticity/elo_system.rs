@@ -184,6 +184,33 @@ impl ELOSystem {
     pub fn clear_all(&mut self) {
         self.ratings.clear();
     }
+
+    pub fn config(&self) -> &ELOConfig {
+        &self.config
+    }
+
+    pub fn export_ratings(&self) -> HashMap<String, ELOState> {
+        self.ratings.clone()
+    }
+
+    pub fn import_ratings(&mut self, ratings: HashMap<String, ELOState>) -> Result<(), String> {
+        for (name, state) in &ratings {
+            if name.trim().is_empty()
+                || !state.rating.is_finite()
+                || !(self.config.rating_floor..=self.config.rating_ceiling).contains(&state.rating)
+                || chrono::DateTime::parse_from_rfc3339(&state.last_update).is_err()
+            {
+                return Err("elo_import_invalid".into());
+            }
+            if let Some(evidence) = state.last_evidence_sha256.as_ref() {
+                if evidence.len() != 64 || !evidence.bytes().all(|b| b.is_ascii_hexdigit()) {
+                    return Err("elo_import_invalid".into());
+                }
+            }
+        }
+        self.ratings = ratings;
+        Ok(())
+    }
 }
 impl Default for ELOSystem {
     fn default() -> Self {

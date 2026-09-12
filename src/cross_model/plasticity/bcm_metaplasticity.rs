@@ -152,6 +152,51 @@ impl BCMMetaplasticity {
             state.theta_m = (state.theta_m * (1.0 - self.config.theta_decay)).clamp(0.0, 1.0);
         }
     }
+
+    pub fn config(&self) -> &BCMConfig {
+        &self.config
+    }
+
+    pub fn set_learning_rate(
+        &mut self,
+        capability_name: &str,
+        learning_rate: f64,
+    ) -> Result<(), String> {
+        if !learning_rate.is_finite() || learning_rate <= 0.0 || learning_rate > 1.0 {
+            return Err("bcm_learning_rate_invalid".into());
+        }
+        let state = self
+            .states
+            .get_mut(capability_name)
+            .ok_or("bcm_state_missing")?;
+        state.learning_rate = learning_rate;
+        Ok(())
+    }
+
+    pub fn export_states(&self) -> HashMap<String, BCMState> {
+        self.states.clone()
+    }
+
+    pub fn import_states(&mut self, states: HashMap<String, BCMState>) -> Result<(), String> {
+        for (name, state) in &states {
+            if name.trim().is_empty()
+                || !state.theta_m.is_finite()
+                || !(0.0..=1.0).contains(&state.theta_m)
+                || !state.learning_rate.is_finite()
+                || state.learning_rate <= 0.0
+                || state.learning_rate > 1.0
+                || state.sliding_window.len() > self.config.window_size
+                || state
+                    .sliding_window
+                    .iter()
+                    .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+            {
+                return Err("bcm_import_invalid".into());
+            }
+        }
+        self.states = states;
+        Ok(())
+    }
 }
 impl Default for BCMMetaplasticity {
     fn default() -> Self {

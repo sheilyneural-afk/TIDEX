@@ -295,6 +295,75 @@ impl RoutingPlasticity {
         self.routing_history.clear();
     }
 
+    pub fn config(&self) -> &RoutingPlasticityConfig {
+        &self.config
+    }
+
+    pub fn set_matrix_learning_rate(&mut self, learning_rate: f64) -> Result<(), String> {
+        if !learning_rate.is_finite() || learning_rate < 0.0 || learning_rate > 1.0 {
+            return Err("routing_matrix_learning_rate_invalid".into());
+        }
+        self.matrix.learning_rate = learning_rate;
+        Ok(())
+    }
+
+    pub fn export_history(&self) -> HashMap<String, Vec<RoutingDecision>> {
+        self.routing_history.clone()
+    }
+
+    pub fn import_history(
+        &mut self,
+        history: HashMap<String, Vec<RoutingDecision>>,
+    ) -> Result<(), String> {
+        for (capability, decisions) in &history {
+            if capability.trim().is_empty() {
+                return Err("routing_history_import_invalid".into());
+            }
+            for decision in decisions {
+                if decision.capability != *capability
+                    || decision.target_model.trim().is_empty()
+                    || !decision.measured_score.is_finite()
+                    || !decision.routing_score.is_finite()
+                    || decision.evidence_sha256.len() != 64
+                    || !decision
+                        .evidence_sha256
+                        .bytes()
+                        .all(|byte| byte.is_ascii_hexdigit())
+                    || chrono::DateTime::parse_from_rfc3339(&decision.timestamp).is_err()
+                {
+                    return Err("routing_history_import_invalid".into());
+                }
+            }
+        }
+        self.routing_history = history;
+        Ok(())
+    }
+
+    pub fn export_matrix(&self) -> RoutingPlasticityMatrix {
+        self.matrix.clone()
+    }
+
+    pub fn import_matrix(&mut self, matrix: RoutingPlasticityMatrix) -> Result<(), String> {
+        if !matrix.learning_rate.is_finite()
+            || matrix.learning_rate < 0.0
+            || !matrix.decay_rate.is_finite()
+            || !(0.0..=1.0).contains(&matrix.decay_rate)
+        {
+            return Err("routing_matrix_import_invalid".into());
+        }
+        for (capability, row) in &matrix.weights {
+            RoutingPlasticityMatrix::validate_identity(capability)?;
+            for (model, weight) in row {
+                RoutingPlasticityMatrix::validate_identity(model)?;
+                if !weight.is_finite() || !(0.0..=1.0).contains(weight) {
+                    return Err("routing_matrix_import_invalid".into());
+                }
+            }
+        }
+        self.matrix = matrix;
+        Ok(())
+    }
+
     pub fn get_statistics(&self) -> RoutingStatistics {
         let total_decisions = self.routing_history.values().map(Vec::len).sum();
         let mut model_usage = HashMap::new();

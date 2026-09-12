@@ -4,6 +4,11 @@
 //! behavioral discovery, internal evidence acquisition, calibrated
 //! transformation, and physical intervention. No phase can manufacture the
 //! evidence required by a later phase.
+//!
+//! Boundary: `PlasticityEngine` does **not** own the numerical controllers in
+//! `cross_model::plasticity` (BCM/ELO/routing/…). Those advisory controllers are
+//! projected by the operator control plane. This engine produces measured
+//! discovery/intervention evidence only.
 
 use crate::cross_model::discovery::{
     evaluate_model, BehavioralBenchmark, CapabilityGap, GapDetector, ModelEvaluation, Prioritizer,

@@ -150,6 +150,24 @@ impl Neuromodulation {
         self.current_levels.clear();
         self.signal_history.clear();
     }
+
+    pub fn config(&self) -> &NeuromodulationConfig {
+        &self.config
+    }
+
+    pub fn export_levels(&self) -> HashMap<Neuromodulator, f64> {
+        self.current_levels.clone()
+    }
+
+    pub fn import_levels(&mut self, levels: HashMap<Neuromodulator, f64>) -> Result<(), String> {
+        for level in levels.values() {
+            if !level.is_finite() || !(0.0..=1.0).contains(level) {
+                return Err("neuromodulation_import_invalid".into());
+            }
+        }
+        self.current_levels = levels;
+        Ok(())
+    }
 }
 impl Default for Neuromodulation {
     fn default() -> Self {
