@@ -258,6 +258,26 @@ fn decide_from_handoff(
     } else if let Some(inputs) = try_explicit_residency_inputs(package)? {
         let (decision, basis) = decide_from_fact_inputs(&inputs)?;
         (ProjectionBasis::ExplicitResidencyContracts, decision, Some(basis))
+    } else if matches!(package.donor_kind(), DonorKind::MeasuredClosedLinearMap) {
+        // Neuralizable donor without explicit residency.* contracts: fail closed.
+        // Do not invent Software (or Weights) from donor kind alone.
+        (
+            ProjectionBasis::InsufficientEvidence,
+            ResidencyDecision::BoundedUnknown {
+                reason: ResidencyUnknownReason::SemanticDimensions {
+                    dimensions: [
+                        crate::governance::residency_decision::ResidencyDimension::Requirements,
+                        crate::governance::residency_decision::ResidencyDimension::Effects,
+                        crate::governance::residency_decision::ResidencyDimension::ExternalState,
+                        crate::governance::residency_decision::ResidencyDimension::Observability,
+                    ]
+                    .into_iter()
+                    .collect(),
+                },
+                unresolved_obligations: BTreeSet::new(),
+            },
+            None,
+        )
     } else {
         // Provenance-like / non-neuralizable software donors: Software is valid.
         let inputs = software_donor_default_inputs(package.donor_kind());

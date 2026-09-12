@@ -115,6 +115,7 @@ use tidex::receiver::receiver_weight_binding::{
 use tidex::runtime::isolated_execution::AuthenticatedBytes;
 
 mod procedure_selector_vertical;
+mod weights_ir_receptor_vertical;
 mod workflow_b_loop;
 mod workflow_next_action;
 
@@ -1041,6 +1042,11 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             let receipt = procedure_selector_vertical::run_demo(home.clone(), gpem_store)?;
             println!("{}", serde_json::to_string_pretty(&receipt)?);
         }
+        [area, command] if area == "demo" && command == "weights-ir-receptor" => {
+            let home = configured_tidex_home()?;
+            let receipt = weights_ir_receptor_vertical::run_demo(home)?;
+            println!("{}", serde_json::to_string_pretty(&receipt)?);
+        }
         [area, command] if area == "workflow" && command == "prove-b-loop" => {
             let home = configured_tidex_home()?;
             let proof = workflow_b_loop::prove_b_loop(&home)?;
@@ -1516,7 +1522,7 @@ fn usage() -> &'static str {
         "  tidex operator graph\n",
         "  tidex staircase\n",
         "  tidex operator staircase\n",
-        "  tidex residency decide <request.json>\n  tidex demo procedure-selector\n  tidex workflow prove-b-loop\n",
+        "  tidex residency decide <request.json>\n  tidex demo procedure-selector\n  tidex demo weights-ir-receptor\n  tidex workflow prove-b-loop\n",
         "  tidex operator executors\n",
         "  tidex executors\n",
         "  tidex executor <executor-id>\n",

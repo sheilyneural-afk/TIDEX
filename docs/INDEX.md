@@ -22,7 +22,7 @@ Punto de entrada único. Si un doc de `directories/` o `systems/` parece corto o
 | [QUALITY_AND_TESTING.md](QUALITY_AND_TESTING.md) | Modelo de pruebas y evidencia |
 | [README_CROSS_MODEL.md](README_CROSS_MODEL.md) | Feature cross-model |
 | [../README.md](../README.md) | README raíz |
-| [TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md](TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md) | Dos aprendizajes; Paso 1–5; Paso 6 ✅ Software vertical (live GPEM seed→seal→Software + real B-loop); Weights/Hybrid→IR still open |
+| [TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md](TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md) | Dos aprendizajes; Paso 1–6; Paso 6 ✅ Software vertical; Paso 5 Weights/Hybrid→measured IR→receptor (`tidex demo weights-ir-receptor`) |
 
 ## Sistemas (flujos transversales)
 

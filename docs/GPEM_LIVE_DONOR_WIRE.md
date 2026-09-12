@@ -43,4 +43,4 @@ cargo test -p tidex --lib productive_acquire_live_gpem_seals_when_shei_available
 ## Paso 6
 
 **ACCEPTED (Software vertical)** on seeded live GPEM + honest Software residency stop + non-synthetic B-loop second tick.
-Weights/Hybrid → real CapabilityIR + receptor remains **not** demonstrated (Paso 5 residual); Software stop is frozen-valid success for this vertical.
+Weights/Hybrid → real CapabilityIR + receptor is a **separate** vertical (`tidex demo weights-ir-receptor`); Software stop remains frozen-valid success for this GPEM vertical.

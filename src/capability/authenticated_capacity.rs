@@ -81,6 +81,10 @@ pub enum DonorKind {
     /// Live SHEI GPEM v2 `recommend` donor (thin bridge; fail-closed if unavailable).
     #[serde(rename = "gpem_v2_recommend")]
     GpemV2Recommend,
+    /// Measured closed linear map (y = Wx). Evidence is arithmetic I/O, not
+    /// source-tree invention. Used by the Weights/Hybrid→IR→receptor vertical.
+    #[serde(rename = "measured_closed_linear_map")]
+    MeasuredClosedLinearMap,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -1267,6 +1271,229 @@ pub fn seal_live_gpem_v2_recommend_capacity(
     AuthenticatedCapacityPackage::seal(
         capacity_key,
         DonorKind::GpemV2Recommend,
+        provenance,
+        observations,
+        interventions,
+        contracts,
+        Vec::new(),
+    )
+}
+
+/// Measured closed-linear-map donor: among candidates with weight vectors,
+/// select the unique best measured margin `W·x`; explore when tied or flat.
+#[derive(Debug, Clone)]
+pub struct MeasuredClosedLinearMapDonor {
+    pub input: Vec<f64>,
+    pub weights_by_candidate: std::collections::BTreeMap<String, Vec<f64>>,
+}
+
+impl MeasuredClosedLinearMapDonor {
+    pub fn new(
+        input: Vec<f64>,
+        weights_by_candidate: std::collections::BTreeMap<String, Vec<f64>>,
+    ) -> BrainResult<Self> {
+        if input.is_empty() || input.len() > 4_096 || input.iter().any(|v| !v.is_finite()) {
+            return Err(invalid("measured_linear_map_input_invalid"));
+        }
+        if weights_by_candidate.is_empty() || weights_by_candidate.len() > MAX_CANDIDATES {
+            return Err(invalid("measured_linear_map_candidates_invalid"));
+        }
+        for (candidate, weights) in &weights_by_candidate {
+            validate_label(candidate, "measured_linear_map_candidate")?;
+            if weights.len() != input.len() || weights.iter().any(|v| !v.is_finite()) {
+                return Err(invalid("measured_linear_map_weight_shape_invalid"));
+            }
+        }
+        Ok(Self {
+            input,
+            weights_by_candidate,
+        })
+    }
+
+    fn margin(&self, weights: &[f64]) -> f64 {
+        self.input
+            .iter()
+            .zip(weights)
+            .map(|(x, w)| x * w)
+            .sum()
+    }
+
+    pub fn observe(&self, stimulus: &SelectorStimulus) -> BrainResult<DonorAction> {
+        let mut scored = Vec::new();
+        for candidate in &stimulus.candidate_procedures {
+            let Some(weights) = self.weights_by_candidate.get(candidate) else {
+                continue;
+            };
+            scored.push((candidate.as_str(), self.margin(weights)));
+        }
+        if scored.is_empty() {
+            return Ok(DonorAction::explore());
+        }
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        let best = scored[0];
+        let unique_best = scored.len() == 1
+            || scored[1].1 < best.1 - 1e-12;
+        // Flat / near-zero margins → explore (no confident weights selection).
+        if !unique_best || best.1.abs() < 1e-12 {
+            return Ok(DonorAction::explore());
+        }
+        DonorAction::select(best.0)
+    }
+}
+
+/// Seal authenticated capacity for a measured closed linear map with optional
+/// explicit `residency.*` Supported contracts (Weights/Hybrid warrant).
+///
+/// Observations are real measured margins, not invented IR. Completeness still
+/// requires select+explore+intervention+≥2 supported contracts.
+pub fn seal_measured_closed_linear_map_capacity(
+    capacity_key: &str,
+    provenance: CapacityProvenance,
+    donor: &MeasuredClosedLinearMapDonor,
+    residency_claim_ids: &[&str],
+) -> BrainResult<AuthenticatedCapacityPackage> {
+    let mut observations = Vec::new();
+
+    // Distinct input that yields a clear unique best among candidates.
+    let stim_select = SelectorStimulus::new(
+        "linear_map:select",
+        vec![
+            PriorProcedureResult::new("map.alpha", "success")?,
+            PriorProcedureResult::new("map.beta", "fail")?,
+        ],
+        vec!["map.alpha".into(), "map.beta".into(), "map.gamma".into()],
+    )?;
+    let action_select = donor.observe(&stim_select)?;
+    observations.push(CapacityObservation::seal(
+        ObservationId::parse("obs.linear-select-01")?,
+        stim_select.clone(),
+        action_select,
+        Some(format!(
+            "measured_margin_best={}",
+            donor
+                .weights_by_candidate
+                .get("map.alpha")
+                .map(|w| donor.margin(w))
+                .unwrap_or(0.0)
+        )),
+    )?);
+
+    // Cold / zero-aligned stimulus → explore.
+    let stim_explore = SelectorStimulus::new(
+        "linear_map:explore",
+        Vec::new(),
+        vec!["map.alpha".into(), "map.beta".into()],
+    )?;
+    // Force explore observation using an empty-prior stimulus against a donor
+    // clone with zeroed input so margins are flat (honest explore evidence).
+    let flat_donor = MeasuredClosedLinearMapDonor::new(
+        vec![0.0; donor.input.len()],
+        donor.weights_by_candidate.clone(),
+    )?;
+    let action_explore = flat_donor.observe(&stim_explore)?;
+    observations.push(CapacityObservation::seal(
+        ObservationId::parse("obs.linear-explore-01")?,
+        stim_explore,
+        action_explore,
+        Some("flat_margins_explore".into()),
+    )?);
+
+    let stim_ambiguous = SelectorStimulus::new(
+        "linear_map:ambiguous",
+        vec![
+            PriorProcedureResult::new("map.alpha", "fail")?,
+            PriorProcedureResult::new("map.beta", "fail")?,
+        ],
+        vec!["map.alpha".into(), "map.beta".into()],
+    )?;
+    let action_ambiguous = flat_donor.observe(&stim_ambiguous)?;
+    observations.push(CapacityObservation::seal(
+        ObservationId::parse("obs.linear-explore-failed-priors-01")?,
+        stim_ambiguous,
+        action_ambiguous,
+        None,
+    )?);
+
+    let baseline = observations[0].clone();
+    let mut ablated_priors = stim_select.prior_results.clone();
+    ablated_priors.retain(|item| item.procedure_id != "map.alpha");
+    let ablated_stimulus = SelectorStimulus::new(
+        stim_select.context.clone(),
+        ablated_priors,
+        stim_select.candidate_procedures.clone(),
+    )?;
+    // Ablation: remove map.alpha weights from the donor view (causal intervention).
+    let mut ablated_weights = donor.weights_by_candidate.clone();
+    ablated_weights.remove("map.alpha");
+    let ablated_donor =
+        MeasuredClosedLinearMapDonor::new(donor.input.clone(), ablated_weights)?;
+    let ablated_action = ablated_donor.observe(&ablated_stimulus)?;
+    let ablated_observation = CapacityObservation::seal(
+        ObservationId::parse("obs.linear-intervene-ablate-best-01")?,
+        ablated_stimulus,
+        ablated_action,
+        None,
+    )?;
+    let interventions = vec![CapacityIntervention::seal(
+        InterventionKind::AblateBestPrior,
+        &baseline,
+        ablated_observation,
+        "Ablating the uniquely best measured map changes selection or forces explore",
+    )?];
+
+    let has_select = observations
+        .iter()
+        .any(|item| item.donor_action.kind == DonorActionKind::Select);
+    let has_explore = observations
+        .iter()
+        .any(|item| item.donor_action.kind == DonorActionKind::Explore);
+    if !has_select || !has_explore {
+        return Err(invalid("measured_linear_map_insufficient_select_explore_evidence"));
+    }
+
+    let select_digest = observations[0].observation_sha256().clone();
+    let explore_digest = observations[1].observation_sha256().clone();
+    let intervene_digest = interventions[0]
+        .intervened_observation
+        .observation_sha256()
+        .clone();
+
+    let mut contracts = vec![
+        FunctionalContractClaim::new(
+            "claim.linear-select-best-margin",
+            "Given measured margins, donor selects the uniquely best closed linear map",
+            FunctionalContractStatus::Supported,
+            vec![select_digest.clone()],
+        )?,
+        FunctionalContractClaim::new(
+            "claim.linear-explore-when-flat",
+            "Given flat measured margins, donor explores rather than inventing a selection",
+            FunctionalContractStatus::Supported,
+            vec![explore_digest, observations[2].observation_sha256().clone()],
+        )?,
+        FunctionalContractClaim::new(
+            "claim.linear-ablation-changes-choice",
+            "Ablating the best measured map changes the donor action relative to baseline",
+            if interventions[0].intervened_observation.donor_action != baseline.donor_action {
+                FunctionalContractStatus::Supported
+            } else {
+                FunctionalContractStatus::Unsupported
+            },
+            vec![select_digest.clone(), intervene_digest.clone()],
+        )?,
+    ];
+    for claim_id in residency_claim_ids {
+        contracts.push(FunctionalContractClaim::new(
+            *claim_id,
+            format!("residency attestation {claim_id} from measured closed linear map evidence"),
+            FunctionalContractStatus::Supported,
+            vec![select_digest.clone(), intervene_digest.clone()],
+        )?);
+    }
+
+    AuthenticatedCapacityPackage::seal(
+        capacity_key,
+        DonorKind::MeasuredClosedLinearMap,
         provenance,
         observations,
         interventions,

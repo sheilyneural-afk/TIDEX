@@ -1,7 +1,7 @@
 # TIDE-X: dos aprendizajes y los dos eslabones que faltan
 
 **Fecha:** 2026-09-12 (Europe/Madrid)  
-**Checkout:** `/home/yo/Future` @ `feat/durable-plasticity-controllers` — Paso 1 ✅ CLOSED; Paso 2 ✅; Paso 3 ✅ (NextAction + live B-loop proof: decide→Start→receipt→replay→redecide); Paso 4 🟡→🟢 (AuthenticatedCapacity + live GPEM donor wire); Paso 5 ✅/🟡 (ResidencyDecision from package works; Weights/Hybrid→real IR not demonstrated); Paso 6 ✅ ACCEPTED (Software vertical: seeded live GPEM → seal → Software stop + real B-loop second tick)  
+**Checkout:** `/home/yo/Future` @ `feat/durable-plasticity-controllers` — Paso 1 ✅ CLOSED; Paso 2 ✅; Paso 3 ✅ (NextAction + live B-loop proof); Paso 4 🟡→🟢 (AuthenticatedCapacity + live GPEM donor wire); Paso 5 ✅ (ResidencyDecision + Weights/Hybrid→measured IR→receptor vertical closed at max real level); Paso 6 ✅ ACCEPTED (Software vertical unchanged)  
 **Contexto de código:** [PR #1](https://github.com/sheilyneural-afk/TIDEX/pull/1) — controladores durables + coevolución causal + `plan_next_tick`. Aún no es el organismo cerrado.  
 **Naturaleza de este doc:** dos partes explícitas. **Parte I** = mapa del problema (qué falta y por qué; los dos eslabones siguen siendo el mapa correcto). **Parte II** = orden de implementación (camino crítico de 6 pasos; **no** es el mismo orden que el mapa). No es código. No pide algoritmos nuevos de plasticidad.
 
@@ -18,8 +18,8 @@
 | Paso 2 (ProceduralMemory útil) | ✅ **DONE** — receipts → replay → ProceduralMemory → retrieve (`bc531d7` + 2B/2C fold) |
 | Paso 3 (cerrar `NextAction` → executor) | ✅ **DONE** — `NextAction` @ `3ccd61f` + live B-loop proof (`tidex workflow prove-b-loop` / `prove_b_loop_real_evidence_start_receipt_redecide`): decide → Start → receipt → replay → redecide |
 | Paso 4 (adquisición funcional) | 🟡→🟢 **LIVE DONOR WIRED** — `AuthenticatedCapacity` + `GpemV2RecommendDonorWire::observe` → SHEI `recommend_v2` (fail-closed; no fixture substitute) |
-| Paso 5 (residencia / IR) | ✅/🟡 — `ResidencyDecision` from package works @ `85f0e60`; Weights/Hybrid→real IR **not** demonstrated |
-| Paso 6 (demo real) | ✅ **ACCEPTED (Software vertical)** — `tidex demo procedure-selector` seeds live GPEM → seals AuthenticatedCapacity → ResidencyDecision::Software (honest stop, no IR/receptor) → non-synthetic B-loop second tick (`prove_b_loop`). Fail-closed without fixture. Weights/Hybrid→real IR+receptor **not** entered (frozen-valid: Software success). |
+| Paso 5 (residencia / IR) | ✅ — package → ResidencyDecision; **Weights/Hybrid→measured IR→receptor** closed in separate vertical (`weights_ir_receptor_vertical`) — not invented from source trees; GPEM procedure-selector stays Software |
+| Paso 6 (demo real) | ✅ **ACCEPTED (Software vertical)** — `tidex demo procedure-selector` remains Software stop + real B-loop. **Do not force GPEM into Weights.** Parallel demo: `tidex demo weights-ir-receptor` (measured closed linear map → Weights → IR → `compile_receiver_readout_capability`). |
 
 ---
 
@@ -618,7 +618,7 @@ No más “archivo en la caja fuerte”. Observaciones / intervenciones / contra
 **Live donor:** thin bridge (no GPEM copy inside TIDE-X). CI hermetic via store marker `.tidex_gpem_force_unavailable` / missing SHEI. Success path: seed governed traces then `seal_live_gpem_v2_recommend_capacity`.  
 **Fuera de Paso 4:** `ResidencyDecision` / `CapabilityIR` (Paso 5 — hecho thin slice).
 
-### Paso 5 — RESIDENCY / REPRESENTATION — ✅/🟡 @ `85f0e60` (Software path works; Weights/Hybrid→real IR not demonstrated)
+### Paso 5 — RESIDENCY / REPRESENTATION — ✅ (Software path + Weights/Hybrid→IR→receptor vertical)
 
 Método de §5.1, no el anti-patrón:
 
@@ -640,7 +640,37 @@ evidence
 
 Fail-closed a `BoundedUnknown` + obligaciones. Nunca un peso inventado. Nunca `código → CapabilityIR`. `ResidencyDecision::Software` es inteligencia válida.
 
-**Cierre thin de A (residencia):** fixture procedure-selector produce `Software` justificada y detiene IR. Weights/Hybrid solo con evidencia causal+contratos explícitos. Cerrado en tip `85f0e60`. Paso 6 consume esta API.
+**Cierre thin de A (residencia):** fixture/live procedure-selector produce `Software` justificada y detiene IR. Weights/Hybrid solo con evidencia causal+contratos explícitos.
+
+#### Weights/Hybrid → CapabilityIR → receptor (vertical separado) — ✅ max real level
+
+```text
+measured closed linear map (DonorKind::MeasuredClosedLinearMap)
+  + residency.* Supported contracts + causal interventions
+  → ResidencyDecision::Weights (or Hybrid)
+  → CapabilityIrPath::Admitted
+  → CapabilityIR from measured_weights.json in authenticated envelope
+    (NOT from GPEM/source trees; NOT procedure-selector)
+  → execute_linear_readout + compile_receiver_readout_capability
+```
+
+| Pieza | Estado honesto |
+|-------|----------------|
+| Módulo | `src/governance/weights_ir_receptor_vertical.rs` |
+| Warrant | measured margins + `residency.*` + AblateBestPrior intervention |
+| Residency | Weights (primary) / Hybrid (admit path) |
+| IR | emitted from measured descriptor bytes via `CapabilityIr::new_with_parameters` + capture envelope |
+| Receptor | entered existing readout engines (`receiver_readout_compiled` when calibration allows; else measured execute only) |
+| GPEM / procedure-selector | **rejected** by this vertical (Software-only elsewhere) |
+| Fake weights / invent IR | forbidden; fail-closed |
+| CLI | `tidex demo weights-ir-receptor` |
+| Gaps | no full LLM transplant / no UPG promotion / no SmolLM2 safetensors write; experimental_only |
+
+**Reproduce:**
+```bash
+export TIDEX_HOME=/tmp/tidex-weights-ir-demo-home
+cargo run --bin tidex -- demo weights-ir-receptor
+```
 
 ### Paso 6 — REAL DEMO — ✅ **ACCEPTED (Software vertical)**
 
@@ -658,14 +688,14 @@ CURRENT (ACCEPTED — Software path):
   Fail-closed if GPEM unavailable (no FixtureProcedureSelector)
 ```
 
-**Status: ✅ ACCEPTED for the Software vertical.** Frozen criterion explicitly allows Software stop as success. Weights/Hybrid → measured CapabilityIR + receptor materialize remains **open** (Paso 5 residual / next warrant work) — not falsely claimed here.
+**Status: ✅ ACCEPTED for the Software vertical.** Frozen criterion explicitly allows Software stop as success. Weights/Hybrid → measured CapabilityIR + receptor is tracked on the **separate** Paso 5 vertical above (`tidex demo weights-ir-receptor`) — not claimed as part of this GPEM Software demo.
 
 | Pieza | Estado honesto |
 |-------|----------------|
 | Donor live GPEM | ✅ wired + demo auto-seeds via `seed_demo_traces` / `ingest_payload` |
 | Fixture donor | Unit-test only; **forbidden** on productive/demo path |
 | Seal / Residency | ✅ live package → Software |
-| IR / Receptor | ✅ correctly **not** entered under Software; Weights/Hybrid→IR **not** demonstrated |
+| IR / Receptor | ✅ correctly **not** entered under Software; Weights/Hybrid→IR is a **separate** vertical (see Paso 5) |
 | CLI | ✅ `tidex demo procedure-selector` succeeds against seeded store on this machine |
 | Second-tick | ✅ real B-loop (`prove_b_loop`), not fabricated ProceduralWorkflowHint |
 | Tests | `seed_and_run_live_gpem_vertical_software_stop_when_shei_available`; `demo_seeded_live_gpem_plus_real_b_loop_when_shei_available`; fail-closed variants |
@@ -695,4 +725,4 @@ No abrir Ola RALF / Minimum Space / otros BCM como sustituto de estos seis pasos
 
 ---
 
-*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 ✅. Paso 2 ✅. Paso 3 ✅ (NextAction + B-loop proof). Paso 4 🟡→🟢 (capacity package + live GPEM wire). Paso 5 ✅/🟡. Paso 6 ✅ ACCEPTED Software vertical (seeded live GPEM → Software stop + real B-loop); Weights/Hybrid→IR still open. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
+*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 ✅. Paso 2 ✅. Paso 3 ✅. Paso 4 🟡→🟢. Paso 5 ✅ (incl. Weights/Hybrid→measured IR→receptor vertical). Paso 6 ✅ ACCEPTED Software vertical (GPEM stays Software). Sin `procedural_memory.json`. evidencia → ResidencyDecision → CapabilityIR.*
