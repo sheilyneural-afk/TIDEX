@@ -66,20 +66,3 @@ El informe es **mayormente fiel a lo que ocurrió en esa sesión**, pero **no es
 2. Correr integración con **un solo** `cargo test` a la vez.
 3. Arreglar fmt (8 hunks) antes de `make ci`.
 4. Actualizar `AUDITORIA_FUNCIONAL.md` con esta contra-auditoría o archivarlo como snapshot 23:29.
-
----
-
-## Post-corrección — 2026-09-12
-
-Acciones aplicadas tras esta contra-auditoría:
-
-| Item | Estado |
-|------|--------|
-| `cargo fmt --all` | **PASS** — 1 hunk restante en `control_plane.rs` corregido |
-| `AUDITORIA_FUNCIONAL.md` | Actualizado con snapshot + contra-auditoría + estado actual |
-| `convergence_pipeline` | **PASS** (re-run serializado) |
-| `gate0-empty-state.sh` | **PASS** (invocación correcta) |
-| `configuration_contracts` | **PASS** (re-verificado) |
-| Fuzz `cargo check` | **PASS** (re-verificado) |
-
-**Rojo restante para `make ci`:** ninguno en los checks rápidos re-ejecutados. Lib + brain (~7 min) no re-corridos en esta sesión; ver logs históricos en `/tmp/tidex-test-*.out`.

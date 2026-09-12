@@ -5,19 +5,18 @@
 //!   plasticity-daemon loop <runtime.json> <benchmark.json> <interval-seconds>
 //!
 //! Runtime model entries are explicit. Ollama performs remote behavioral
-//! inference; Candle Llama/Mistral load authenticated local SafeTensors. None of
-//! these backends implicitly grants hidden-state or weight-mutation authority.
+//! inference and the certified Hugging Face worker loads authenticated local
+//! SafeTensors. Neither backend grants production authority.
 
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::error::Error;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 use tidex::cross_model::discovery::BehavioralBenchmark;
 use tidex::cross_model::models::{
-    CandleLlamaModel, CandleMistralModel, GenerationPolicy, HfTransformersModel,
-    HfTransformersRuntimeConfig, LLMModel, OllamaModel,
+    GenerationPolicy, HfTransformersModel, HfTransformersRuntimeConfig, LLMModel, OllamaModel,
 };
 use tidex::cross_model::plasticity_engine::{PlasticityEngine, PlasticityEngineConfig};
 
@@ -32,20 +31,6 @@ enum RuntimeModelSpec {
         endpoint: String,
         generation: GenerationPolicy,
     },
-    CandleLlama {
-        name: String,
-        checkpoint_path: PathBuf,
-        config_path: PathBuf,
-        tokenizer_path: PathBuf,
-        generation: GenerationPolicy,
-    },
-    CandleMistral {
-        name: String,
-        checkpoint_path: PathBuf,
-        config_path: PathBuf,
-        tokenizer_path: PathBuf,
-        generation: GenerationPolicy,
-    },
     HfTransformers {
         runtime: HfTransformersRuntimeConfig,
     },
@@ -55,7 +40,6 @@ impl RuntimeModelSpec {
     fn identity(&self) -> &str {
         match self {
             Self::Ollama { model, .. } => model,
-            Self::CandleLlama { name, .. } | Self::CandleMistral { name, .. } => name,
             Self::HfTransformers { runtime } => &runtime.name,
         }
     }
@@ -68,25 +52,6 @@ impl RuntimeModelSpec {
             Self::Ollama { endpoint, .. } => {
                 if !(endpoint.starts_with("http://") || endpoint.starts_with("https://")) {
                     return Err("ollama_runtime_endpoint_invalid".into());
-                }
-            }
-            Self::CandleLlama {
-                checkpoint_path,
-                config_path,
-                tokenizer_path,
-                ..
-            }
-            | Self::CandleMistral {
-                checkpoint_path,
-                config_path,
-                tokenizer_path,
-                ..
-            } => {
-                if [checkpoint_path, config_path, tokenizer_path]
-                    .iter()
-                    .any(|path| !path.is_absolute())
-                {
-                    return Err("local_runtime_paths_must_be_absolute".into());
                 }
             }
             Self::HfTransformers { runtime } => {
@@ -106,32 +71,6 @@ impl RuntimeModelSpec {
             } => Ok(Box::new(OllamaModel::connect_with_policy(
                 endpoint.clone(),
                 model.clone(),
-                generation.clone(),
-            )?)),
-            Self::CandleLlama {
-                name,
-                checkpoint_path,
-                config_path,
-                tokenizer_path,
-                generation,
-            } => Ok(Box::new(CandleLlamaModel::from_safetensors(
-                name.clone(),
-                checkpoint_path,
-                config_path,
-                tokenizer_path,
-                generation.clone(),
-            )?)),
-            Self::CandleMistral {
-                name,
-                checkpoint_path,
-                config_path,
-                tokenizer_path,
-                generation,
-            } => Ok(Box::new(CandleMistralModel::from_safetensors(
-                name.clone(),
-                checkpoint_path,
-                config_path,
-                tokenizer_path,
                 generation.clone(),
             )?)),
             Self::HfTransformers { runtime } => {

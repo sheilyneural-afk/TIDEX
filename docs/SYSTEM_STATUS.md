@@ -1,90 +1,63 @@
 # Estado del proyecto
 
-## Estado vigente
+Estado honesto del crate TIDEX / checkout Future.
 
-La base actual del proyecto está en una línea estable y verificable:
+**Ubicación:** `docs/SYSTEM_STATUS.md`  
+**Relacionado:** [INDEX](INDEX.md) · [ARCHITECTURE](ARCHITECTURE.md) · [QUALITY_AND_TESTING](QUALITY_AND_TESTING.md)
 
-- la autoridad central sigue en Rust;
-- `KnowledgeEngine::open` falla cerrado (`authority_instance_required`); el arranque real es `open_with_authority_instance`;
-- la ejecución de backends reales queda acotada y validada, detrás de la feature `cross-model-plasticity`;
-- la capa de planificación y receipts está separada de la capa de ejecución externa;
-- no se acepta evidencia que no tenga origen verificable;
-- el backend HF se mantiene como ejecutor acotado, no como autoridad;
-- un receipt de la interfaz marca `authorizes_production: false` y no activa AdapterBank por sí mismo.
+## Base de verificación de esta nota
 
-## Verificación
+- **Remoto público verificado:** `main` @ `8091cc8791c9e67794877eb6805fe48b35cf4533` — *refactor: reorganize TIDEX into domain modules…* (2026-09-11).
+- **Máquina local `/home/yo/Future`:** el harness de este agente **no pudo ejecutar** `git`/`ls` con `machineId` (el parámetro no enruta al host). Cifras de working tree local, tamaños y tests “ahora mismo” quedan **por verificar** en la máquina del usuario.
+- Auditorías previas en `docs/AUDITORIA_*` son históricas de sesión; no reutilizar conteos de tests como estado actual sin re-ejecutar.
 
-Este documento no afirma un recuento de pruebas pasadas sin re-ejecutar la suite.
+## Hechos confirmados en `8091cc8`
 
-En el árbol actual hay 620 atributos `#[test]` bajo `src/` y 33 bajo `tests/` (653 en total). Eso es un recuento de atributos, no un resultado de `cargo test`. Una nota anterior decía “592 pruebas pasadas”; esa cifra está desfasada y no debe reutilizarse.
+| Hecho | Evidencia |
+|-------|-----------|
+| Reorg de dominios pushed | Commit `8091cc8`; `src/lib.rs` lista foundation…runtime + feature `cross_model` |
+| `publish = false` | `Cargo.toml` |
+| `autobins` / `autotests` = false | `Cargo.toml`; bins/tests registrados explícitamente |
+| Toolchain CI/local pin | `rust-toolchain.toml` → `1.96.0` |
+| `tests/brain.rs` ausente | Solo 4 tests externos: production_surface, quality_properties, convergence_pipeline, configuration_contracts |
+| Schemas `cerebro.*` | Presentes en gates, authority temps, operator HTML/API |
+| Identidad `model_id` por snapshot | `model_candidate_identity` dominio `…OPERATOR-MODEL-CANDIDATE:v2` en `control_plane.rs` |
+| Gates pin nightly viejo | `quality/gate1-tooling.sh` → `QUALITY_EXPECTED_COMMIT=0ed41eb4142dda2df61eb1145a312c1a9d62eb56` |
+| `runtime/` gitignored | `.gitignore` |
 
-El pipeline cableado en `Makefile` y `.github/workflows/ci.yml` usa el mismo toolchain fijado por `rust-toolchain.toml` (1.96.0) y ejecuta formato, Clippy con `-D warnings`, compilación all-features, tests de librería, integración registrada, contratos de configuración y compilación del arnés de fuzzing:
+## Gaps conocidos (abiertos)
+
+1. **Naming `cerebro.*`** en schemas/wire — deuda de renombre.
+2. **`tests/brain.rs` eliminado** — pérdida de cobertura de integración brain/phantom/sleep.
+3. **Gates (gate1+) pin de nightly** posiblemente desfasado → drift de toolchain.
+4. **`publish = false`** — crate no publicable en crates.io (intencional hoy).
+5. **Estado local vs remoto:** trabajo adicional de `model_id` en working tree del usuario *por verificar*; no se hizo verificación live de IDs.
+
+## Política de verificación
+
+Este documento **no** afirma un recuento de `cargo test` sin re-ejecución. Para estado vivo:
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features --offline --locked -- -D warnings
-cargo check --all-targets --all-features --locked
-cargo test --lib --all-features --locked
-cargo test --all-features --locked --test production_surface --test quality_properties --test convergence_pipeline
-cargo test --locked --all-features --test configuration_contracts
-cargo check --locked --manifest-path fuzz/Cargo.toml --all-targets
+cd /home/yo/Future
+git rev-parse HEAD && git status -sb
+make ci   # o el subconjunto necesario; un solo cargo a la vez
 ```
 
-`Cargo.toml` mantiene `autotests = false`: sólo existen como targets los tests explícitamente registrados. Los antiguos tests huérfanos se retiraron o consolidaron en sus autoridades canónicas; el árbol no conserva tests externos no registrados.
+## Documentación
 
-## Componentes activos y verificados
+Índice: [INDEX.md](INDEX.md).
 
-### Authority layer
+## Estado de fricciones (verificado 2026-09-12)
 
-- `KnowledgeEngine`: planifica, valida y emite receipts. Expone `living_staircase()` como proyección de solo lectura.
-- `AdapterBank`: resuelve y autentica adaptadores. Único descriptor con `production_authority=true`.
+| Punto | Estado |
+|-------|--------|
+| Identidad content-bound / cero aliases | **OK** — dominio `OPERATOR-MODEL-CANDIDATE:v2`; test exige cambio de id si mutan pesos; sin `OperatorModelAlias` |
+| `cargo fmt --check` | **OK** |
+| `runtime/cargo-target` | **OK** — layout `llms/`, `private/`, `python/`, `tidex/` |
+| Docs esqueleto | **OK** — reescritos con sustancia; ver `docs/INDEX.md` |
+| Paths en `config/models.toml` | **Corregido** a paths relativos `runtime/...` (antes `/home/yo/Future/...`) |
+| Working tree dirty | **Abierto** — cambios locales sin commit |
+| Schemas `cerebro.*` | **Abierto** — ~745 hits; rename a `tidex.*` pendiente (wire + persistidos) |
+| `publish = false` | **Intencional** — no es crate crates.io; no es bug |
 
-No existe el tipo ni el archivo `AdaptiveStaircase`. Presentarlo como componente activo era un error documental.
-
-### Runtime cross-model
-
-Disponible cuando se construye con `--features cross-model-plasticity`:
-
-- backend Ollama con inferencia real;
-- backend Candle con validación de archivos reales;
-- backend HF con worker persistente (fuente embebida) y protocolo hashado;
-- extracción de activaciones del layer solicitado;
-- intervención de steering acotada y limpieza explícita.
-
-### Seguridad y contrato
-
-- rutas absolutas; validación de archivos y directorios en las rutas de identidad de modelo;
-- hashes SHA-256 para identidad y checks del runtime;
-- schemas y request ids en cada request/response del worker HF;
-- fail-closed en invalid identity, mismatch, corrupt file, unsupported capability.
-
-La superficie HTTP de la interfaz no hereda automáticamente esas garantías: `POST /api/models/scan` exige un path absoluto *dentro* del hub HF del runtime, y los assets de un job deben quedar bajo `TIDEX_HOME`. Eso es estado del código, no una afirmación de que el perímetro esté cerrado.
-
-## Qué no está establecido
-
-El proyecto no afirma todavía:
-
-- que un steering cause transferencia útil de comportamiento;
-- que exista una generalización universal entre arquitecturas;
-- que una activación interna sea producción lista sin autorización final;
-- que todos los backends sean iguales en capacidad o calidad;
-- que la experimentación o el synthetic data puedan promocionarse a producción sin validación adicional;
-- que la escalera viva unifique el árbol (plasticidad, numerics, residency, materialization, promotion) en un solo ciclo.
-
-Lo que sí está demostrado es la integridad del runtime de autoridad, la proyección de obligaciones y la separación entre ejecución real y decisión. Esa separación debe seguir visible en la documentación.
-
-## Política actual
-
-La política sigue siendo de evidencia antes de promoción:
-
-- si no hay origen real, la evidencia no se acepta;
-- si falta validación, la ejecución no avanza;
-- si cambia la identidad del artifact, se rechaza;
-- si la capa externa intenta gobernar por sí sola, la operación falla cerrada.
-
-## Documentación base
-
-- [README.md](../README.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [IMPLEMENTATION.md](IMPLEMENTATION.md)
-- [README_CROSS_MODEL.md](README_CROSS_MODEL.md)
+Verificación positiva: check/clippy/deny/audit, lib tests, operator graph, fuzz 100k×3 PASS.

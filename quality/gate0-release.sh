@@ -76,6 +76,7 @@ check_no_residue() {
 
     find . \
         -path ./.git -prune -o \
+        -path ./runtime -prune -o \
         \( -path ./fuzz/corpus -o -path ./fuzz/artifacts \) -print -prune -o \
         -type d \( \
             -name target -o \
@@ -97,6 +98,21 @@ check_no_residue() {
     if [[ -s "$residue_report" ]]; then
         echo 'residuos detectados:' >&2
         sed 's/^/  - /' "$residue_report" >&2
+        return 1
+    fi
+}
+
+check_runtime_layout() {
+    local forbidden report="$GATE0_TMP/runtime-layout.txt"
+    : > "$report"
+
+    for forbidden in runtime/cargo-target runtime/tidex/lab; do
+        [[ ! -e "$forbidden" ]] || printf '%s\n' "$forbidden" >> "$report"
+    done
+
+    if [[ -s "$report" ]]; then
+        echo 'estructura runtime no productiva detectada:' >&2
+        sed 's/^/  - /' "$report" >&2
         return 1
     fi
 }
@@ -127,15 +143,17 @@ check_metadata() {
 check_default_target_outside_checkout() {
     local manifest=$1
     local metadata="$GATE0_TMP/default-target-${manifest//[\/.]/_}-metadata.json"
-    local target_dir
+    local target_dir target_real root_real
     env -u CARGO_TARGET_DIR cargo metadata --manifest-path "$manifest" --offline --locked \
         --format-version 1 --no-deps > "$metadata" || return 1
     target_dir=$(sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p' "$metadata")
     [[ -n "$target_dir" ]] || return 1
-    case "$target_dir/" in
-        "$GATE0_ROOT/"*)
+    target_real=$(realpath -m -- "$target_dir") || return 1
+    root_real=$(realpath -m -- "$GATE0_ROOT") || return 1
+    case "$target_real/" in
+        "$root_real/"*)
             printf 'Cargo target_directory de %s cae dentro del checkout: %s\n' \
-                "$manifest" "$target_dir" >&2
+                "$manifest" "$target_real" >&2
             return 1
             ;;
     esac
@@ -186,7 +204,8 @@ check_empty_state_boot() {
 }
 
 run_check 'toolchain estable exactamente fijado' check_toolchain
-run_check 'ausencia de residuos conocidos' check_no_residue
+run_check 'ausencia de residuos conocidos fuera del runtime operativo' check_no_residue
+run_check 'runtime operativo sin build-cache ni subsistema lab retirado' check_runtime_layout
 run_check 'ningún almacén models/state/artifacts/evaluations dentro del checkout' check_no_checkout_stores
 run_check 'Cargo raíz por defecto compila fuera del checkout' \
     check_default_target_outside_checkout Cargo.toml

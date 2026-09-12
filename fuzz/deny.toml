@@ -9,6 +9,7 @@ allow = [
     # LLVM's libFuzzer runtime, used only by this non-production harness.
     "NCSA",
     "Unicode-3.0",
+    "Zlib",
     "Unlicense",
 ]
 confidence-threshold = 0.8

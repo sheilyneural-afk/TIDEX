@@ -4,15 +4,11 @@
 //! Hidden activations and model mutation remain unavailable through this
 //! backend and therefore fail closed through `LLMModel` defaults.
 
-pub mod candle_llama;
-pub mod candle_mistral;
 pub mod llama;
 pub mod mistral;
 pub mod qwen;
 pub mod traits;
 
-pub use candle_llama::CandleLlamaModel;
-pub use candle_mistral::CandleMistralModel;
 pub use llama::LlamaModel;
 pub use mistral::MistralModel;
 pub use qwen::QwenModel;
@@ -507,110 +503,6 @@ pub(crate) fn generation_execution_sha256(
     let mut framed = b"CEREBRO:CROSS-MODEL:GENERATION-EXECUTION:v1\0".to_vec();
     framed.extend_from_slice(&payload);
     Ok(sha256_hex(&framed))
-}
-
-pub(crate) struct LocalSafetensorsArtifacts {
-    pub checkpoint_bytes: Vec<u8>,
-    pub config_bytes: Vec<u8>,
-    pub tokenizer_bytes: Vec<u8>,
-    pub inventory: crate::receiver::weight_actuator::ModelParameterInventory,
-}
-
-pub(crate) fn load_local_safetensors_artifacts(
-    checkpoint_path: &Path,
-    config_path: &Path,
-    tokenizer_path: &Path,
-) -> Result<LocalSafetensorsArtifacts, Box<dyn Error + Send + Sync>> {
-    const MAX_CHECKPOINT_BYTES: u64 = 64 * 1024 * 1024 * 1024;
-    const MAX_CONFIG_BYTES: u64 = 16 * 1024 * 1024;
-    const MAX_TOKENIZER_BYTES: u64 = 256 * 1024 * 1024;
-
-    fn read_regular_bounded(
-        path: &Path,
-        maximum: u64,
-        label: &str,
-    ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-        if !path.is_absolute() {
-            return Err(format!("{label}_path_must_be_absolute").into());
-        }
-        let canonical = std::fs::canonicalize(path)?;
-        let metadata = std::fs::metadata(&canonical)?;
-        if !metadata.is_file() || metadata.len() == 0 || metadata.len() > maximum {
-            return Err(format!("{label}_file_invalid").into());
-        }
-        let bytes = std::fs::read(&canonical)?;
-        if u64::try_from(bytes.len()).ok() != Some(metadata.len()) {
-            return Err(format!("{label}_size_changed_during_read").into());
-        }
-        Ok(bytes)
-    }
-
-    let inventory = crate::receiver::weight_actuator::inspect_model_safetensors(checkpoint_path)?;
-    let checkpoint_bytes =
-        read_regular_bounded(checkpoint_path, MAX_CHECKPOINT_BYTES, "checkpoint")?;
-    let checkpoint_sha256 = sha256_hex(&checkpoint_bytes);
-    if checkpoint_sha256.as_str() != inventory.model_sha256.as_ref() {
-        return Err("checkpoint_bytes_changed_after_inventory".into());
-    }
-    let config_bytes = read_regular_bounded(config_path, MAX_CONFIG_BYTES, "model_config")?;
-    let tokenizer_bytes = read_regular_bounded(tokenizer_path, MAX_TOKENIZER_BYTES, "tokenizer")?;
-    Ok(LocalSafetensorsArtifacts {
-        checkpoint_bytes,
-        config_bytes,
-        tokenizer_bytes,
-        inventory,
-    })
-}
-
-pub(crate) struct LocalModelGeometry {
-    pub family: ArchitectureFamily,
-    pub embedding_dim: usize,
-    pub hidden_dim: usize,
-    pub num_layers: usize,
-    pub num_heads: usize,
-    pub vocab_size: usize,
-    pub max_sequence_length: usize,
-}
-
-pub(crate) fn local_model_config(
-    name: &str,
-    runtime_architecture: &str,
-    geometry: LocalModelGeometry,
-    artifacts: &LocalSafetensorsArtifacts,
-) -> Result<ModelConfig, Box<dyn Error + Send + Sync>> {
-    if name.trim().is_empty() {
-        return Err("local_model_name_invalid".into());
-    }
-    let tensor_names = artifacts
-        .inventory
-        .tensors
-        .iter()
-        .map(|tensor| tensor.tensor_id.to_string())
-        .collect::<Vec<_>>();
-    let runtime_metadata_sha256 = sha256_hex(&serde_json::to_vec(&(
-        artifacts.inventory.model_sha256.to_string(),
-        sha256_hex(&artifacts.config_bytes),
-        sha256_hex(&artifacts.tokenizer_bytes),
-        runtime_architecture,
-    ))?);
-    let config = ModelConfig {
-        name: name.to_string(),
-        runtime_model: artifacts.inventory.model_sha256.to_string(),
-        family: geometry.family,
-        runtime_architecture: runtime_architecture.to_string(),
-        embedding_dim: geometry.embedding_dim,
-        hidden_dim: geometry.hidden_dim,
-        num_layers: geometry.num_layers,
-        num_heads: geometry.num_heads,
-        vocab_size: geometry.vocab_size,
-        max_sequence_length: geometry.max_sequence_length,
-        parameter_count: artifacts.inventory.total_parameter_count,
-        quantization: None,
-        runtime_metadata_sha256,
-        tensor_names,
-    };
-    config.validate()?;
-    Ok(config)
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

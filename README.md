@@ -2,6 +2,10 @@
 
 TIDE-X es un proyecto Rust orientado a la ejecución real, la evidencia verificable y la autoridad explícita. El sistema no busca simular inteligencia ni delegar la verdad a modelos externos. Su objetivo es mantener un ciclo gobernado en el que cada paso sólo avanza si se demuestra que es necesario, útil, autentificado y verificable.
 
+## Documentación
+
+Mapa completo de docs (directorios, sistemas, auditorías, fórmulas): **[docs/INDEX.md](docs/INDEX.md)**.
+
 ## 0. Estado honesto y límites de evidencia
 
 ## Calidad profesional del repositorio

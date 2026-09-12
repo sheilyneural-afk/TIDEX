@@ -17,9 +17,9 @@ pub mod promotion;
 // Re-export commonly used types
 pub use models::{
     ActivationInterventionReceipt, AlignmentMethod, AlignmentResult, ArchitectureFamily,
-    CandleLlamaModel, CandleMistralModel, CapabilityMetadata, DType, Device, GenerationPolicy,
-    HfTransformersModel, HfTransformersRuntimeConfig, LLMModel, LlamaModel, MistralModel,
-    ModelAccess, ModelConfig, OllamaModel, QwenModel, SteeringVector, Tensor,
+    CapabilityMetadata, DType, Device, GenerationPolicy, HfTransformersModel,
+    HfTransformersRuntimeConfig, LLMModel, LlamaModel, MistralModel, ModelAccess, ModelConfig,
+    OllamaModel, QwenModel, SteeringVector, Tensor,
 };
 
 pub use discovery::{

@@ -3774,6 +3774,57 @@ mod tests {
     }
 
     #[test]
+    fn model_id_is_content_bound_and_stale_catalog_identity_is_rejected() {
+        let hub = default_hf_hub_root().expect("hub root");
+        fs::create_dir_all(&hub).unwrap();
+        let tag = format!("{}-{}", std::process::id(), now_nanos().unwrap_or(0));
+        let repo = hub.join(format!("models--tidex-content--{tag}"));
+        let blobs = repo.join("blobs");
+        let snap = repo.join("snapshots").join("abc123def456");
+        fs::create_dir_all(&blobs).unwrap();
+        fs::create_dir_all(&snap).unwrap();
+        fs::write(
+            blobs.join("config"),
+            br#"{"model_type":"llama","architectures":["LlamaForCausalLM"]}"#,
+        )
+        .unwrap();
+        fs::write(blobs.join("tok"), br#"{}"#).unwrap();
+        fs::write(blobs.join("weights"), b"checkpoint-bytes-v1").unwrap();
+        std::os::unix::fs::symlink("../../blobs/config", snap.join("config.json")).unwrap();
+        std::os::unix::fs::symlink("../../blobs/tok", snap.join("tokenizer.json")).unwrap();
+        std::os::unix::fs::symlink("../../blobs/weights", snap.join("model.safetensors")).unwrap();
+
+        let home = isolated_operator_home("content-model-id");
+        let first = catalog_local_models(&home, &hub).expect("first catalog");
+        let original = first
+            .iter()
+            .find(|model| model.root == snap)
+            .expect("original model")
+            .clone();
+        let repeated = discover_local_models(&hub).expect("repeat scan");
+        let repeated = repeated
+            .iter()
+            .find(|model| model.root == snap)
+            .expect("repeated model");
+        assert_eq!(original.model_id, repeated.model_id);
+
+        fs::write(blobs.join("weights"), b"checkpoint-bytes-MUTATED").unwrap();
+        let second = catalog_local_models(&home, &hub).expect("recatalog after mutation");
+        let mutated = second
+            .iter()
+            .find(|model| model.root == snap)
+            .expect("mutated model");
+        assert_ne!(original.model_id, mutated.model_id);
+        assert!(load_catalog_model(&home, &original.model_id).is_err());
+        let loaded = load_catalog_model(&home, &mutated.model_id).expect("load current model");
+        assert_eq!(loaded.model_id, mutated.model_id);
+        assert_eq!(loaded.root, snap);
+
+        let _ = fs::remove_dir_all(repo);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
     fn operator_assets_must_stay_inside_operator_home() {
         let home = isolated_operator_home("assets");
         let outside = std::env::temp_dir().join(format!(
@@ -3969,6 +4020,56 @@ mod tests {
         assert_eq!(listed[0].run.as_ref().unwrap().stdout, "");
         let loaded = load_job_record(&home, &job_id).unwrap();
         assert_eq!(loaded.run.as_ref().unwrap().stdout, "");
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn persisted_job_rejects_tampered_evidence_receipt_from_real_supervisor_path() {
+        let home = isolated_operator_home("job-evidence-tamper");
+        let missing_model = Sha256Digest::digest_bytes(b"operator-missing-model");
+        let queued = start_operator_job(
+            &home,
+            OperatorJobRequest::Direct(OperatorDirectWorkflowRequest {
+                schema: "cerebro.tidex.operator_direct_workflow/v1".into(),
+                operation: OperatorDirectOperation::ProbeRuntime,
+                model_ids: vec![missing_model],
+                dataset_sha256: None,
+                parameters: serde_json::json!({}),
+            }),
+        )
+        .unwrap();
+
+        let terminal = (0..200)
+            .find_map(|_| {
+                let record = load_job_record(&home, &queued.job_id).ok()?;
+                if matches!(
+                    record.state,
+                    OperatorJobState::Completed
+                        | OperatorJobState::Failed
+                        | OperatorJobState::Cancelled
+                ) {
+                    Some(record)
+                } else {
+                    std::thread::sleep(Duration::from_millis(5));
+                    None
+                }
+            })
+            .expect("real operator supervisor did not reach a terminal state");
+        assert_eq!(terminal.state, OperatorJobState::Failed);
+        assert!(terminal.evidence_receipt.is_some());
+
+        let status = job_status_path(&home, &queued.job_id);
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&fs::read(&status).unwrap()).unwrap();
+        value["evidence_receipt"]["evidence_sha256"] = serde_json::Value::String(
+            Sha256Digest::digest_bytes(b"tampered-evidence-receipt")
+                .as_str()
+                .to_string(),
+        );
+        fs::write(&status, serde_json::to_vec(&value).unwrap()).unwrap();
+
+        assert!(load_job_record(&home, &queued.job_id).is_err());
+        assert!(list_job_records(&home).is_err());
         let _ = fs::remove_dir_all(home);
     }
 

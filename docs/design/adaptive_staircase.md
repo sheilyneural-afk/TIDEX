@@ -172,7 +172,7 @@ y cerrar el ciclo sin mover la autoridad de su sitio.
 
 Referencias:
 
-- [README.md](../README.md)
-- [ARCHITECTURE.md](../docs/ARCHITECTURE.md)
-- [SYSTEM_STATUS.md](../docs/SYSTEM_STATUS.md)
-- [IMPLEMENTATION.md](../docs/IMPLEMENTATION.md)
+- [README.md](../../README.md)
+- [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [SYSTEM_STATUS.md](../SYSTEM_STATUS.md)
+- [IMPLEMENTATION.md](../IMPLEMENTATION.md)

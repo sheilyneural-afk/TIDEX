@@ -1,14 +1,10 @@
-# Auditoría funcional TIDE-X
+# Auditoría funcional TIDE-X — INFORME FINAL
 
-**Checkout:** `/home/yo/Future`
+**Generado:** 2026-09-11T23:29:46  
+**Checkout:** `/home/yo/Future`  
+**Serve:** `tidex serve` en `127.0.0.1:8793`
 
-Este documento conserva el snapshot original de la sesión del 2026-09-11 y la contra-auditoría que lo rectificó. El **estado actual** (post-corrección) está al final.
-
----
-
-## Snapshot original — 2026-09-11T23:29:46
-
-**Serve en sesión:** `tidex serve` en `127.0.0.1:8793`
+## Resumen
 
 | Paso | Resultado | Detalle |
 |------|-----------|---------|
@@ -27,69 +23,32 @@ Este documento conserva el snapshot original de la sesión del 2026-09-11 y la c
 | Operator HTTP GET (11) | **PASS** | todos 200 |
 | HF `probe_runtime` E2E | **PASS** | job `6c9a1b86…8a97` completed |
 
-**Veredicto del snapshot:** único rojo de integración aparente: **convergence** por mismatch de integridad del receiver compiler. `fmt` rojo para `make ci`.
+## Bloqueante
 
-> ⚠️ Este snapshot mezclaba estado temporal con diagnóstico estructural sin etiquetar caducidad. No usar como estado actual sin re-verificar.
+`convergence_pipeline::both_architectures_produce_replayed_physical_checkpoints_through_production_cli`
 
----
+```
+compile universal-plan: integrity:frozen_receiver_compiler_source_mismatch
+```
 
-## Contra-auditoría — 2026-09-11T23:36:11
+Origen: `src/receiver/receiver_compiler.rs` — el digest congelado del compiler no coincide con el árbol post-reorg.
 
-**Método:** re-ejecución independiente + verificación en disco + spotcheck HTTP.
+## HF end-to-end
 
-### Sesgos detectados en el informe original
+- `POST /api/workflows/direct` con SmolLM2-135M (`17b383c9…`)
+- HTTP 202 → **completed**
+- Access: behavioral_inference, internal_activations, activation_intervention, deep_instrumentation, sparse_autoencoder_analysis = **true**
+- `authorizes_production: false` (esperado)
+- evidence_sha256 `17e04221…`
 
-1. **Serve presente vs caído** — al verificar, `:8793` no escuchaba; el informe asumía proceso activo.
-2. **Convergence bloqueante** — fallo histórico en sesión con `cargo test` concurrente; re-run serializado: **3/3 PASS**. Causa probable: carrera de builds (`TIDEX_SOURCE_TREE_DIGEST` en `env!()` vs artefacto congelado / bin `tidex` desalineados).
-3. **Gate0 FAIL** — error de invocación (sin args ni `CARGO_TARGET_DIR`); con args correctos + dir privado 0700 → **PASS**.
-4. **Plasticidad v1** — runtime stale; código y bin actual exponen `operator_plasticity_advice/v2`.
+## Operator / plasticidad
 
-### Hallazgos que resisten auditoría dura
+- Schema **v1** (`available: false`); empates 0.000 en integer_arithmetic → sin ELO (fail-closed)
+- 6 jobs (incl. probe nuevo); 2 modelos SmolLM2; dataset integer-arithmetic
+- nnsight + sparse dictionary bound; HF python 3.12 OK
 
-- Compilación, superficie CLI/bins, lib 610, brain, production_surface, quality_properties, contracts, fuzz.
-- Job HF real (`6c9a1b86…8a97`) con evidence `17e04221…` en CAS del operator.
-- `fmt` realmente rojo (8 hunks en sesión: `models/mod.rs`, `control_plane.rs×7`).
-- Mecánica del mismatch bien citada (`receiver_compiler.rs` compara `compiler_source_sha256` vs `env!("TIDEX_SOURCE_TREE_DIGEST")`).
+## Veredicto
 
-### Método del informe original — problemas
-
-- `cargo test --test a --test b …` fail-fast: al fallar convergence no corrió production/quality en el mismo lote.
-- Otro `cargo test --all-targets … --test-threads=1` concurrente → riesgo de locks/digest skew.
-- Gate0 evaluado mal invocado y reportado como hallazgo del producto.
-
----
-
-## Estado actual — 2026-09-12 (post-corrección)
-
-**Correcciones aplicadas:** `cargo fmt --all` (1 hunk restante en `control_plane.rs`); documento actualizado.
-
-| Paso | Resultado | Detalle |
-|------|-----------|---------|
-| Toolchain | **PASS** | rustc/cargo **1.96.0** |
-| `cargo fmt --check` | **PASS** | sin diffs |
-| `cargo check --all-targets --locked` | **PASS** | |
-| Build bins (default + `--all-features`) | **PASS** | 13 bins no-bench + benches |
-| Integration `convergence_pipeline` | **PASS** | re-run serializado OK |
-| `gate0-empty-state.sh` | **PASS** | con `CARGO_TARGET_DIR` + dir 0700 |
-| Operator HTTP GET (11) | **PASS** | todos 200 (serve en `:8793`) |
-| Plasticidad API | **v2** | `available: false` (fail-closed, empates 0.000) |
-| HF `probe_runtime` E2E | **PASS** | job `6c9a1b86…8a97` completed |
-
-### Tests históricos (no re-corridos completos en esta sesión)
-
-| Suite | Resultado | Evidencia |
-|-------|-----------|-----------|
-| `cargo test --lib` | **610 PASS** | `/tmp/tidex-test-lib.out` (~179s) |
-| Integration `brain` | **13/13 PASS** | log integración 23:25 |
-| Integration `production_surface` | **17/17 PASS** | `/tmp/tidex-test-ps.out` |
-| Integration `quality_properties` | **3/3 PASS** | `/tmp/tidex-test-qp.out` |
-| `configuration_contracts` | **2/2 PASS** | `/tmp/tidex-test-cfg.out` |
-| Fuzz `cargo check` | **PASS** | |
-
-### Veredicto actual
-
-**Verde:** check, fmt, bins, convergence (serializado), gate0 (bien invocado), API×11, HF probe, contracts/fuzz (histórico).
-
-**Aviso operativo:** plasticidad `available:false` es comportamiento esperado (sin ELO por empates). Correr integración con un solo `cargo test` a la vez para evitar digest skew.
-
-**Recomendación CI:** `make ci` requiere re-ejecutar lib + integración en árbol limpio antes de release.
+Compilación, lib, brain, production_surface, quality_properties, contracts, fuzz y **probe HF real** en verde.  
+Único rojo de integración: **convergence** por mismatch de integridad del receiver compiler (deuda de la reorg).  
+`fmt` sigue rojo para `make ci`.
