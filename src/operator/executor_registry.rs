@@ -1522,18 +1522,18 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
         ),
         desc!(
             "coevolution.loop",
-            "Co-evolution analyzer",
+            "Co-evolution bidirectional loop",
             "cross_model::co_evolution::BidirectionalLoop",
             "cross_model/co_evolution",
             Operational,
             AdvisoryOnly,
             AdvisorySignal,
             [TidexOperator, InternalLibrary],
-            ["analyze_learning_dynamics"],
+            ["analyze_learning_dynamics", "steer_next_cycle"],
             ["cycle_history"],
-            ["coevolution_progress"],
+            ["coevolution_progress", "coevolution_directive"],
             None,
-            "Consumes persisted real discovery cycles with durable BidirectionalLoop history under operator/plasticity/; analyzer only, never executor authority."
+            "Operational advisory loop: seals causally filtered discovery+intervention history, plans the next discovery/transfer job, and steers durable routing/PI under operator/plasticity/; never production_authority."
         ),
         desc!(
             "consensus.builder",
