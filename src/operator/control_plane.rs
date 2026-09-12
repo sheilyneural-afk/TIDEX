@@ -4432,7 +4432,8 @@ mod tests {
             fs::create_dir_all(&snap).unwrap();
             std::os::unix::fs::symlink("../../blobs/config", snap.join("config.json")).unwrap();
             std::os::unix::fs::symlink("../../blobs/tok", snap.join("tokenizer.json")).unwrap();
-            std::os::unix::fs::symlink("../../blobs/weights", snap.join("model.safetensors")).unwrap();
+            std::os::unix::fs::symlink("../../blobs/weights", snap.join("model.safetensors"))
+                .unwrap();
             snaps.push(snap);
         }
 

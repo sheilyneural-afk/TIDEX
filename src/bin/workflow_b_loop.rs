@@ -34,11 +34,11 @@ use tidex::learning::portfolio_governance::{
     CandidateGatePolicy, MetricId, PetfcConservationLimits, PetfcMetricPolicy, PetfcPathLimits,
     PetfcPolicy, PetfcUtilityPolicy, RobustEvaluationPolicy,
 };
+use tidex::learning::procedural_memory::ProceduralMemory;
 use tidex::learning::procedural_memory::{
     BaseArtifactDigest, CapabilityContext, ProblemTransferPolicy, RetrievalQuery, RetrievalScope,
     SolverAttempt, TargetProfileDigest,
 };
-use tidex::learning::procedural_memory::ProceduralMemory;
 use tidex::learning::procedural_replay::rebuild_from_numerical_evolution_stdout;
 use tidex::learning::solver_portfolio::{
     CandidateRepresentation, LeastSquaresProblem, PortfolioPolicy,
@@ -247,9 +247,10 @@ fn wait_job_terminal(
 pub fn chain_start_accepted(terminal: &OperatorJobRecord) -> bool {
     matches!(terminal.state, OperatorJobState::Completed)
         && terminal.run.is_some()
-        && terminal.evidence_receipt.as_ref().is_some_and(|receipt| {
-            receipt.succeeded && receipt.run_id.is_some()
-        })
+        && terminal
+            .evidence_receipt
+            .as_ref()
+            .is_some_and(|receipt| receipt.succeeded && receipt.run_id.is_some())
 }
 
 fn require_chain_success_start(
@@ -350,13 +351,7 @@ fn procedural_experience_for_redecide(
         return Err(invalid("b_loop_tick2_stdout_digest_mismatch"));
     }
     let memory2 = rebuild_from_numerical_evolution_stdout(&stdout2)?;
-    Ok((
-        memory2,
-        attempt2,
-        stdout2,
-        digest2,
-        "hermetic_numerical_evolve",
-    ))
+    Ok((memory2, attempt2, stdout2, digest2, "hermetic_numerical_evolve"))
 }
 
 fn persist_stdout(tidex_home: &Path, label: &str, bytes: &[u8]) -> BrainResult<PathBuf> {
@@ -616,10 +611,7 @@ mod tests {
                 assert_eq!(proof.schema, PROOF_SCHEMA);
                 assert!(!proof.authorizes_production);
                 assert_eq!(proof.tick1.next_action_operation, "calibrate_alignment");
-                assert_eq!(
-                    proof.tick2.next_action_operation,
-                    "activation_transfer_experiment"
-                );
+                assert_eq!(proof.tick2.next_action_operation, "activation_transfer_experiment");
                 assert!(proof.next_action_changed);
                 assert!(proof.start_evidence_receipt_present);
                 assert!(proof.start_chain_success);
