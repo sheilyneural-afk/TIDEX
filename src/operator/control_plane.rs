@@ -4292,7 +4292,8 @@ mod tests {
         let hub = default_hf_hub_root().expect("hub root");
         fs::create_dir_all(&hub).unwrap();
         let tag = format!("{}-{}", std::process::id(), now_nanos().unwrap_or(0));
-        let repo = hub.join(format!("models--tidex-test--{tag}"));
+        let fixture_root = hub.join(format!("tidex-model-scan-fixture--{tag}"));
+        let repo = fixture_root.join("models--tidex-test");
         let blobs = repo.join("blobs");
         let snap = repo.join("snapshots").join("deadbeef");
         fs::create_dir_all(&blobs).unwrap();
@@ -4308,18 +4309,17 @@ mod tests {
         std::os::unix::fs::symlink("../../blobs/tok", snap.join("tokenizer.json")).unwrap();
         std::os::unix::fs::symlink("../../blobs/weights", snap.join("model.safetensors")).unwrap();
 
-        let evil_repo = hub.join(format!("models--tidex-escape--{tag}"));
+        let evil_repo = fixture_root.join("models--tidex-escape");
         let evil_snap = evil_repo.join("snapshots").join("evil");
         fs::create_dir_all(&evil_snap).unwrap();
         std::os::unix::fs::symlink("/etc/hosts", evil_snap.join("config.json")).unwrap();
         fs::write(evil_snap.join("tokenizer.json"), br#"{}"#).unwrap();
         fs::write(evil_snap.join("model.safetensors"), b"x").unwrap();
 
-        let found = discover_local_models(&hub).expect("scan");
+        let found = discover_local_models(&fixture_root).expect("scan");
         let hit = found.iter().any(|model| model.root == snap);
         let evil_hit = found.iter().any(|model| model.root == evil_snap);
-        let _ = fs::remove_dir_all(repo);
-        let _ = fs::remove_dir_all(evil_repo);
+        let _ = fs::remove_dir_all(fixture_root);
         assert!(hit, "HF blob-symlink snapshots inside the hub must catalog");
         assert!(!evil_hit, "symlinks that escape the hub must not catalog");
     }
