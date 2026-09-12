@@ -61,3 +61,7 @@ make ci   # o el subconjunto necesario; un solo cargo a la vez
 | `publish = false` | **Intencional** — no es crate crates.io; no es bug |
 
 Verificación positiva: check/clippy/deny/audit, lib tests, operator graph, fuzz 100k×3 PASS.
+
+## Núcleo numérico (2026-09-12)
+
+`symmetric_eigen_jacobi*` / `symmetric_top_eigen` usan **faer** self-adjoint EVD (API histórica conservada). `direct_one_sided_jacobi_svd` y políticas (causal/trust-region/gates) **no** se tocaron.

@@ -1,5 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 use crate::foundation::error::{BrainError, BrainResult};
+use faer::{Mat, Side};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {
@@ -388,46 +389,27 @@ pub fn weighted_normal_solve(
     solve(a, b)
 }
 
+/// Top-k eigenpairs of a real symmetric matrix.
+///
+/// Implemented via a full self-adjoint EVD (`faer`). The `iterations`
+/// parameter is retained for call-site compatibility with the old power
+/// iteration helper and is ignored.
 pub fn symmetric_top_eigen(
     a: &Matrix,
     k: usize,
-    iterations: usize,
+    _iterations: usize,
 ) -> BrainResult<Vec<(f64, Vec<f64>)>> {
     if a.rows != a.cols {
         return Err(BrainError::Invalid("eigen_shape".into()));
     }
-    let n = a.rows;
-    let mut basis: Vec<Vec<f64>> = Vec::new();
-    let mut out = Vec::new();
-    for comp in 0..k.min(n) {
-        let mut v = (0..n)
-            .map(|i| (((i + 1) * (comp + 3)) as f64 * 0.731).sin() + 0.17)
-            .collect::<Vec<_>>();
-        v = normalize(&v)?;
-        for _ in 0..iterations {
-            let mut w = a.matvec(&v)?;
-            for q in &basis {
-                let p = dot(&w, q)?;
-                add_scaled(&mut w, q, -p)?;
-            }
-            let wn = norm(&w)?;
-            if wn < 1e-12 {
-                break;
-            }
-            for x in &mut w {
-                *x /= wn;
-            }
-            v = w;
-        }
-        let av = a.matvec(&v)?;
-        let lambda = dot(&v, &av)?.max(0.0);
-        if lambda < 1e-12 {
-            break;
-        }
-        basis.push(v.clone());
-        out.push((lambda, v));
-    }
-    out.sort_by(|a, b| b.0.total_cmp(&a.0));
+    let signed = symmetric_eigen_faer_raw(a, 1e-12)?;
+    let mut out = signed
+        .into_iter()
+        .map(|(value, vector)| (value.max(0.0), vector))
+        .filter(|(value, _)| *value > 1e-12)
+        .take(k.min(a.rows))
+        .collect::<Vec<_>>();
+    out.sort_by(|left, right| right.0.total_cmp(&left.0));
     Ok(out)
 }
 
@@ -464,11 +446,15 @@ pub fn median(mut values: Vec<f64>) -> BrainResult<f64> {
     }
 }
 
-fn symmetric_eigen_jacobi_raw(
-    a: &Matrix,
-    tolerance: f64,
-    max_rotations: usize,
-) -> BrainResult<Vec<(f64, Vec<f64>)>> {
+fn matrix_to_faer(a: &Matrix) -> Mat<f64> {
+    Mat::from_fn(a.rows, a.cols, |row, column| a.get(row, column))
+}
+
+/// Self-adjoint EVD via `faer` (replaces the hand-rolled Jacobi iteration).
+///
+/// `tolerance` still gates the explicit symmetry check. `max_rotations` is
+/// retained for call-site compatibility and ignored by the faer backend.
+fn symmetric_eigen_faer_raw(a: &Matrix, tolerance: f64) -> BrainResult<Vec<(f64, Vec<f64>)>> {
     a.validate("jacobi_eigen_matrix")?;
     if a.rows != a.cols || !tolerance.is_finite() || tolerance <= 0.0 {
         return Err(BrainError::Invalid("jacobi_eigen_shape".into()));
@@ -491,77 +477,47 @@ fn symmetric_eigen_jacobi_raw(
             }
         }
     }
-    let mut d = a.clone();
-    let mut v = Matrix::identity(n);
-    let default_rotations = n.saturating_mul(n).saturating_mul(8);
-    let mut converged = n == 1;
-    for _ in 0..max_rotations.max(default_rotations) {
-        let mut p = 0usize;
-        let mut q = 0usize;
-        let mut max_off = 0.0f64;
-        for i in 0..n {
-            for j in i + 1..n {
-                let x = d.get(i, j).abs();
-                if x > max_off {
-                    max_off = x;
-                    p = i;
-                    q = j;
-                }
+    let mat = matrix_to_faer(a);
+    let evd = mat
+        .self_adjoint_eigen(Side::Lower)
+        .map_err(|_| BrainError::Numerical("faer_self_adjoint_evd_failed".into()))?;
+    let s = evd.S();
+    let u = evd.U();
+    let mut out = Vec::with_capacity(n);
+    for index in 0..n {
+        let eigenvalue = s[index];
+        if !eigenvalue.is_finite() {
+            return Err(BrainError::Numerical("faer_eigenvalue_non_finite".into()));
+        }
+        let mut vector = Vec::with_capacity(n);
+        for row in 0..n {
+            let value = u[(row, index)];
+            if !value.is_finite() {
+                return Err(BrainError::Numerical("faer_eigenvector_non_finite".into()));
             }
+            vector.push(value);
         }
-        if max_off <= tolerance {
-            converged = true;
-            break;
-        }
-        let app = d.get(p, p);
-        let aqq = d.get(q, q);
-        let apq = d.get(p, q);
-        let phi = 0.5 * (2.0 * apq).atan2(aqq - app);
-        let c = phi.cos();
-        let s = phi.sin();
-        for k in 0..n {
-            if k == p || k == q {
-                continue;
-            }
-            let dkp = d.get(k, p);
-            let dkq = d.get(k, q);
-            let np = c * dkp - s * dkq;
-            let nq = s * dkp + c * dkq;
-            d.set(k, p, np);
-            d.set(p, k, np);
-            d.set(k, q, nq);
-            d.set(q, k, nq);
-        }
-        let new_pp = c * c * app - 2.0 * s * c * apq + s * s * aqq;
-        let new_qq = s * s * app + 2.0 * s * c * apq + c * c * aqq;
-        d.set(p, p, new_pp);
-        d.set(q, q, new_qq);
-        d.set(p, q, 0.0);
-        d.set(q, p, 0.0);
-        for k in 0..n {
-            let vkp = v.get(k, p);
-            let vkq = v.get(k, q);
-            v.set(k, p, c * vkp - s * vkq);
-            v.set(k, q, s * vkp + c * vkq);
-        }
+        out.push((eigenvalue, normalize(&vector)?));
     }
-    if !converged {
-        return Err(BrainError::Numerical("jacobi_eigen_did_not_converge".into()));
-    }
-    let mut out = (0..n)
-        .map(|i| {
-            let vec = (0..n).map(|r| v.get(r, i)).collect::<Vec<_>>();
-            Ok((d.get(i, i), normalize(&vec)?))
-        })
-        .collect::<BrainResult<Vec<_>>>()?;
-    out.sort_by(|a, b| b.0.total_cmp(&a.0));
+    // faer returns nondecreasing eigenvalues; TIDEX callers expect descending.
+    out.sort_by(|left, right| right.0.total_cmp(&left.0));
     Ok(out)
 }
 
-/// Signed eigen-decomposition for symmetric matrices. Unlike the historical
-/// energy helper, this preserves negative and near-zero eigenvalues so callers
-/// can validate positive semidefiniteness instead of silently truncating
-/// dangerous negative curvature.
+fn symmetric_eigen_jacobi_raw(
+    a: &Matrix,
+    tolerance: f64,
+    _max_rotations: usize,
+) -> BrainResult<Vec<(f64, Vec<f64>)>> {
+    symmetric_eigen_faer_raw(a, tolerance)
+}
+
+/// Signed eigen-decomposition for symmetric matrices (`faer` self-adjoint EVD).
+///
+/// Unlike the energy helper, this preserves negative and near-zero eigenvalues so
+/// callers can validate positive semidefiniteness instead of silently truncating
+/// dangerous negative curvature. The historical Jacobi name is kept for API
+/// stability; `max_rotations` is ignored.
 pub fn symmetric_eigen_jacobi_signed(
     a: &Matrix,
     tolerance: f64,
@@ -570,8 +526,11 @@ pub fn symmetric_eigen_jacobi_signed(
     symmetric_eigen_jacobi_raw(a, tolerance, max_rotations)
 }
 
-/// Energy-oriented symmetric eigendecomposition. Negative eigenvalues are
-/// intentionally discarded because Gram/energy callers require a PSD spectrum.
+/// Energy-oriented symmetric eigendecomposition (`faer` self-adjoint EVD).
+///
+/// Negative eigenvalues are intentionally discarded because Gram/energy callers
+/// require a PSD spectrum. The historical Jacobi name is kept for API stability;
+/// `max_rotations` is ignored.
 pub fn symmetric_eigen_jacobi(
     a: &Matrix,
     tolerance: f64,
@@ -599,6 +558,22 @@ pub fn symmetric_eigen_jacobi(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn faer_top_eigen_matches_full_descending_spectrum() {
+        let mut matrix = Matrix::zeros(3, 3);
+        // diag(4, 1, 0.25) in the standard basis
+        matrix.set(0, 0, 4.0);
+        matrix.set(1, 1, 1.0);
+        matrix.set(2, 2, 0.25);
+        let full = symmetric_eigen_jacobi(&matrix, 1e-12, 100).unwrap();
+        let top = symmetric_top_eigen(&matrix, 2, 0).unwrap();
+        assert_eq!(top.len(), 2);
+        assert!((top[0].0 - full[0].0).abs() < 1e-10);
+        assert!((top[1].0 - full[1].0).abs() < 1e-10);
+        assert!((top[0].0 - 4.0).abs() < 1e-10);
+        assert!((top[1].0 - 1.0).abs() < 1e-10);
+    }
 
     #[test]
     fn signed_eigensolver_preserves_negative_eigenvalues() {

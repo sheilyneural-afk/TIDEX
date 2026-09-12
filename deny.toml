@@ -1,5 +1,9 @@
 [advisories]
 yanked = "deny"
+# Transitive via faer→gemm→paste. Unmaintained (not a vuln); no safe upgrade while on faer 0.24.
+ignore = [
+    { id = "RUSTSEC-2024-0436", reason = "paste pulled transitively by faer/gemm; no maintained upgrade path yet" },
+]
 
 [licenses]
 allow = [

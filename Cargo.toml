@@ -17,6 +17,7 @@ cross-model-plasticity = ["chrono", "reqwest"]
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
 sha2 = "=0.10.9"
+faer = { version = "=0.24.4", default-features = false, features = ["std", "linalg"] }
 rustix = { version = "=1.1.4", features = ["event", "fs"] }
 crossterm = "=0.29.0"
 ratatui = { version = "=0.30.2", default-features = false, features = ["crossterm"] }
