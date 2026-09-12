@@ -21,6 +21,15 @@ plasticity controller, ProceduralMemory JSON store, or capability-transfer claim
 Pending aperture `capability_weights.len()` **must equal** the metric vector
 length (2 for both mappings above). Otherwise admission fails closed.
 
+## Real V67 layout binding (legacy schema alias)
+
+Collected `tidex-v67-real-*.json` receipts embed `parameter_layout.schema =
+tidex.parameter_block_layout/v1` (current validate contract) while
+`materialization.parameter_layout_sha256` was sealed under the pre-rename
+string `cerebro.tidex.parameter_block_layout/v1` with **identical** blocks.
+Admission accepts that alias only when rewriting the schema string recovers the
+sealed digest; any other mismatch stays `vxx_admission_v67_layout_semantic_mismatch`.
+
 ## Required session context
 
 - Live adaptive-learning session under the configured private root
@@ -72,3 +81,69 @@ view after loading stdout. Job evidence receipts are hashes only
 requires the dense artifact file referenced by `dense_delta.path` (or an already
 installed canonical private copy) plus a pending aperture whose weight dimension
 is 2.
+
+
+## Reproduce (real V67 on-disk receipt)
+
+Requires the dense artifact still present at the absolute `dense_delta.path`
+recorded in `collected_receipts/tidex-v67-real-*.json` (typically under
+`/tmp/cerebro3-v67-real-…/artifacts/deltas/by-sha/…dvec`).
+
+```bash
+# private root (installer-owned 0700 directory)
+export TIDEX_PRIVATE_ROOT=/path/to/private   # absolute, mode 0700
+export TIDEX_HOME=/path/to/tidex-home
+
+# 1) start adaptive session (2 capabilities = V67 mapped metric arity)
+cat > /tmp/v67-learning-target.json <<'JSON'
+{
+  "target_id": "vxx-v67-real-cli",
+  "capability_ids": [
+    "v67.actuation_established",
+    "v67.v66_behavioral_delta_source_used"
+  ],
+  "candidate_budget": 8,
+  "plan_steps": 4,
+  "noise_variance": 0.1,
+  "cost_weight": 0.0,
+  "risk_weight": 0.0
+}
+JSON
+cat > /tmp/v67-learning-policy.json <<'JSON'
+{
+  "schema": "tidex.adaptive_learning_policy/v1",
+  "outcome_utility_weight": 1.0,
+  "maximize_observed_value": true
+}
+JSON
+
+./tidex  # builds bins as needed; or cargo build --locked --offline --bin adaptive-learning-cycle --bin tidex
+adaptive-learning-cycle start vxx-v67-real-cli /tmp/v67-learning-target.json /tmp/v67-learning-policy.json
+adaptive-learning-cycle next vxx-v67-real-cli > /tmp/aperture-before.json
+
+# 2) admit + assimilate real receipt (binds dense via path on receipt)
+tidex learning admit-vxx vxx-v67-real-cli \
+  collected_receipts/tidex-v67-real-11kb4b6z-receipt.json --assimilate
+
+# 3) next aperture / strategy after assimilate
+adaptive-learning-cycle next vxx-v67-real-cli > /tmp/aperture-after.json
+adaptive-learning-cycle show vxx-v67-real-cli
+```
+
+Automated proof (skips only if dense file absent — never fabricates success):
+
+```bash
+# Real V67 sketches ~201M params — use --release (debug can take many minutes).
+cargo test --locked --offline --release --test vxx_learning_admission -- --nocapture
+cargo test --locked --offline --lib experimental_evidence_admission -- --nocapture
+```
+
+Lib unit `real_v67_receipt_admits_assimilates_and_changes_next_aperture` is opt-in (`TIDEX_RUN_REAL_V67=1`); prefer the release integration test above.
+
+Relevant tests:
+
+- `integration_real_v67_admit_assimilate_changes_next_aperture`
+- `integration_v68_forbidden_transfer_claim_fails_closed`
+- `real_v67_receipt_admits_assimilates_and_changes_next_aperture`
+- `v68_transfer_claim_true_is_rejected`
+- `v67_fixture_admits_and_assimilates_changing_next_aperture`

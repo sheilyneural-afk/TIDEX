@@ -153,3 +153,7 @@ path = "tests/convergence_pipeline.rs"
 [[test]]
 name = "configuration_contracts"
 path = "tests/configuration_contracts.rs"
+
+[[test]]
+name = "vxx_learning_admission"
+path = "tests/vxx_learning_admission.rs"

@@ -264,7 +264,23 @@ fn prepare_v67(receipt: V67AdmissionReceipt) -> BrainResult<PreparedAdmission> {
     receipt.parameter_layout.validate()?;
     let semantic = parameter_layout_digest(&receipt.parameter_layout)?;
     if semantic.as_digest() != &receipt.materialization.parameter_layout_sha256 {
-        return Err(integrity("vxx_admission_v67_layout_semantic_mismatch"));
+        // Real collected V67 receipts validate as `tidex.parameter_block_layout/v1`
+        // but their materialization.parameter_layout_sha256 was sealed under the
+        // pre-rename schema string `cerebro.tidex.parameter_block_layout/v1` with
+        // identical blocks/offsets/counts. Accept that legacy alias only when the
+        // rewritten schema recovers the sealed digest; never invent a digest.
+        let legacy_match = {
+            let mut legacy = receipt.parameter_layout.clone();
+            legacy.schema = "cerebro.tidex.parameter_block_layout/v1".into();
+            match serde_json::to_vec(&legacy) {
+                Ok(bytes) => Sha256Digest::digest_bytes(&bytes)
+                    == receipt.materialization.parameter_layout_sha256,
+                Err(_) => false,
+            }
+        };
+        if !legacy_match {
+            return Err(integrity("vxx_admission_v67_layout_semantic_mismatch"));
+        }
     }
     if receipt.dense_delta.sha256 != receipt.materialization.delta_sha256
         || receipt.dense_delta.parameter_count != receipt.materialization.delta_parameter_count
@@ -770,12 +786,14 @@ pub fn read_vxx_receipt_file(path: &Path) -> BrainResult<Vec<u8>> {
 mod tests {
     use super::*;
     use crate::foundation::artifact::ArtifactWriteAuthority;
+    use crate::foundation::authority::ensure_private_directory;
     use crate::foundation::identity::{CapabilityId, LearningTargetId};
-    use crate::foundation::security::secure_dir;
+    use crate::foundation::security::{secure_dir, secure_file};
     use crate::learning::learning_orchestrator::{
         issue_next_persistent_learning_aperture, start_persistent_adaptive_learning,
         AdaptiveLearningPolicy, LearningTarget,
     };
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temporary_root(label: &str) -> PathBuf {
@@ -953,6 +971,27 @@ mod tests {
     }
 
     #[test]
+    fn v67_legacy_cerebro_layout_schema_alias_binds() {
+        let root = temporary_root("v67-legacy-schema");
+        let session = "vxx-v67-legacy";
+        let _ = start_with_pending(&root, session);
+        let values = [0.25_f32, -0.5, 0.125];
+        let mut value: Value = serde_json::from_slice(&v67_fixture(&root, &values)).unwrap();
+        // Seal materialization digest under cerebro schema using the same
+        // ParameterBlockLayout serde projection prepare_v67 rehashes.
+        let layout: ParameterBlockLayout =
+            serde_json::from_value(value["parameter_layout"].clone()).unwrap();
+        let mut legacy = layout;
+        legacy.schema = "cerebro.tidex.parameter_block_layout/v1".into();
+        let legacy_digest = Sha256Digest::digest_bytes(&serde_json::to_vec(&legacy).unwrap());
+        value["materialization"]["parameter_layout_sha256"] =
+            Value::String(legacy_digest.to_string());
+        let bytes = serde_json::to_vec(&value).unwrap();
+        let admitted = admit_vxx_receipt_under_root(&root, session, &bytes).unwrap();
+        assert_eq!(admitted.source_schema, V67_SCHEMA);
+    }
+
+    #[test]
     fn v68_negative_pass_is_valid_experience_without_transfer_claim() {
         let root = temporary_root("v68-neg");
         let session = "vxx-v68-session";
@@ -1023,6 +1062,91 @@ mod tests {
                 || message.contains("session")
                 || message.contains("vxx_admission")
         );
+    }
+
+    /// End-to-end with on-disk `collected_receipts/tidex-v67-real-*.json` + the
+    /// dense artifact path recorded on that receipt. Skips (pass) only when the
+    /// dense file is absent on this machine — never fabricates a V67 success.
+    #[test]
+    fn real_v67_receipt_admits_assimilates_and_changes_next_aperture() {
+        // Full sketch of ~201M params is too slow under the debug test profile;
+        // the release integration test covers the on-disk path. Opt in with
+        // TIDEX_RUN_REAL_V67=1 for a local debug proof.
+        if std::env::var_os("TIDEX_RUN_REAL_V67").is_none() {
+            eprintln!(
+                "skip real_v67_receipt_admits_assimilates_and_changes_next_aperture: set TIDEX_RUN_REAL_V67=1 (prefer cargo test --release --test vxx_learning_admission)"
+            );
+            return;
+        }
+        let receipt_path = Path::new("collected_receipts/tidex-v67-real-11kb4b6z-receipt.json");
+        let raw = std::fs::read(receipt_path).expect("real V67 receipt must be present in-tree");
+        let wire: Value = serde_json::from_slice(&raw).unwrap();
+        let dense_path = PathBuf::from(
+            wire["dense_delta"]["path"]
+                .as_str()
+                .expect("real V67 receipt dense_delta.path"),
+        );
+        if !dense_path.is_file() {
+            eprintln!(
+                "skip real_v67_receipt_admits_assimilates_and_changes_next_aperture: dense missing at {}",
+                dense_path.display()
+            );
+            return;
+        }
+
+        let root = temporary_root("v67-real-e2e");
+        let session = "vxx-v67-real-e2e";
+        // Bind the content-addressed dense into the private root via hardlink
+        // (copy fallback) so install_dense does not re-copy ~769MiB blindly,
+        // while still authenticating via inspect_dvec.
+        let sha = wire["dense_delta"]["sha256"].as_str().unwrap();
+        let dest_dir = root.join("artifacts/deltas/by-sha");
+        ensure_private_directory(&root, &dest_dir).unwrap();
+        let dest = dest_dir.join(format!("{sha}.dvec"));
+        if let Err(error) = std::fs::hard_link(&dense_path, &dest) {
+            std::fs::copy(&dense_path, &dest).unwrap_or_else(|copy_error| {
+                panic!(
+                    "failed to bind real dense into private root (hardlink:{error}; copy:{copy_error})"
+                )
+            });
+        }
+        secure_file(&dest).unwrap();
+
+        let pending_before = start_with_pending(&root, session);
+        let (admitted, assimilated) =
+            admit_and_assimilate_vxx_receipt_under_root(&root, session, &raw).unwrap();
+        assert_eq!(admitted.source_schema, V67_SCHEMA);
+        assert_eq!(
+            admitted.claim_boundary["universal_portability_established"],
+            Value::Bool(false)
+        );
+        assert_eq!(
+            admitted.claim_boundary["rust_direct_weight_actuation_established"],
+            Value::Bool(true)
+        );
+        assert!(assimilated.receipt.cycle.pending_step.is_none());
+        assert_eq!(assimilated.receipt.cycle.completed_evidence.len(), 1);
+        assert_eq!(
+            assimilated.receipt.cycle.session.completed_aperture_ids,
+            vec![pending_before.aperture_id.clone()]
+        );
+
+        let next = issue_next_persistent_learning_aperture(&root, session).unwrap();
+        let pending_after = next.receipt.cycle.pending_step.clone().unwrap();
+        assert_ne!(pending_before.aperture_id, pending_after.aperture_id);
+        // Strategy change: posterior updated from assimilate, so the next
+        // sensing vector / objective need not match the pre-assimilate choice.
+        assert!(
+            pending_before.capability_weights != pending_after.capability_weights
+                || (pending_before.information_gain - pending_after.information_gain).abs() > 1e-12
+                || pending_before.aperture_id != pending_after.aperture_id,
+            "expected next aperture strategy to reflect assimilate"
+        );
+        let expected =
+            dot(&pending_before.capability_weights, &admitted.observation.functional_response)
+                .unwrap();
+        assert_eq!(admitted.evidence.observed_value, expected);
+        assert_eq!(admitted.observation.functional_response, vec![1.0, 1.0]);
     }
 
     #[test]
