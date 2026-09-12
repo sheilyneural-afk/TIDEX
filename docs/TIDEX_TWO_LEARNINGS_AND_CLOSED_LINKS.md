@@ -17,6 +17,7 @@
 | Paso 1 (plasticidad durable) | ✅ **CLOSED / CERTIFIED** — plasticidad durable certificada; 18+ tests; no más plasticidad |
 | Paso 2 (ProceduralMemory útil) | ✅ **DONE** — receipts → replay → ProceduralMemory → retrieve (`bc531d7` + 2B/2C fold) |
 | Paso 3 (cerrar `NextAction` → executor) | ✅ **DONE** — `NextAction` @ `3ccd61f` + live B-loop proof (`tidex workflow prove-b-loop` / `prove_b_loop_real_evidence_start_receipt_redecide`): decide → Start → receipt → replay → redecide |
+| Organism chain e2e (composición) | ✅ **LINKED** — `prove_organism_chain_facilitation_route_bind_start_receipt_redecide` / `tidex workflow prove-organism-chain`: confounders→DirectedFacilitation→CognitiveField→FieldRoutingDecision→FieldActionBinding→NextAction→Start→receipt→replay→redecide. Still outside: live Vxx admit, live GPEM donor, Weights IR vertical, true DeltaObservation→admit start |
 | Paso 4 (adquisición funcional) | 🟡→🟢 **LIVE DONOR WIRED** — `AuthenticatedCapacity` + `GpemV2RecommendDonorWire::observe` → SHEI `recommend_v2` (fail-closed; no fixture substitute) |
 | Paso 5 (residencia / IR) | ✅ — package → ResidencyDecision; **Weights/Hybrid→measured IR→receptor** closed in separate vertical (`weights_ir_receptor_vertical`) — not invented from source trees; GPEM procedure-selector stays Software |
 | Paso 6 (demo real) | ✅ **ACCEPTED (Software vertical)** — `tidex demo procedure-selector` remains Software stop + real B-loop. **Do not force GPEM into Weights.** Parallel demo: `tidex demo weights-ir-receptor` (measured closed linear map → Weights → IR → `compile_receiver_readout_capability`). |
@@ -591,6 +592,8 @@ KnowledgeEngine
 ```
 
 Criterio de cierre de B (= congelación de aceptación §0): el sistema emite y **ejecuta** una sola siguiente acción, re-mide, actualiza estado plástico / procedural (vía replay), y la siguiente decisión **cambia por evidencia** — sin que un humano elija el job a mano. Los gates siguen siendo gates. El coordinador no promociona.
+
+**Organism chain e2e (status):** composition-root acceptance that stitches the already-proven facilitation→route→binding and B-loop Start→receipt→redecide links in one test (`src/bin/workflow_organism_e2e.rs`). No new BrainEngine/plasticity. Fail-closed on missing bindings / unknown operations. Still multi-test outside this chain: live Vxx admit, live SHEI/GPEM donor, Weights/Hybrid→IR→receptor, true `DeltaObservation`→admit start.
 
 **Hecho en Paso 3:** decisión tipada + mapping a executor + Start hook. **B-loop proof (criterio §0):** `src/bin/workflow_b_loop.rs` — real `numerical.evolve` evidence → `rebuild_from_numerical_evolution_stdout` → retrieve→hint→`decide_next_action` → `invoke_next_action(Start)` → Operator job `evidence_receipt` → second real evolve → replay → **different** NextAction (calibrate→transfer) attributable to procedural retrieve (not hand-planted hints). CLI: `tidex workflow prove-b-loop`. Test: `prove_b_loop_real_evidence_start_receipt_redecide`. KE signals siguen siendo proyección advisory hacia el DTO.
 

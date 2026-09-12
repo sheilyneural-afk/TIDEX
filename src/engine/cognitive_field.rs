@@ -1,9 +1,11 @@
-use crate::foundation::contracts::SkillField;
+use crate::foundation::contracts::{ConfounderValue, SkillField};
 use crate::foundation::error::{BrainError, BrainResult};
 use crate::foundation::identity::SkillId;
 use crate::foundation::linalg::{cosine, Matrix};
 use crate::foundation::validation::validate_symmetric_psd;
-use crate::learning::causal_credit::CausalCreditReport;
+use crate::learning::causal_credit::{
+    directed_facilitation_drive, CausalCreditReport, DirectedFacilitationReport,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -65,6 +67,34 @@ pub struct CognitiveFieldDrive {
     pub prediction_error: Vec<f64>,
     pub inhibition: Vec<f64>,
     pub risk: Vec<f64>,
+}
+
+impl CognitiveFieldDrive {
+    /// Build a runtime drive from context-matched directed facilitation while
+    /// preserving the existing prediction-error, inhibition and risk channels.
+    /// The facilitation report remains advisory evidence; normal CognitiveField
+    /// convergence, routing and governed composition remain authoritative.
+    pub fn from_directed_facilitation(
+        report: &DirectedFacilitationReport,
+        target_skill_id: &SkillId,
+        context: &[ConfounderValue],
+        field_ids: &[SkillId],
+        prediction_error: Vec<f64>,
+        inhibition: Vec<f64>,
+        risk: Vec<f64>,
+    ) -> BrainResult<Self> {
+        let n = field_ids.len();
+        if prediction_error.len() != n || inhibition.len() != n || risk.len() != n {
+            return Err(BrainError::Invalid("cognitive_field_facilitation_drive_shape".into()));
+        }
+        let evidence = directed_facilitation_drive(report, target_skill_id, context, field_ids)?;
+        Ok(Self {
+            evidence,
+            prediction_error,
+            inhibition,
+            risk,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -575,7 +605,11 @@ impl DynamicCognitiveField {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::learning::causal_credit::{FieldCausalCredit, PairInteractionCredit};
+    use crate::foundation::digest::Sha256Digest;
+    use crate::learning::causal_credit::{
+        estimate_directed_facilitation, DirectedFacilitationObservation, FieldCausalCredit,
+        PairInteractionCredit,
+    };
 
     fn field(id: &str, functional: Vec<f64>) -> SkillField {
         SkillField {
@@ -788,5 +822,94 @@ mod tests {
         let route = model.route_top_k(&state, 2, 0.0).unwrap();
         assert_eq!(route.selected_field_ids.len(), 2);
         assert!((route.coefficients.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn context_conditioned_facilitation_changes_routing() {
+        let fields = vec![
+            field("a", vec![1.0, 0.0]),
+            field("b", vec![1.0, 0.0]),
+            field("c", vec![1.0, 0.0]),
+        ];
+        let config = CognitiveFieldConfig {
+            curvature_weight: 1.0,
+            causal_interaction_weight: 0.0,
+            functional_compatibility_weight: 0.0,
+            causal_bias_weight: 0.0,
+            coupling_gain: 0.0,
+            ..CognitiveFieldConfig::default()
+        };
+        let model = DynamicCognitiveField::build(
+            &fields,
+            &Matrix::identity(3),
+            &causal(),
+            config,
+        )
+        .unwrap();
+
+        let hot = vec![ConfounderValue {
+            name: "receiver_temperature".into(),
+            value: 1.0,
+        }];
+        let cold = vec![ConfounderValue {
+            name: "receiver_temperature".into(),
+            value: 0.0,
+        }];
+        let target = SkillId::parse("target").unwrap();
+        let design = Sha256Digest::parse("a".repeat(64)).unwrap();
+        let mut observations = Vec::new();
+        let mut nonce = 1u8;
+        for (context, effects) in [
+            (&hot, [1.0, 0.2, -1.0]),
+            (&cold, [-1.0, 0.2, 1.0]),
+        ] {
+            for (source, effect) in ["a", "b", "c"].into_iter().zip(effects) {
+                for group in ["g1", "g2", "g3"] {
+                    observations.push(DirectedFacilitationObservation {
+                        target_skill_id: target.clone(),
+                        source_skill_ids: vec![SkillId::parse(source).unwrap()],
+                        context: context.clone(),
+                        independence_group: group.into(),
+                        baseline_utility: 0.0,
+                        facilitated_utility: effect,
+                        matched_design_digest: design.clone(),
+                        evidence_digest: Sha256Digest::parse(format!("{:064x}", nonce)).unwrap(),
+                    });
+                    nonce += 1;
+                }
+            }
+        }
+        let report = estimate_directed_facilitation(&observations).unwrap();
+
+        let hot_drive = CognitiveFieldDrive::from_directed_facilitation(
+            &report,
+            &target,
+            &hot,
+            &model.field_ids,
+            vec![0.0; 3],
+            vec![0.0; 3],
+            vec![0.0; 3],
+        )
+        .unwrap();
+        let cold_drive = CognitiveFieldDrive::from_directed_facilitation(
+            &report,
+            &target,
+            &cold,
+            &model.field_ids,
+            vec![0.0; 3],
+            vec![0.0; 3],
+            vec![0.0; 3],
+        )
+        .unwrap();
+
+        let hot_state = model.evolve(&[0.0; 3], &hot_drive).unwrap();
+        let cold_state = model.evolve(&[0.0; 3], &cold_drive).unwrap();
+        assert!(hot_state.converged && cold_state.converged);
+
+        let hot_route = model.route_top_k(&hot_state, 1, 0.0).unwrap();
+        let cold_route = model.route_top_k(&cold_state, 1, 0.0).unwrap();
+        assert_eq!(hot_route.selected_field_ids, vec![SkillId::parse("a").unwrap()]);
+        assert_eq!(cold_route.selected_field_ids, vec![SkillId::parse("c").unwrap()]);
+        assert_ne!(hot_route.selected_field_ids, cold_route.selected_field_ids);
     }
 }

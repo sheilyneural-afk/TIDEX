@@ -29,7 +29,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::Path;
+use tidex::engine::cognitive_field::FieldRoutingDecision;
 use tidex::foundation::digest::Sha256Digest;
+use tidex::foundation::identity::SkillId;
 use tidex::foundation::error::{BrainError, BrainResult};
 use tidex::learning::procedural_memory::{AdviceDisposition, RetrievalReport, SolverFamily};
 use tidex::learning::procedural_memory::{ProceduralMemory, RetrievalQuery};
@@ -87,6 +89,56 @@ pub struct RoutingPreference {
     pub scope: Option<String>,
     #[serde(default)]
     pub routing_score: Option<f64>,
+}
+
+/// Explicit composition-root binding from a cognitive SkillField to an
+/// already-registered workflow operation. This is configuration, not learned
+/// truth: CognitiveField chooses the skill; the binding only translates that
+/// choice into the existing NextAction vocabulary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FieldActionBinding {
+    pub skill_id: SkillId,
+    pub operation: String,
+}
+
+/// Convert a converged CognitiveField route into the existing co-evolution
+/// directive surface. Missing/ambiguous bindings fail closed; no operation is
+/// guessed from a skill name.
+pub fn directive_from_field_route(
+    route: &FieldRoutingDecision,
+    bindings: &[FieldActionBinding],
+    reason: impl Into<String>,
+    evidence_sha256: Option<String>,
+) -> BrainResult<CoEvolutionDirectiveSnapshot> {
+    if route.schema != "tidex.cognitive_field_routing/v1"
+        || route.selected_field_ids.len() != 1
+        || route.selected_activation_mass <= 0.0
+        || !route.selected_activation_mass.is_finite()
+    {
+        return Err(invalid("workflow_field_route_not_single_authoritative_choice"));
+    }
+    let selected = &route.selected_field_ids[0];
+    let matches = bindings
+        .iter()
+        .filter(|binding| &binding.skill_id == selected)
+        .collect::<Vec<_>>();
+    if matches.len() != 1 || matches[0].operation.trim().is_empty() {
+        return Err(invalid("workflow_field_route_binding_missing_or_ambiguous"));
+    }
+    let operation = matches[0].operation.clone();
+    if executor_id_for_direct_operation(&operation).is_none() {
+        return Err(invalid("workflow_field_route_operation_not_registered"));
+    }
+    Ok(CoEvolutionDirectiveSnapshot {
+        recommended_operation: operation,
+        reason: reason.into(),
+        converged: false,
+        source_model: None,
+        target_model: None,
+        capability_hint: Some(selected.to_string()),
+        evidence_sha256,
+    })
 }
 
 /// Cost / risk ceilings (fail-closed when the chosen action exceeds them).
@@ -666,6 +718,67 @@ mod tests {
             capability_hint: Some("benchmark:fixture".into()),
             evidence_sha256: Some(digest_hex(9)),
         }
+    }
+
+    #[test]
+    fn cognitive_field_route_changes_next_action_without_guessing_operation() {
+        let bindings = vec![
+            FieldActionBinding {
+                skill_id: SkillId::parse("route-a").unwrap(),
+                operation: "behavioral_evaluation".into(),
+            },
+            FieldActionBinding {
+                skill_id: SkillId::parse("route-c").unwrap(),
+                operation: "probe_runtime".into(),
+            },
+        ];
+        let route = |selected: &str| FieldRoutingDecision {
+            schema: "tidex.cognitive_field_routing/v1".into(),
+            field_ids: vec![SkillId::parse("route-a").unwrap(), SkillId::parse("route-c").unwrap()],
+            coefficients: if selected == "route-a" { vec![1.0, 0.0] } else { vec![0.0, 1.0] },
+            selected_field_ids: vec![SkillId::parse(selected).unwrap()],
+            selected_activation_mass: 1.0,
+        };
+        let decide = |selected: &str| {
+            let directive = directive_from_field_route(
+                &route(selected),
+                &bindings,
+                "context-matched directed facilitation route",
+                Some(digest_hex(9)),
+            )
+            .unwrap();
+            let input = WorkflowDecisionInput {
+                knowledge: KnowledgeWorkflowSignals {
+                    calibration_sufficient: true,
+                    causal_evidence_sufficient: true,
+                    notes: vec!["directed_facilitation_context_matched".into()],
+                },
+                coevolution_directive: Some(directive),
+                routing: RoutingPreference::default(),
+                procedural_hint: None,
+                authorized_inputs: base_inputs(),
+                cost_ceiling: WorkflowCost { relative_units: 2 },
+                risk_ceiling: WorkflowRisk { level: 2 },
+                stop_condition: StopCondition::default(),
+                require_directive: true,
+            };
+            decide_next_action(&input).unwrap()
+        };
+        let a = decide("route-a");
+        let c = decide("route-c");
+        assert_eq!(a.operation, "behavioral_evaluation");
+        assert_eq!(c.operation, "probe_runtime");
+        assert_ne!(a.executor_id, c.executor_id);
+        executor_by_id(&a.executor_id).unwrap();
+        executor_by_id(&c.executor_id).unwrap();
+
+        let missing = directive_from_field_route(
+            &route("route-a"),
+            &bindings[1..],
+            "must fail closed",
+            None,
+        );
+        assert!(missing.is_err());
     }
 
     #[test]

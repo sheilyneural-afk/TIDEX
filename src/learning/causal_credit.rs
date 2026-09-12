@@ -1,3 +1,5 @@
+use crate::foundation::contracts::ConfounderValue;
+use crate::foundation::digest::Sha256Digest;
 use crate::foundation::error::{BrainError, BrainResult};
 use crate::foundation::identity::SkillId;
 use serde::{Deserialize, Serialize};
@@ -447,6 +449,275 @@ pub fn compute_shapley_values(
     Ok(shapley_map)
 }
 
+/// Compute-matched evidence that prior acquisition of `source_skill_ids`
+/// changes learning utility on `target_skill_id`. Baseline and facilitated
+/// outcomes live in the same record so the pairing cannot be reconstructed
+/// from unrelated runs. `matched_design_digest` binds the caller's immutable
+/// compute/data/optimizer design; this reducer never treats a label as proof
+/// that two experiments were actually matched.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DirectedFacilitationObservation {
+    pub target_skill_id: SkillId,
+    pub source_skill_ids: Vec<SkillId>,
+    /// Environmental/runtime conditions under which this paired facilitation
+    /// observation was measured. The schema is canonicalized and becomes part
+    /// of the edge identity; evidence from different contexts is never pooled.
+    #[serde(default)]
+    pub context: Vec<ConfounderValue>,
+    pub independence_group: String,
+    pub baseline_utility: f64,
+    pub facilitated_utility: f64,
+    pub matched_design_digest: Sha256Digest,
+    pub evidence_digest: Sha256Digest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DirectedFacilitationEdge {
+    pub target_skill_id: SkillId,
+    pub source_skill_ids: Vec<SkillId>,
+    /// Canonical context/confounder values for which this edge is established.
+    pub context: Vec<ConfounderValue>,
+    pub independent_groups: usize,
+    pub paired_observations: usize,
+    pub mean_effect: f64,
+    pub standard_error: f64,
+    pub lower_confidence_bound: f64,
+    pub upper_confidence_bound: f64,
+    pub positive_fraction: f64,
+    pub resolved: bool,
+    pub beneficial: bool,
+    pub interfering: bool,
+    pub matched_design_digests: Vec<Sha256Digest>,
+    pub evidence_digests: Vec<Sha256Digest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DirectedFacilitationReport {
+    pub schema: String,
+    pub edge_count: usize,
+    pub edges: Vec<DirectedFacilitationEdge>,
+}
+
+fn canonical_context(context: &[ConfounderValue]) -> BrainResult<Vec<ConfounderValue>> {
+    let mut canonical = context.to_vec();
+    if canonical
+        .iter()
+        .any(|item| item.name.trim().is_empty() || !item.value.is_finite())
+    {
+        return Err(BrainError::Invalid("directed_facilitation_context_invalid".into()));
+    }
+    canonical.sort_by(|left, right| left.name.cmp(&right.name));
+    if canonical
+        .windows(2)
+        .any(|pair| pair[0].name == pair[1].name)
+    {
+        return Err(BrainError::Invalid("directed_facilitation_context_duplicate".into()));
+    }
+    Ok(canonical)
+}
+
+fn context_key(context: &[ConfounderValue]) -> BrainResult<Vec<(String, u64)>> {
+    Ok(canonical_context(context)?
+        .into_iter()
+        .map(|item| (item.name, item.value.to_bits()))
+        .collect())
+}
+
+fn canonical_sources(sources: &[SkillId], target: &SkillId) -> BrainResult<Vec<SkillId>> {
+    if sources.is_empty() || sources.iter().any(|source| source == target) {
+        return Err(BrainError::Invalid("directed_facilitation_source_identity_invalid".into()));
+    }
+    let mut canonical = sources.to_vec();
+    canonical.sort();
+    canonical.dedup();
+    if canonical.len() != sources.len() {
+        return Err(BrainError::Invalid("directed_facilitation_source_identity_invalid".into()));
+    }
+    Ok(canonical)
+}
+
+/// Estimate a directed first- or higher-order capability taskonomy from
+/// compute-matched paired outcomes. Direction is explicit: {A,C}->B and B->A
+/// are different edges. Independent groups, not repeated rows, determine
+/// statistical resolution. Negative upper confidence bound means certified
+/// interference; positive lower confidence bound means certified facilitation.
+pub fn estimate_directed_facilitation(
+    observations: &[DirectedFacilitationObservation],
+) -> BrainResult<DirectedFacilitationReport> {
+    if observations.is_empty() {
+        return Err(BrainError::Invalid("directed_facilitation_empty".into()));
+    }
+    type ContextKey = Vec<(String, u64)>;
+    type RouteKey = (SkillId, Vec<SkillId>, ContextKey);
+    let mut grouped =
+        BTreeMap::<RouteKey, BTreeMap<String, Vec<(f64, Sha256Digest, Sha256Digest)>>>::new();
+    let mut evidence_seen = BTreeSet::new();
+    for observation in observations {
+        if observation.independence_group.trim().is_empty()
+            || !observation.baseline_utility.is_finite()
+            || !observation.facilitated_utility.is_finite()
+            || !evidence_seen.insert(observation.evidence_digest.clone())
+        {
+            return Err(BrainError::Invalid("directed_facilitation_observation_invalid".into()));
+        }
+        let sources =
+            canonical_sources(&observation.source_skill_ids, &observation.target_skill_id)?;
+        let context = context_key(&observation.context)?;
+        grouped
+            .entry((observation.target_skill_id.clone(), sources, context))
+            .or_default()
+            .entry(observation.independence_group.clone())
+            .or_default()
+            .push((
+                observation.facilitated_utility - observation.baseline_utility,
+                observation.matched_design_digest.clone(),
+                observation.evidence_digest.clone(),
+            ));
+    }
+
+    let mut edges = Vec::with_capacity(grouped.len());
+    for ((target_skill_id, source_skill_ids, context_key), groups) in grouped {
+        let context = context_key
+            .into_iter()
+            .map(|(name, bits)| ConfounderValue {
+                name,
+                value: f64::from_bits(bits),
+            })
+            .collect::<Vec<_>>();
+        let mut independent_effects = Vec::with_capacity(groups.len());
+        let mut design_digests = BTreeSet::new();
+        let mut evidence_digests = BTreeSet::new();
+        let mut paired_observations = 0usize;
+        for rows in groups.values() {
+            if rows.is_empty() {
+                return Err(BrainError::Integrity("directed_facilitation_group_empty".into()));
+            }
+            // A statistical group must use one compute-matched design. Mixing
+            // designs inside a claimed replicate group fails closed.
+            let designs = rows
+                .iter()
+                .map(|(_, design, _)| design)
+                .collect::<BTreeSet<_>>();
+            if designs.len() != 1 {
+                return Err(BrainError::Integrity(
+                    "directed_facilitation_group_design_mismatch".into(),
+                ));
+            }
+            design_digests.extend(rows.iter().map(|(_, design, _)| design.clone()));
+            evidence_digests.extend(rows.iter().map(|(_, _, evidence)| evidence.clone()));
+            paired_observations += rows.len();
+            independent_effects
+                .push(rows.iter().map(|(effect, _, _)| *effect).sum::<f64>() / rows.len() as f64);
+        }
+        let (mean_effect, standard_error) = mean_and_se(&independent_effects);
+        let resolved = independent_effects.len() >= 3 && standard_error.is_finite();
+        let (lower_confidence_bound, upper_confidence_bound) = if resolved {
+            (
+                mean_effect - EFFECT_95_Z * standard_error,
+                mean_effect + EFFECT_95_Z * standard_error,
+            )
+        } else {
+            (f64::NEG_INFINITY, f64::INFINITY)
+        };
+        let positive_fraction = independent_effects
+            .iter()
+            .filter(|effect| **effect > 0.0)
+            .count() as f64
+            / independent_effects.len() as f64;
+        edges.push(DirectedFacilitationEdge {
+            target_skill_id,
+            source_skill_ids,
+            context,
+            independent_groups: independent_effects.len(),
+            paired_observations,
+            mean_effect,
+            standard_error,
+            lower_confidence_bound,
+            upper_confidence_bound,
+            positive_fraction,
+            resolved,
+            beneficial: resolved && lower_confidence_bound > 0.0,
+            interfering: resolved && upper_confidence_bound < 0.0,
+            matched_design_digests: design_digests.into_iter().collect(),
+            evidence_digests: evidence_digests.into_iter().collect(),
+        });
+    }
+    edges.sort_by(|left, right| {
+        left.target_skill_id
+            .cmp(&right.target_skill_id)
+            .then_with(|| left.source_skill_ids.cmp(&right.source_skill_ids))
+            .then_with(|| {
+                context_key(&left.context)
+                    .unwrap_or_default()
+                    .cmp(&context_key(&right.context).unwrap_or_default())
+            })
+    });
+    Ok(DirectedFacilitationReport {
+        schema: "tidex.directed_facilitation/v1".into(),
+        edge_count: edges.len(),
+        edges,
+    })
+}
+
+/// Project only resolved first-order edges into the canonical field order for
+/// a target. This is deliberately a drive vector, not execution authority: it
+/// can feed `CognitiveFieldDrive.evidence` while existing routing, risk and
+/// promotion gates remain authoritative. Unresolved edges fail closed rather
+/// than being silently treated as neutral evidence.
+pub fn directed_facilitation_drive(
+    report: &DirectedFacilitationReport,
+    target_skill_id: &SkillId,
+    context: &[ConfounderValue],
+    field_ids: &[SkillId],
+) -> BrainResult<Vec<f64>> {
+    let requested_context = context_key(context)?;
+    if report.schema != "tidex.directed_facilitation/v1"
+        || report.edge_count != report.edges.len()
+        || field_ids.is_empty()
+        || field_ids.iter().collect::<BTreeSet<_>>().len() != field_ids.len()
+    {
+        return Err(BrainError::Integrity("directed_facilitation_report_invalid".into()));
+    }
+    let mut by_source = BTreeMap::<&SkillId, &DirectedFacilitationEdge>::new();
+    for edge in &report.edges {
+        if &edge.target_skill_id != target_skill_id
+            || edge.source_skill_ids.len() != 1
+            || context_key(&edge.context)? != requested_context
+        {
+            continue;
+        }
+        if !edge.resolved
+            || !edge.mean_effect.is_finite()
+            || !edge.standard_error.is_finite()
+            || !edge.lower_confidence_bound.is_finite()
+            || !edge.upper_confidence_bound.is_finite()
+            || by_source.insert(&edge.source_skill_ids[0], edge).is_some()
+        {
+            return Err(BrainError::Integrity("directed_facilitation_edge_unresolved".into()));
+        }
+    }
+    field_ids
+        .iter()
+        .map(|field_id| {
+            by_source
+                .get(field_id)
+                .map(|edge| {
+                    if edge.beneficial {
+                        edge.lower_confidence_bound
+                    } else if edge.interfering {
+                        edge.upper_confidence_bound
+                    } else {
+                        0.0
+                    }
+                })
+                .ok_or_else(|| BrainError::Integrity("directed_facilitation_edge_missing".into()))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -552,5 +823,165 @@ mod tests {
         // \phi_b = 0.5 * (1.0 - 0.0) + 0.5 * (3.5 - 2.0) = 0.5 + 0.75 = 1.25
         assert!((shapley.get("a").unwrap() - 2.25).abs() < 1e-10);
         assert!((shapley.get("b").unwrap() - 1.25).abs() < 1e-10);
+    }
+
+    fn facilitation_observation(
+        source: &[&str],
+        target: &str,
+        group: &str,
+        baseline: f64,
+        facilitated: f64,
+        nonce: char,
+    ) -> DirectedFacilitationObservation {
+        DirectedFacilitationObservation {
+            target_skill_id: SkillId::parse(target).unwrap(),
+            source_skill_ids: source
+                .iter()
+                .map(|id| SkillId::parse(*id).unwrap())
+                .collect(),
+            context: Vec::new(),
+            independence_group: group.into(),
+            baseline_utility: baseline,
+            facilitated_utility: facilitated,
+            matched_design_digest: Sha256Digest::parse("a".repeat(64)).unwrap(),
+            evidence_digest: Sha256Digest::parse(nonce.to_string().repeat(64)).unwrap(),
+        }
+    }
+
+    #[test]
+    fn directed_facilitation_is_asymmetric_and_preserves_interference() {
+        let observations = vec![
+            facilitation_observation(&["a"], "b", "g1", 0.0, 1.0, '1'),
+            facilitation_observation(&["a"], "b", "g2", 0.0, 1.1, '2'),
+            facilitation_observation(&["a"], "b", "g3", 0.0, 0.9, '3'),
+            facilitation_observation(&["b"], "a", "g1", 0.0, -0.8, '4'),
+            facilitation_observation(&["b"], "a", "g2", 0.0, -0.9, '5'),
+            facilitation_observation(&["b"], "a", "g3", 0.0, -0.7, '6'),
+        ];
+        let report = estimate_directed_facilitation(&observations).unwrap();
+        assert_eq!(report.edge_count, 2);
+        let a_to_b = report
+            .edges
+            .iter()
+            .find(|edge| edge.target_skill_id == "b")
+            .unwrap();
+        let b_to_a = report
+            .edges
+            .iter()
+            .find(|edge| edge.target_skill_id == "a")
+            .unwrap();
+        assert!(a_to_b.beneficial);
+        assert!(!a_to_b.interfering);
+        assert!(b_to_a.interfering);
+        assert!(!b_to_a.beneficial);
+    }
+
+    #[test]
+    fn higher_order_route_is_distinct_and_first_order_drive_is_conservative() {
+        let observations = vec![
+            facilitation_observation(&["a"], "target", "g1", 0.0, 1.0, '1'),
+            facilitation_observation(&["a"], "target", "g2", 0.0, 1.0, '2'),
+            facilitation_observation(&["a"], "target", "g3", 0.0, 1.0, '3'),
+            facilitation_observation(&["c"], "target", "g1", 0.0, -1.0, '4'),
+            facilitation_observation(&["c"], "target", "g2", 0.0, -1.0, '5'),
+            facilitation_observation(&["c"], "target", "g3", 0.0, -1.0, '6'),
+            facilitation_observation(&["a", "c"], "target", "g1", 0.0, 2.0, '7'),
+            facilitation_observation(&["a", "c"], "target", "g2", 0.0, 2.0, '8'),
+            facilitation_observation(&["a", "c"], "target", "g3", 0.0, 2.0, '9'),
+        ];
+        let report = estimate_directed_facilitation(&observations).unwrap();
+        assert_eq!(report.edge_count, 3);
+        assert!(report
+            .edges
+            .iter()
+            .any(|edge| edge.source_skill_ids.len() == 2));
+        let drive = directed_facilitation_drive(
+            &report,
+            &SkillId::parse("target").unwrap(),
+            &[],
+            &[SkillId::parse("a").unwrap(), SkillId::parse("c").unwrap()],
+        )
+        .unwrap();
+        assert!(drive[0] > 0.0);
+        assert!(drive[1] < 0.0);
+    }
+
+    #[test]
+    fn directed_facilitation_fails_closed_on_unresolved_or_mismatched_design() {
+        let unresolved = vec![
+            facilitation_observation(&["a"], "b", "g1", 0.0, 1.0, '1'),
+            facilitation_observation(&["a"], "b", "g2", 0.0, 1.0, '2'),
+        ];
+        let report = estimate_directed_facilitation(&unresolved).unwrap();
+        assert!(directed_facilitation_drive(
+            &report,
+            &SkillId::parse("b").unwrap(),
+            &[],
+            &[SkillId::parse("a").unwrap()],
+        )
+        .is_err());
+
+        let mut mismatched = vec![
+            facilitation_observation(&["a"], "b", "g1", 0.0, 1.0, '3'),
+            facilitation_observation(&["a"], "b", "g1", 0.0, 1.0, '4'),
+        ];
+        mismatched[1].matched_design_digest = Sha256Digest::parse("b".repeat(64)).unwrap();
+        assert!(estimate_directed_facilitation(&mismatched).is_err());
+    }
+
+    #[test]
+    fn context_conditioning_prevents_false_global_facilitation() {
+        let hot = vec![ConfounderValue {
+            name: "receiver_temperature".into(),
+            value: 1.0,
+        }];
+        let cold = vec![ConfounderValue {
+            name: "receiver_temperature".into(),
+            value: 0.0,
+        }];
+        let mut observations = Vec::new();
+        for (index, group) in ["g1", "g2", "g3"].into_iter().enumerate() {
+            let mut positive = facilitation_observation(
+                &["a"],
+                "b",
+                group,
+                0.0,
+                1.0,
+                char::from(b'1' + index as u8),
+            );
+            positive.context = hot.clone();
+            observations.push(positive);
+            let mut negative = facilitation_observation(
+                &["a"],
+                "b",
+                group,
+                0.0,
+                -1.0,
+                char::from(b'4' + index as u8),
+            );
+            negative.context = cold.clone();
+            observations.push(negative);
+        }
+        let report = estimate_directed_facilitation(&observations).unwrap();
+        assert_eq!(report.edge_count, 2);
+        let field_ids = [SkillId::parse("a").unwrap()];
+        let hot_drive =
+            directed_facilitation_drive(&report, &SkillId::parse("b").unwrap(), &hot, &field_ids)
+                .unwrap();
+        let cold_drive =
+            directed_facilitation_drive(&report, &SkillId::parse("b").unwrap(), &cold, &field_ids)
+                .unwrap();
+        assert!(hot_drive[0] > 0.0);
+        assert!(cold_drive[0] < 0.0);
+        assert!(directed_facilitation_drive(
+            &report,
+            &SkillId::parse("b").unwrap(),
+            &[ConfounderValue {
+                name: "receiver_temperature".into(),
+                value: 2.0
+            }],
+            &field_ids,
+        )
+        .is_err());
     }
 }

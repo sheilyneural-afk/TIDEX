@@ -180,7 +180,22 @@ fn query_from_attempt(attempt: &SolverAttempt) -> BrainResult<RetrievalQuery> {
     )
 }
 
-fn transfer_decision_input(hint: ProceduralWorkflowHint) -> WorkflowDecisionInput {
+fn default_transfer_directive() -> CoEvolutionDirectiveSnapshot {
+    CoEvolutionDirectiveSnapshot {
+        recommended_operation: "activation_transfer_experiment".into(),
+        reason: "b_loop: propose transfer; procedural memory may defer to align".into(),
+        converged: false,
+        source_model: Some(digest_hex(1)),
+        target_model: Some(digest_hex(2)),
+        capability_hint: Some("numerical.linear-map:v1".into()),
+        evidence_sha256: Some(digest_hex(9)),
+    }
+}
+
+fn transfer_decision_input(
+    hint: ProceduralWorkflowHint,
+    directive: CoEvolutionDirectiveSnapshot,
+) -> WorkflowDecisionInput {
     WorkflowDecisionInput {
         knowledge: KnowledgeWorkflowSignals {
             // Calibration treated sufficient so the *procedural* signal is what
@@ -189,15 +204,7 @@ fn transfer_decision_input(hint: ProceduralWorkflowHint) -> WorkflowDecisionInpu
             causal_evidence_sufficient: true,
             notes: vec!["b_loop_proof".into()],
         },
-        coevolution_directive: Some(CoEvolutionDirectiveSnapshot {
-            recommended_operation: "activation_transfer_experiment".into(),
-            reason: "b_loop: propose transfer; procedural memory may defer to align".into(),
-            converged: false,
-            source_model: Some(digest_hex(1)),
-            target_model: Some(digest_hex(2)),
-            capability_hint: Some("numerical.linear-map:v1".into()),
-            evidence_sha256: Some(digest_hex(9)),
-        }),
+        coevolution_directive: Some(directive),
         routing: RoutingPreference::default(),
         procedural_hint: Some(hint),
         authorized_inputs: AuthenticatedWorkflowInputs {
@@ -216,7 +223,7 @@ fn wait_job_terminal(
     tidex_home: &Path,
     job_id: &Sha256Digest,
 ) -> BrainResult<tidex::operator::control_plane::OperatorJobRecord> {
-    for _ in 0..400 {
+    for _ in 0..2_000 {
         let record = load_job_record(tidex_home, job_id)?;
         if matches!(
             record.state,
@@ -264,6 +271,20 @@ pub struct BLoopProofReceipt {
 
 /// Prove the frozen B-loop acceptance criterion end-to-end.
 pub fn prove_b_loop(tidex_home: &Path) -> BrainResult<BLoopProofReceipt> {
+    prove_b_loop_with_directive(tidex_home, default_transfer_directive())
+}
+
+/// Same B-loop proof, but the co-evolution directive is supplied by the caller
+/// (e.g. a CognitiveField→FieldActionBinding composition root). The directive
+/// must recommend `activation_transfer_experiment` so procedural memory can
+/// defer tick1→align and authorize tick2→transfer.
+pub fn prove_b_loop_with_directive(
+    tidex_home: &Path,
+    directive: CoEvolutionDirectiveSnapshot,
+) -> BrainResult<BLoopProofReceipt> {
+    if directive.recommended_operation != "activation_transfer_experiment" {
+        return Err(invalid("b_loop_directive_must_recommend_transfer"));
+    }
     fs::create_dir_all(tidex_home)?;
 
     // --- Tick 1: real rejected numerical.evolve evidence ---
@@ -286,7 +307,7 @@ pub fn prove_b_loop(tidex_home: &Path) -> BrainResult<BLoopProofReceipt> {
     if !hint1.low_rank_unreliable() && !hint1.steering_unreliable() {
         return Err(invalid("b_loop_tick1_expected_unreliable_procedural_signal"));
     }
-    let action1 = decide_next_action(&transfer_decision_input(hint1.clone()))?;
+    let action1 = decide_next_action(&transfer_decision_input(hint1.clone(), directive.clone()))?;
     if action1.operation != "calibrate_alignment" {
         return Err(invalid("b_loop_tick1_expected_calibrate_alignment"));
     }
@@ -337,7 +358,7 @@ pub fn prove_b_loop(tidex_home: &Path) -> BrainResult<BLoopProofReceipt> {
     if hint2.low_rank_unreliable() || hint2.steering_unreliable() {
         return Err(invalid("b_loop_tick2_expected_reliable_procedural_signal"));
     }
-    let action2 = decide_next_action(&transfer_decision_input(hint2.clone()))?;
+    let action2 = decide_next_action(&transfer_decision_input(hint2.clone(), directive))?;
     if action2.operation != "activation_transfer_experiment" {
         return Err(invalid("b_loop_tick2_expected_activation_transfer"));
     }
