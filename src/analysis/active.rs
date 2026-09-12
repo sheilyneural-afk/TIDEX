@@ -438,4 +438,55 @@ mod tests {
         assert!(plan.total_trace_reduction > 1.9);
         assert!(plan.final_posterior_trace < plan.initial_posterior_trace);
     }
+
+    #[test]
+    fn heterogeneous_observation_modalities_reselect_after_real_evidence() {
+        // The active selector is agnostic to the physical sensor: each existing
+        // analysis modality can expose its epistemic sensitivity as an aperture.
+        // This test proves the reusable core can choose between heterogeneous
+        // modalities and change that choice after assimilating actual evidence.
+        let modalities = vec![
+            ApertureCandidate {
+                aperture_id: "activation-probe".into(),
+                sensing_vector: vec![1.0, 0.0],
+                noise_variance: 0.01,
+                cost: 0.10,
+                risk: 0.05,
+            },
+            ApertureCandidate {
+                aperture_id: "block-tomography".into(),
+                sensing_vector: vec![0.75, 0.10],
+                noise_variance: 0.05,
+                cost: 0.10,
+                risk: 0.05,
+            },
+            ApertureCandidate {
+                aperture_id: "causal-intervention".into(),
+                sensing_vector: vec![0.0, 1.0],
+                noise_variance: 0.02,
+                cost: 0.20,
+                risk: 0.20,
+            },
+        ];
+        let prior = GaussianAperturePosterior {
+            mean: vec![0.0, 0.0],
+            covariance: vec![vec![4.0, 0.0], vec![0.0, 1.0]],
+        };
+        let prior_cov = matrix_from_square_rows(&prior.covariance).unwrap();
+        let first = choose_active_aperture(&modalities, &prior_cov, 0.05, 0.05).unwrap();
+        assert_eq!(first.aperture_id.as_str(), "activation-probe");
+
+        let activation = modalities
+            .iter()
+            .find(|candidate| candidate.aperture_id == first.aperture_id)
+            .unwrap();
+        let posterior = assimilate_aperture_result(&prior, activation, 1.25).unwrap();
+        assert!(posterior.mean[0] > 1.0);
+        assert!(posterior.covariance[0][0] < 0.02);
+
+        let posterior_cov = matrix_from_square_rows(&posterior.covariance).unwrap();
+        let second = choose_active_aperture(&modalities, &posterior_cov, 0.05, 0.05).unwrap();
+        assert_eq!(second.aperture_id.as_str(), "causal-intervention");
+        assert_ne!(first.aperture_id, second.aperture_id);
+    }
 }
