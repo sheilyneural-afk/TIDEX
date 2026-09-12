@@ -1,27 +1,27 @@
-//! Paso 6 — bounded procedure-selector vertical demo.
+//! Paso 6 — bounded procedure-selector vertical (productive path).
 //!
 //! # Acceptance vertical
 //!
 //! > Given context + historical procedures + prior results, select the most
 //! > appropriate procedure **or** explore.
 //!
-//! # Pipeline (HARD invariant)
+//! # Pipeline (HARD invariant) — productive / demo acceptance
 //!
 //! ```text
-//! donor (GPEM wire attempt | fixture) → seal authenticated capacity
+//! live GPEM/donor → seal authenticated capacity
 //!   → ResidencyDecision
 //!   → Software / BoundedUnknown / Blocked: stop honestly (no CapabilityIR)
 //!   → Weights / Hybrid-warranted: admit IR path only; document receptor hook
-//!     (never invent CapabilityIR from GPEM/fixture source trees)
+//!     (never invent CapabilityIR from donor source trees)
 //! ```
 //!
-//! Real GPEM observe remains fail-closed (`gpem_v2_recommend_donor_not_wired`).
-//! The demo proves the end-to-end seal→residency chain with the documented
-//! `tidex.donor.gpem_v2_recommend/v1` wire shape and a sealed fixture donor.
+//! **Fail-closed:** if GPEM/donor does not respond, the productive path **ends**
+//! — no capacity, no IR, no receptor, **no fixture substitute**.
+//! `FixtureProcedureSelector` / `seal_fixture_procedure_selector_capacity` remain
+//! for **unit tests only** (via [`run_from_package`]), never as a demo fallback.
 
 use crate::capability::authenticated_capacity::{
-    seal_fixture_procedure_selector_capacity, AuthenticatedCapacityPackage, CapacityProvenance,
-    DonorKind, GpemV2RecommendDonorWire, SelectorStimulus,
+    AuthenticatedCapacityPackage, DonorKind, GpemV2RecommendDonorWire, SelectorStimulus,
 };
 use crate::foundation::digest::{AuthenticatedCapacityDigest, Sha256Digest};
 use crate::foundation::error::{BrainError, BrainResult};
@@ -35,6 +35,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 const RECEIPT_DOMAIN: &[u8] = b"TIDEX:PROCEDURE-SELECTOR-VERTICAL:v1\0";
+#[cfg_attr(not(test), allow(dead_code))]
 const CAPACITY_KEY: &str = "procedure_selector_or_explore";
 
 fn invalid(code: &str) -> BrainError {
@@ -248,7 +249,11 @@ fn terminal_from_outcome(
     }
 }
 
-/// Attempt the documented GPEM wire, then seal fixture capacity (honest fallback).
+/// Productive donor acquire: GPEM wire only. Fail-closed — **no fixture substitute**.
+///
+/// Returns `(package, donor_execution)` only when a live donor seals capacity.
+/// Today GPEM observe is unwired → always errors with
+/// `gpem_v2_recommend_donor_not_wired` (or unexpected-wire / unexpected-error).
 pub fn acquire_procedure_selector_package(
     gpem_store_root: PathBuf,
 ) -> BrainResult<(AuthenticatedCapacityPackage, DonorExecutionRecord)> {
@@ -265,43 +270,28 @@ pub fn acquire_procedure_selector_package(
         Vec::new(),
         vec!["proc.alpha".into(), "proc.beta".into()],
     )?;
-    let observe_error = match wire.observe(&probe) {
-        Ok(_) => {
-            return Err(invalid("gpem_v2_recommend_unexpectedly_wired_without_paso6_live_path"));
+    match wire.observe(&probe) {
+        Ok(_observations) => {
+            // Live path not implemented yet: must not invent capacity from wire
+            // success without a sealed package builder for real GPEM evidence.
+            Err(invalid("gpem_v2_recommend_unexpectedly_wired_without_paso6_live_path"))
         }
-        Err(err) => err.to_string(),
-    };
-    if !observe_error.contains("gpem_v2_recommend_donor_not_wired") {
-        return Err(invalid("gpem_wire_observe_unexpected_error"));
+        Err(err) => {
+            let observe_error = err.to_string();
+            if observe_error.contains("gpem_v2_recommend_donor_not_wired") {
+                // Explicit fail-closed terminal for productive/demo path.
+                let _ = gpem_store_root;
+                Err(invalid("gpem_v2_recommend_donor_not_wired"))
+            } else {
+                Err(invalid("gpem_wire_observe_unexpected_error"))
+            }
+        }
     }
-
-    let package = seal_fixture_procedure_selector_capacity(
-        CAPACITY_KEY,
-        CapacityProvenance {
-            acquisition_id: None,
-            capture_receipt_sha256: None,
-            donor_locator: Some(format!(
-                "fixture://procedure_selector?gpem_wire={}",
-                GpemV2RecommendDonorWire::SCHEMA
-            )),
-        },
-    )?;
-
-    // Sealed package remains fixture-donor (honest). GPEM wire probe evidence is
-    // retained on the execution record (schema + observe error), not invented as IR.
-    let donor_execution = DonorExecutionRecord::FixtureProcedureSelector {
-        donor_locator: format!(
-            "fixture://procedure_selector?gpem_wire={}",
-            GpemV2RecommendDonorWire::SCHEMA
-        ),
-        gpem_wire_schema_documented: GpemV2RecommendDonorWire::SCHEMA.into(),
-        gpem_observe_error: observe_error,
-    };
-    let _ = gpem_store_root;
-    Ok((package, donor_execution))
 }
 
-/// Run the bounded vertical: GPEM-wire probe → fixture seal → residency → terminal.
+/// Run the productive vertical: live donor only → residency → terminal.
+///
+/// Fail-closed when GPEM/donor is missing (no fixture continue).
 pub fn run_procedure_selector_vertical(
     gpem_store_root: PathBuf,
 ) -> BrainResult<ProcedureSelectorVerticalReceipt> {
@@ -369,7 +359,8 @@ pub fn run_from_package(
 mod tests {
     use super::*;
     use crate::capability::authenticated_capacity::{
-        FunctionalContractClaim, FunctionalContractStatus,
+        seal_fixture_procedure_selector_capacity, CapacityProvenance, FunctionalContractClaim,
+        FunctionalContractStatus,
     };
     use crate::governance::authenticated_capacity_residency::claim_id;
     use std::fs;
@@ -441,9 +432,23 @@ mod tests {
     }
 
     #[test]
-    fn vertical_fixture_concludes_software_without_ir_or_receptor() {
+    fn unit_fixture_package_concludes_software_without_ir_or_receptor() {
+        // Unit fixture only — not the productive acquire path.
         let root = tmp("software");
-        let receipt = run_procedure_selector_vertical(root.join("gpem-store")).unwrap();
+        let package = seal_fixture_procedure_selector_capacity(
+            CAPACITY_KEY,
+            CapacityProvenance::default(),
+        )
+        .unwrap();
+        let receipt = run_from_package(
+            package,
+            DonorExecutionRecord::FixtureProcedureSelector {
+                donor_locator: "fixture://unit-test-only".into(),
+                gpem_wire_schema_documented: GpemV2RecommendDonorWire::SCHEMA.into(),
+                gpem_observe_error: "unit_fixture_not_productive_path".into(),
+            },
+        )
+        .unwrap();
         receipt.verify().unwrap();
         assert_eq!(receipt.capacity_key(), CAPACITY_KEY);
         assert_eq!(receipt.residency_decision(), &ResidencyDecision::Software {});
@@ -456,44 +461,25 @@ mod tests {
                 receptor_entered: false,
             }
         ));
-        assert!(matches!(
-            receipt.donor_execution(),
-            DonorExecutionRecord::FixtureProcedureSelector {
-                gpem_wire_schema_documented,
-                ..
-            } if gpem_wire_schema_documented == GpemV2RecommendDonorWire::SCHEMA
-        ));
         let path = receipt.persist(&root).unwrap();
         assert!(path.exists());
         let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn gpem_wire_is_probed_and_fail_closed_before_fixture() {
+    fn productive_acquire_fail_closed_without_fixture_substitute() {
         let root = tmp("gpem-probe");
-        let (package, donor) = acquire_procedure_selector_package(root.join("gpem-store")).unwrap();
-        package.verify().unwrap();
-        assert_eq!(package.donor_kind(), DonorKind::FixtureProcedureSelector);
-        match donor {
-            DonorExecutionRecord::FixtureProcedureSelector {
-                gpem_wire_schema_documented,
-                ..
-            } => {
-                assert_eq!(gpem_wire_schema_documented, GpemV2RecommendDonorWire::SCHEMA);
-            }
-            other => panic!("expected fixture after gpem fail-closed, got {other:?}"),
-        }
-        // Direct wire still fails closed.
-        let wire = GpemV2RecommendDonorWire::new(
-            root.join("gpem-store"),
-            vec!["route".into(), "capability_id".into()],
-        )
-        .unwrap();
-        let err = wire
-            .observe(&SelectorStimulus::new("ctx", Vec::new(), vec!["proc.alpha".into()]).unwrap())
+        let err = acquire_procedure_selector_package(root.join("gpem-store"))
             .unwrap_err()
             .to_string();
-        assert!(err.contains("gpem_v2_recommend_donor_not_wired"));
+        assert!(
+            err.contains("gpem_v2_recommend_donor_not_wired"),
+            "productive path must end without fixture continue: {err}"
+        );
+        let err2 = run_procedure_selector_vertical(root.join("gpem-store"))
+            .unwrap_err()
+            .to_string();
+        assert!(err2.contains("gpem_v2_recommend_donor_not_wired"));
         let _ = fs::remove_dir_all(&root);
     }
 
