@@ -1,7 +1,7 @@
 # TIDE-X: dos aprendizajes y los dos eslabones que faltan
 
 **Fecha:** 2026-09-12 (Europe/Madrid)  
-**Checkout:** `/home/yo/Future` @ `bc531d7`+ (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A DONE @ `bc531d7`; Paso 3 workflow NextAction on tip  
+**Checkout:** `/home/yo/Future` @ `3ccd61f`+ (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A DONE @ `bc531d7`; Paso 3 DONE @ `3ccd61f`; Paso 4 authenticated capacity on tip  
 **Contexto de código:** [PR #1](https://github.com/sheilyneural-afk/TIDEX/pull/1) — controladores durables + coevolución causal + `plan_next_tick`. Aún no es el organismo cerrado.  
 **Naturaleza de este doc:** dos partes explícitas. **Parte I** = mapa del problema (qué falta y por qué; los dos eslabones siguen siendo el mapa correcto). **Parte II** = orden de implementación (camino crítico de 6 pasos; **no** es el mismo orden que el mapa). No es código. No pide algoritmos nuevos de plasticidad.
 
@@ -16,15 +16,16 @@
 | Visión de producto / dos aprendizajes / dos eslabones / B antes que A / no más BCM / residencia antes que IR / coordinador = workflow | **CORRECTO** |
 | Paso 1 (plasticidad durable) | **CLOSED / CERTIFIED** — 18+ tests verdes; docs + push; no más plasticidad |
 | Paso 2 (ProceduralMemory útil) | **2A DONE** @ `bc531d7` (canonical replay + tests); **2B DONE** (`retrieve_procedural_advice`); **2C DONE** (fold into NextAction via workflow coordinator) |
-| Paso 3 (cerrar `NextAction` → executor) | **IMPLEMENTED** (workflow coordinator → registry executor → dry-run/start_operator_job hook); hito B cerrado a nivel decisor |
-| Pasos 4–5 (adquisición + residencia/IR) | Después de cerrar B |
+| Paso 3 (cerrar `NextAction` → executor) | **DONE** @ `3ccd61f` (workflow coordinator → registry executor → dry-run/start_operator_job hook); hito B cerrado a nivel decisor |
+| Paso 4 (adquisición funcional) | **IN PROGRESS / thin slice** — `authenticated_capacity` seals evidence→contract package (no CapabilityIR yet) |
+| Paso 5 (residencia / IR) | Consume sealed package → `ResidencyDecision` → CapabilityIR only when warranted |
 | Paso 6 (demo real) | Criterio de aceptación bueno |
 
 ---
 
 ## 0. Lectura en una frase
 
-TIDE-X ya sabe **materializar** una `CapabilityIR` en un receptor y **decidir residencia** (Software | Hybrid | Weights | Unknown). El eslabón **A** (software externo → capacidad autenticada → `CapabilityIR`) está **casi ausente** (❌). El eslabón **B** (estado → decisión → executor → evidencia → siguiente decisión) **ya empezó** (🟡: plasticidad durable certificable, *newer-valid*, `plan_next_tick`, `CoEvolutionDirective`) pero **no está cerrado**: la directiva no elige un executor real ni arranca el job. El coordinador vive en la capa de *workflow*, no dentro de BrainEngine / KnowledgeEngine / AdapterBank. No hacen falta más BCM/ELO hasta cerrar los seis pasos de la Parte II.
+TIDE-X ya sabe **materializar** una `CapabilityIR` en un receptor y **decidir residencia** (Software | Hybrid | Weights | Unknown). El eslabón **A** (software externo → capacidad autenticada → `CapabilityIR`) ya tiene el tramo de **capacidad autenticada** (🟡: Paso 4 thin slice) pero **aún no** produce `ResidencyDecision`/`CapabilityIR` desde esa evidencia. El eslabón **B** (estado → decisión → executor → evidencia → siguiente decisión) **ya empezó** (🟡: plasticidad durable certificable, *newer-valid*, `plan_next_tick`, `CoEvolutionDirective`) pero **no está cerrado**: la directiva no elige un executor real ni arranca el job. El coordinador vive en la capa de *workflow*, no dentro de BrainEngine / KnowledgeEngine / AdapterBank. No hacen falta más BCM/ELO hasta cerrar los seis pasos de la Parte II.
 
 **Congelación de aceptación:** congelar desarrollo lateral hasta poder demostrar: TIDE-X recibió evidencia nueva, recordó experiencia previa, eligió una acción distinta *por* esa experiencia, ejecutó un executor real, y re-decidió tras el resultado — sin que un humano pulse el siguiente botón.
 
@@ -34,7 +35,7 @@ TIDE-X ya sabe **materializar** una `CapabilityIR` en un receptor y **decidir re
 
 # Parte I — Mapa del problema
 
-Los **dos eslabones siguen siendo el mapa correcto**. A = ❌ (casi ausente). B = 🟡 (empezado, no cerrado). Esta parte **no** es el orden en que hay que implementar: eso es la Parte II.
+Los **dos eslabones siguen siendo el mapa correcto**. A = 🟡 (capacidad autenticada sellada; falta residencia/IR). B = 🟡→🟢 a nivel decisor (Paso 3 DONE; cableado vivo e2e aún pendiente). Esta parte **no** es el orden en que hay que implementar: eso es la Parte II.
 
 ---
 
@@ -180,7 +181,7 @@ SHEI / GPEM
     │  acquire_system = bytes autenticados
     │  (NO “entendido”, NO “pasado a pesos”)
     ▼
-capacidad funcional observada          ← eslabón A, ❌ casi ausente
+capacidad funcional observada          ← eslabón A, 🟡 authenticated_capacity
     │
     ▼
 CapabilityIR                           ← eslabón A, ❌ (auto)
@@ -263,7 +264,7 @@ El estudio [TIDEX_PLASTICITY_MODULES_STUDY.md](TIDEX_PLASTICITY_MODULES_STUDY.md
 
 No son veinte módulos. Son **dos uniones**. A = ❌. B = 🟡.
 
-### 5.1 Eslabón A — de software externo a `CapabilityIR` (❌ casi ausente)
+### 5.1 Eslabón A — de software externo a `CapabilityIR` (🟡 capacidad autenticada; IR pendiente)
 
 ```text
 SOFTWARE EXTERNO
@@ -276,9 +277,9 @@ Hoy el corte es:
 | Tramo | Existe |
 |-------|--------|
 | Capturar árbol / envelope / receipt (`acquire_system`) | sí — bytes, no semántica |
-| Ejecutar al donante para *observar conducta* | no en este camino (el binario lo prohíbe) |
-| Aislar “esta es la capacidad X, con contrato Y” | no |
-| Compilar eso a `CapabilityIR` sin un humano que ya traiga el IR | no |
+| Ejecutar al donante para *observar conducta* | 🟡 fixture donor + wire GPEM (`authenticated_capacity`); `acquire_system` sigue sin ejecutar |
+| Aislar “esta es la capacidad X, con contrato Y” | 🟡 paquete sellado `tidex.authenticated_capacity/v1` (observaciones + intervenciones + contratos) |
+| Compilar eso a `CapabilityIR` sin un humano que ya traiga el IR | no — Paso 5 |
 | A partir del IR: residency + receptor + materialize | sí (cola desarrollada) |
 
 Hasta que A exista, “observar GPEM” es **archivo en la caja fuerte**, no **órgano transplantable**.
@@ -553,7 +554,7 @@ La raíz de composición que hoy ve casi todo: `src/bin/tidex.rs`.
 
 **Decisión de frontera (Paso 3):** el coordinador vive en `src/bin/workflow_next_action.rs` (módulo del bin `tidex`), que ya es raíz de composición. **Sin** importar KE/PM/Residency en `operator/control_plane.rs`. Los únicos añadidos en Operator son wrappers públicos del enqueue ya existente (`start_operator_direct_job` / `start_operator_behavioral_discovery_job`). El límite queda documentado en el módulo.
 
-### Paso 3 — CLOSE WORKFLOW DECIDER (hito central) — **IMPLEMENTED**
+### Paso 3 — CLOSE WORKFLOW DECIDER (hito central) — **DONE** @ `3ccd61f`
 
 **Estado (2026-09-12):** coordinador de workflow en la raíz de composición del bin `tidex` (no dentro de BrainEngine / KnowledgeEngine / AdapterBank / `operator/control_plane.rs`).
 
@@ -590,13 +591,31 @@ KnowledgeEngine
 
 Criterio de cierre de B (= congelación de aceptación §0): el sistema emite y **ejecuta** una sola siguiente acción, re-mide, actualiza estado plástico / procedural (vía replay), y la siguiente decisión **cambia por evidencia** — sin que un humano elija el job a mano. Los gates siguen siendo gates. El coordinador no promociona.
 
-**Hecho en Paso 3:** decisión tipada + mapping a executor de registro + hook/dry-run a `start_operator_job` + evidencia sintética cambia la decisión. **Pendiente antes de Paso 4 / demo:** cableado vivo end-to-end (plasticity advice → decide → Start job → receipt → replay → re-decide) en un home Operator real; KE signals aún son proyección advisory hacia el DTO (no un query KE automático en cada tick).
+**Hecho en Paso 3:** decisión tipada + mapping a executor de registro + hook/dry-run a `start_operator_job` + evidencia sintética cambia la decisión. **Pendiente post-Paso 3 / demo:** cableado vivo end-to-end (plasticity advice → decide → Start job → receipt → replay → re-decide) en un home Operator real; KE signals aún son proyección advisory hacia el DTO (no un query KE automático en cada tick).
 
 Ver agudeza de `NextAction` y el ejemplo de trasplante en §5.3.
 
-### Paso 4 — FUNCTIONAL SOFTWARE ACQUISITION
+### Paso 4 — FUNCTIONAL SOFTWARE ACQUISITION — **THIN SLICE IN PROGRESS**
 
-No más “archivo en la caja fuerte”. Ejecución real de GPEM → observaciones / intervenciones / contrafácticos / contratos → capacidad autenticada. El árbol capturado queda como provenance. Este paso **aún no** inventa `CapabilityIR`.
+No más “archivo en la caja fuerte”. Observaciones / intervenciones / contrafácticos / contratos → **capacidad autenticada sellada**. El árbol capturado (`acquire_system`) queda como provenance. Este paso **aún no** inventa `CapabilityIR`.
+
+**Estado (2026-09-12 ~05:30 CEST / tip post-`3ccd61f`):**
+
+| Pieza | Estado |
+|-------|--------|
+| Inventario | `acquire_system` + `acquisition_contract` + `content_vault` (bytes); Operator `behavioral_discovery` (LLM multi-model, no donor software); GPEM en `/home/yo/Projects/SHEI` (recommend vertical) |
+| Módulo | `src/capability/authenticated_capacity.rs` |
+| Schema | `tidex.authenticated_capacity/v1` |
+| Persistencia | `state/acquisitions/authenticated-capacity/by-sha/{digest}.json` |
+| Digest | `AuthenticatedCapacityDigest` (sealed, domain `TIDEX:AUTHENTICATED-CAPACITY:v1`) |
+| Vertical | fixture `procedure_selector_or_explore` (select best historical **or** explore) |
+| GPEM wire | `GpemV2RecommendDonorWire` (`tidex.donor.gpem_v2_recommend/v1`) fail-closed hasta cableado vivo |
+| Tests | 6 unit tests (seal, tamper fail-closed, persist/reauth, GPEM wire, fixture policy) |
+| Handoff Paso 5 | `ResidencyHandoffSummary` (`residency_decision_pending`, `capability_ir_pending`) — **no** llama `ResidencyDecision` aún |
+
+**Hecho:** evidencia observada → contratos funcionales → paquete autenticado con hashes/receipts fail-closed.  
+**Pendiente en Paso 4 (ampliación):** ejecutar GPEM real (no solo fixture) y opcionalmente un job Operator que emita el mismo paquete.  
+**Fuera de Paso 4:** `ResidencyDecision` / `CapabilityIR` (Paso 5).
 
 ### Paso 5 — RESIDENCY / REPRESENTATION
 
@@ -660,4 +679,4 @@ No abrir Ola RALF / Minimum Space / otros BCM como sustituto de estos seis pasos
 
 ---
 
-*Doc de mapa (Parte I) + orden de implementación (Parte II). No implementa. No pide módulos nuevos de plasticidad hasta cerrar los seis pasos. Paso 1 CLOSED. Paso 2A DONE @ bc531d7; 2B/2C + Paso 3 workflow NextAction IMPLEMENTED (bin composition). Siguiente = Paso 4 adquisición funcional. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
+*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad hasta cerrar los seis pasos. Paso 1 CLOSED. Paso 2A DONE @ bc531d7; 2B/2C + Paso 3 DONE @ 3ccd61f. Paso 4 thin slice: `authenticated_capacity` (evidence→contract package; no IR). Siguiente = Paso 5 ResidencyDecision desde el paquete sellado. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
