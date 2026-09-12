@@ -371,6 +371,7 @@ pub fn prove_organism_chain_e2e(tidex_home: &Path) -> BrainResult<OrganismChainE
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
 
     fn isolated_home(tag: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
