@@ -1,7 +1,7 @@
 # TIDE-X: dos aprendizajes y los dos eslabones que faltan
 
 **Fecha:** 2026-09-12 (Europe/Madrid)  
-**Checkout:** `/home/yo/Future` @ `85f0e60`+ (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A DONE @ `bc531d7`; Paso 3 DONE @ `3ccd61f`; Paso 4 DONE @ `8592123`; Paso 5 DONE @ `85f0e60`; Paso 6 procedure-selector vertical demo  
+**Checkout:** `/home/yo/Future` @ `ab6a441` (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A DONE @ `bc531d7`; Paso 3 DONE @ `3ccd61f`; Paso 4 DONE @ `8592123`; Paso 5 DONE @ `85f0e60`; Paso 6 DONE @ `ab6a441`  
 **Contexto de código:** [PR #1](https://github.com/sheilyneural-afk/TIDEX/pull/1) — controladores durables + coevolución causal + `plan_next_tick`. Aún no es el organismo cerrado.  
 **Naturaleza de este doc:** dos partes explícitas. **Parte I** = mapa del problema (qué falta y por qué; los dos eslabones siguen siendo el mapa correcto). **Parte II** = orden de implementación (camino crítico de 6 pasos; **no** es el mismo orden que el mapa). No es código. No pide algoritmos nuevos de plasticidad.
 
@@ -19,7 +19,7 @@
 | Paso 3 (cerrar `NextAction` → executor) | **DONE** @ `3ccd61f` (workflow coordinator → registry executor → dry-run/start_operator_job hook); hito B cerrado a nivel decisor |
 | Paso 4 (adquisición funcional) | **DONE** @ `8592123` — `authenticated_capacity` seals evidence→contract package (no CapabilityIR) |
 | Paso 5 (residencia / IR) | **DONE** @ `85f0e60` — package → `ResidencyDecision` (Software / Hybrid / Weights / BoundedUnknown); CapabilityIR gated, never from Software |
-| Paso 6 (demo real) | **DONE (fixture + GPEM wire)** — procedure-selector vertical e2e; Software stop (no IR); receptor hook documented when admitted; optional second-tick |
+| Paso 6 (demo real) | **DONE** @ `ab6a441` (fixture + GPEM wire) — procedure-selector vertical e2e; Software stop (no IR); receptor hook documented when admitted; optional second-tick |
 
 ---
 
@@ -642,7 +642,7 @@ Fail-closed a `BoundedUnknown` + obligaciones. Nunca un peso inventado. Nunca `c
 
 **Cierre thin de A (residencia):** fixture procedure-selector produce `Software` justificada y detiene IR. Weights/Hybrid solo con evidencia causal+contratos explícitos. Cerrado en tip `85f0e60`. Paso 6 consume esta API.
 
-### Paso 6 — REAL DEMO — **DONE (fixture + GPEM wire)** 
+### Paso 6 — REAL DEMO — **DONE** @ `ab6a441` (fixture + GPEM wire) 
 
 ```text
 GPEM wire probe (fail-closed) → fixture seal → ResidencyDecision
@@ -688,4 +688,4 @@ No abrir Ola RALF / Minimum Space / otros BCM como sustituto de estos seis pasos
 
 ---
 
-*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 CLOSED. Paso 2A DONE @ bc531d7; 2B/2C + Paso 3 DONE @ 3ccd61f. Paso 4 DONE @ 8592123. Paso 5 DONE @ 85f0e60. Paso 6 DONE (fixture + GPEM wire): procedure-selector vertical → Software stop / receptor hook documented. Live GPEM→SmolLM transplant remains a later gap. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
+*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 CLOSED. Paso 2A DONE @ bc531d7; 2B/2C + Paso 3 DONE @ 3ccd61f. Paso 4 DONE @ 8592123. Paso 5 DONE @ 85f0e60. Paso 6 DONE @ ab6a441 (fixture + GPEM wire): procedure-selector vertical → Software stop / receptor hook documented. Live GPEM→SmolLM transplant remains a later gap. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
