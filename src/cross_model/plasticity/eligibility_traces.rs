@@ -144,6 +144,41 @@ impl EligibilityTraces {
             .map(|(name, trace)| (name.clone(), trace.trace_value))
             .collect()
     }
+
+    pub fn config(&self) -> &EligibilityTraceConfig {
+        &self.config
+    }
+
+    pub fn set_trace_update_rate(&mut self, trace_update_rate: f64) -> Result<(), String> {
+        let mut candidate = self.config.clone();
+        candidate.trace_update_rate = trace_update_rate;
+        candidate.validate()?;
+        self.config = candidate;
+        Ok(())
+    }
+
+    pub fn export_traces(&self) -> HashMap<String, EligibilityTrace> {
+        self.traces.clone()
+    }
+
+    pub fn import_traces(
+        &mut self,
+        traces: HashMap<String, EligibilityTrace>,
+    ) -> Result<(), String> {
+        for (name, trace) in &traces {
+            if name.trim().is_empty()
+                || !trace.trace_value.is_finite()
+                || trace.trace_value < 0.0
+                || trace.trace_value > self.config.max_trace_value
+                || !trace.credit_accumulated.is_finite()
+                || chrono::DateTime::parse_from_rfc3339(&trace.last_update).is_err()
+            {
+                return Err("eligibility_import_invalid".into());
+            }
+        }
+        self.traces = traces;
+        Ok(())
+    }
 }
 impl Default for EligibilityTraces {
     fn default() -> Self {

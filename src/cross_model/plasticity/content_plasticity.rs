@@ -282,6 +282,54 @@ impl ContentPlasticity {
     pub fn clear_all(&mut self) {
         self.states.clear();
     }
+
+    pub fn config(&self) -> &ContentPlasticityConfig {
+        &self.config
+    }
+
+    pub fn set_adaptation_rate(&mut self, adaptation_rate: f64) -> Result<(), String> {
+        let mut candidate = self.config.clone();
+        candidate.adaptation_rate = adaptation_rate;
+        candidate.validate()?;
+        self.config = candidate;
+        Ok(())
+    }
+
+    pub fn export_states(&self) -> HashMap<String, ContentPlasticityState> {
+        self.states.clone()
+    }
+
+    pub fn import_states(
+        &mut self,
+        states: HashMap<String, ContentPlasticityState>,
+    ) -> Result<(), String> {
+        for (name, state) in &states {
+            if name.trim().is_empty() {
+                return Err("content_import_invalid".into());
+            }
+            validate_sha(&state.representation_sha256)?;
+            validate_sha(&state.evidence_sha256)?;
+            if !state.adaptation_pressure.is_finite()
+                || state.adaptation_pressure < 0.0
+                || state.adaptation_pressure > self.config.maximum_pressure
+                || !state.measured_similarity.is_finite()
+                || !(-1.0..=1.0).contains(&state.measured_similarity)
+                || chrono::DateTime::parse_from_rfc3339(&state.last_update).is_err()
+            {
+                return Err("content_import_invalid".into());
+            }
+        }
+        self.states = states;
+        Ok(())
+    }
+
+    pub fn export_matrix(&self) -> ContentPlasticityMatrix {
+        self.matrix.clone()
+    }
+
+    pub fn import_matrix(&mut self, matrix: ContentPlasticityMatrix) {
+        self.matrix = matrix;
+    }
 }
 
 fn validate_sha(value: &str) -> Result<(), String> {

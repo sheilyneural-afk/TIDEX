@@ -7,6 +7,11 @@
 //! Runtime model entries are explicit. Ollama performs remote behavioral
 //! inference and the certified Hugging Face worker loads authenticated local
 //! SafeTensors. Neither backend grants production authority.
+//!
+//! Boundary: this daemon drives `PlasticityEngine` (discovery/intervention).
+//! It does not load `config/plasticity.toml` or advance BCM/ELO/PI controllers;
+//! those advisory numerical controllers live under `cross_model::plasticity`
+//! and are accumulated by the operator plasticity advice path.
 
 use serde::Deserialize;
 use std::collections::BTreeSet;

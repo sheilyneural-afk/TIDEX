@@ -1,10 +1,12 @@
 pub mod causal_credit;
+pub mod experimental_evidence_admission;
 pub mod learning_finalization;
 pub mod learning_orchestrator;
 pub mod memory;
 pub mod numerical_evolution;
 pub mod portfolio_governance;
 pub mod procedural_memory;
+pub mod procedural_replay;
 pub mod representation_evidence;
 pub mod sleep_diagnostics;
 pub mod sleep_evidence;

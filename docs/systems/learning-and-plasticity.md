@@ -12,11 +12,13 @@ Ciclo de aprendizaje adaptativo, evidencias de representación, memoria procedim
 | Módulo | Rol |
 |--------|-----|
 | `learning_orchestrator.rs` | Política y sesión de learning secuencial real |
+| `experimental_evidence_admission.rs` | Admisión fail-closed Vxx → evidencia de learning; CLI `tidex learning admit-vxx … [--assimilate]` + `adaptive-learning-cycle start/next` ([VXX_LEARNING_ADMISSION](../VXX_LEARNING_ADMISSION.md)) |
 | `learning_finalization.rs` | Hand-off a autoridad de reconstrucción (no reconstruye aquí) |
 | `representation_evidence.rs` | Instala evidencia sellada task-agnostic |
 | `numerical_evolution.rs` | Evolución de candidatos least-squares + holdout |
 | `portfolio_governance.rs` | Decisiones conservadoras desde observaciones pareadas |
 | `procedural_memory.rs` | Memoria de intentos de solver, advisory-only |
+| `procedural_replay.rs` | Replay canónico multi-schema → `ProceduralMemory` (no segundo store; V67/V68 no mapean a `SolverAttempt`) |
 | `causal_credit.rs` | Pesos de prioridad causal con lower confidence bound |
 | Operator `/api/plasticity` | Plasticidad v2 advisory (BCM, eligibility, neuromod, PI); puede `available:false` |
 

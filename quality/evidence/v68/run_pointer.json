@@ -1,0 +1,11 @@
+{
+  "schema": "tidex.v68_run_pointer/v1",
+  "run_root": "/tmp/tidex-v68-definitive-prepost-20260912T1535Z",
+  "base_dir": "/home/yo/Future/runtime/llms/huggingface/hub/models--HuggingFaceTB--SmolLM2-1.7B-Instruct/snapshots/31b70e2e869a7173562077fd711b654946d38674",
+  "base_model_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
+  "tidex_binary": "/tmp/tidex-v68-frozen-bin/tidex",
+  "tidex_binary_sha256": "736d7d6273ed5a5f0ccfe7ea27df0d2ac2517d8a84918e7f2a2c32681dc227fb",
+  "receipt": "quality/evidence/v68/receipt.json",
+  "machine": "yo-Venus-series",
+  "note": "Weights and full run tree remain outside git under run_root."
+}

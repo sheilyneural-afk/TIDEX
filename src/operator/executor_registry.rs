@@ -1428,7 +1428,7 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             ["activity_observation"],
             ["threshold_signal"],
             None,
-            "Fed by persisted measured model-evaluation jobs through OperatorPlasticityAdvice v2; advisory only and never promotion authority."
+            "Fed by config/plasticity.toml plus durable operator/plasticity/controller_state.json through OperatorPlasticityAdvice v2; advisory numerical controller only — not PlasticityEngine and never promotion authority."
         ),
         desc!(
             "plasticity.eligibility",
@@ -1443,7 +1443,7 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             ["job_outcomes", "activation_events"],
             ["eligibility_signal"],
             None,
-            "Consumes persisted measured Operator outcomes in the plasticity v2 projection; advisory credit only."
+            "Consumes measured Operator outcomes with durable controller state under operator/plasticity/; advisory credit only, not PlasticityEngine."
         ),
         desc!(
             "plasticity.neuromodulation",
@@ -1458,7 +1458,7 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             ["reward", "novelty", "stability"],
             ["modulated_rate"],
             None,
-            "Combines measured Operator evaluation signals in plasticity v2; cannot alter hard gates or authorize production."
+            "Combines measured Operator evaluation signals and modulates BCM/eligibility/content/routing learning rates in plasticity v2; cannot alter hard gates or authorize production."
         ),
         desc!(
             "plasticity.routing",
@@ -1473,7 +1473,7 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             ["catalog", "outcomes"],
             ["routing_decision"],
             None,
-            "Consumes cataloged models and measured Operator outcomes in plasticity v2; emits advisory routing only."
+            "Consumes measured Operator outcomes with newer-valid evidence merge and durable routing history; emits advisory routing only."
         ),
         desc!(
             "plasticity.content",
@@ -1488,7 +1488,7 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             ["fact/source_observations"],
             ["content_confidence_update"],
             None,
-            "Runs inside the evidence-bound plasticity v2 projection over persisted evaluation observations; advisory only."
+            "Runs inside the evidence-bound plasticity v2 projection with durable state under operator/plasticity/; advisory only."
         ),
         desc!(
             "plasticity.pi",
@@ -1503,7 +1503,7 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             ["setpoint", "measurement"],
             ["bounded_control_signal"],
             None,
-            "Runs against measured score distributions in plasticity v2 and emits a bounded advisory control signal."
+            "Runs against measured score distributions with durable PI integral under operator/plasticity/; bounded advisory control only."
         ),
         desc!(
             "plasticity.elo",
@@ -1518,22 +1518,22 @@ pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
             ["paired_outcomes"],
             ["elo_rating_update"],
             None,
-            "Consumes paired measured Operator outcomes in plasticity v2; comparisons are advisory and never promotion evidence by themselves."
+            "Consumes paired measured Operator outcomes with durable ratings under operator/plasticity/; comparisons are advisory and never promotion evidence by themselves."
         ),
         desc!(
             "coevolution.loop",
-            "Co-evolution analyzer",
+            "Co-evolution bidirectional loop",
             "cross_model::co_evolution::BidirectionalLoop",
             "cross_model/co_evolution",
             Operational,
             AdvisoryOnly,
             AdvisorySignal,
             [TidexOperator, InternalLibrary],
-            ["analyze_learning_dynamics"],
+            ["analyze_learning_dynamics", "steer_next_cycle"],
             ["cycle_history"],
-            ["coevolution_progress"],
+            ["coevolution_progress", "coevolution_directive"],
             None,
-            "Consumes persisted real discovery cycles and intervention receipts in plasticity v2; analyzer only, never executor authority."
+            "Operational advisory loop: seals causally filtered discovery+intervention history, plans the next discovery/transfer job, and steers durable routing/PI under operator/plasticity/; never production_authority."
         ),
         desc!(
             "consensus.builder",

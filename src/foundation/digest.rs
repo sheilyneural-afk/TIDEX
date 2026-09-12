@@ -447,6 +447,14 @@ sealed_semantic_digest!(SystemEnvelopeDigest);
 sealed_semantic_digest!(CapabilityIrDigest);
 sealed_semantic_digest!(CapabilityBundleDigest);
 sealed_semantic_digest!(CaptureReceiptDigest);
+sealed_semantic_digest!(
+    /// Manifest identity of a sealed authenticated-capacity package (Paso 4).
+    ///
+    /// Minted only by the functional-acquisition authority from observed
+    /// behavior + interventions + functional contracts. Never derived from
+    /// CapabilityIR and never convertible from a raw SHA-256.
+    AuthenticatedCapacityDigest
+);
 sealed_semantic_digest_without_draft!(ResidencyPolicyDigest);
 sealed_semantic_digest!(ResidencyPrecommitDigest);
 sealed_semantic_digest!(ResidencyDecisionDigest);
@@ -600,6 +608,7 @@ mod tests {
         exercise_sealed_digest!(CapabilityIrDigest, true);
         exercise_sealed_digest!(CapabilityBundleDigest, true);
         exercise_sealed_digest!(CaptureReceiptDigest, true);
+        exercise_sealed_digest!(AuthenticatedCapacityDigest, true);
         exercise_sealed_digest!(ResidencyPolicyDigest, false);
         exercise_sealed_digest!(ResidencyPrecommitDigest, true);
         exercise_sealed_digest!(ResidencyDecisionDigest, true);
@@ -609,6 +618,7 @@ mod tests {
         assert!(CapabilityIrDigest::draft_marker().is_draft());
         assert!(CapabilityBundleDigest::draft_marker().is_draft());
         assert!(CaptureReceiptDigest::draft_marker().is_draft());
+        assert!(AuthenticatedCapacityDigest::draft_marker().is_draft());
         assert!(ResidencyPrecommitDigest::draft_marker().is_draft());
         assert!(ResidencyDecisionDigest::draft_marker().is_draft());
     }

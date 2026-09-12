@@ -1410,6 +1410,26 @@ fn list_all_job_records(tidex_home: &Path) -> BrainResult<Vec<OperatorJobRecord>
     collect_job_records(tidex_home, None)
 }
 
+/// Production enqueue for direct workflows (HTTP control plane + workflow NextAction).
+///
+/// Same path as `POST /api/workflows/direct` → `start_operator_job(Direct)`.
+pub fn start_operator_direct_job(
+    tidex_home: &Path,
+    request: OperatorDirectWorkflowRequest,
+) -> BrainResult<OperatorJobRecord> {
+    start_operator_job(tidex_home, OperatorJobRequest::Direct(request))
+}
+
+/// Production enqueue for behavioral discovery (HTTP control plane + workflow NextAction).
+///
+/// Same path as `POST /api/workflows/behavioral-discovery` → `start_operator_job(BehavioralDiscovery)`.
+pub fn start_operator_behavioral_discovery_job(
+    tidex_home: &Path,
+    request: BehavioralDiscoveryWorkflowRequest,
+) -> BrainResult<OperatorJobRecord> {
+    start_operator_job(tidex_home, OperatorJobRequest::BehavioralDiscovery(request))
+}
+
 fn start_operator_job(
     tidex_home: &Path,
     request: OperatorJobRequest,
@@ -2402,13 +2422,15 @@ pub struct OperatorPlasticityAdvice {
     pub pi_controller: Option<OperatorPiAdvice>,
     pub content: Vec<OperatorContentAdvice>,
     pub coevolution: Vec<serde_json::Value>,
+    /// Next advisory BidirectionalLoop tick (operation proposal + controller bias).
+    pub coevolution_directive: Option<serde_json::Value>,
     pub notes: Vec<String>,
 }
 
 #[cfg(not(feature = "cross-model-plasticity"))]
 fn empty_plasticity_advice(notes: Vec<String>) -> OperatorPlasticityAdvice {
     OperatorPlasticityAdvice {
-        schema: "tidex.operator_plasticity_advice/v2".into(),
+        schema: "tidex.operator_plasticity_advice/v3".into(),
         available: false,
         source_jobs: 0,
         elo_leaderboard: Vec::new(),
@@ -2420,6 +2442,7 @@ fn empty_plasticity_advice(notes: Vec<String>) -> OperatorPlasticityAdvice {
         pi_controller: None,
         content: Vec::new(),
         coevolution: Vec::new(),
+        coevolution_directive: None,
         notes,
     }
 }
@@ -2435,23 +2458,261 @@ pub struct OperatorEloEntityAdvice {
 }
 
 #[cfg(feature = "cross-model-plasticity")]
+const OPERATOR_PLASTICITY_CONTROLLER_STATE_SCHEMA: &str =
+    "tidex.operator_plasticity_controller_state/v1";
+#[cfg(feature = "cross-model-plasticity")]
+const OPERATOR_PLASTICITY_CONTROLLER_STATE_DOMAIN: &[u8] =
+    b"TIDEX:OPERATOR-PLASTICITY-CONTROLLER-STATE:v1\0";
+
+#[cfg(feature = "cross-model-plasticity")]
+fn operator_plasticity_controller_state_path(tidex_home: &Path) -> PathBuf {
+    tidex_home.join("operator/plasticity/controller_state.json")
+}
+
+#[cfg(feature = "cross-model-plasticity")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct OperatorPlasticityControllerState {
+    schema: String,
+    config_sha256: String,
+    evidence_sha256: String,
+    elo: std::collections::BTreeMap<String, crate::cross_model::plasticity::ELOState>,
+    bcm: std::collections::BTreeMap<String, crate::cross_model::plasticity::BCMState>,
+    eligibility:
+        std::collections::BTreeMap<String, crate::cross_model::plasticity::EligibilityTrace>,
+    neuromodulation_levels:
+        std::collections::BTreeMap<crate::cross_model::plasticity::Neuromodulator, f64>,
+    pi: crate::cross_model::plasticity::PIControllerState,
+    content:
+        std::collections::BTreeMap<String, crate::cross_model::plasticity::ContentPlasticityState>,
+    content_matrix: crate::cross_model::plasticity::ContentPlasticityMatrix,
+    routing_history:
+        std::collections::BTreeMap<String, Vec<crate::cross_model::plasticity::RoutingDecision>>,
+    routing_matrix: crate::cross_model::plasticity::RoutingPlasticityMatrix,
+    applied_observation_keys: std::collections::BTreeSet<String>,
+    applied_elo_pair_keys: std::collections::BTreeSet<String>,
+    applied_routing_keys: std::collections::BTreeSet<String>,
+    coevolution_history: Vec<crate::cross_model::co_evolution::CoEvolutionStep>,
+    applied_coevolution_keys: std::collections::BTreeSet<String>,
+    #[serde(default)]
+    coevolution_directive: Option<crate::cross_model::co_evolution::CoEvolutionDirective>,
+    #[serde(default)]
+    applied_loop_tick_keys: std::collections::BTreeSet<String>,
+}
+
+#[cfg(feature = "cross-model-plasticity")]
+fn observation_key(benchmark: &str, model: &str, evidence: &str) -> String {
+    format!("{benchmark}\0{model}\0{evidence}")
+}
+
+#[cfg(feature = "cross-model-plasticity")]
+fn coevolution_report_key(report_value: &serde_json::Value) -> BrainResult<String> {
+    Ok(Sha256Digest::digest_domain(
+        b"TIDEX:OPERATOR-COEVOLUTION-CYCLE:v1\0",
+        &serde_json::to_vec(report_value)?,
+    )
+    .to_string())
+}
+
+#[cfg(feature = "cross-model-plasticity")]
+fn seal_operator_plasticity_controller_state(
+    mut state: OperatorPlasticityControllerState,
+) -> BrainResult<OperatorPlasticityControllerState> {
+    state.evidence_sha256 = Sha256Digest::zero().to_string();
+    let body = serde_json::to_vec(&state)?;
+    state.evidence_sha256 =
+        Sha256Digest::digest_domain(OPERATOR_PLASTICITY_CONTROLLER_STATE_DOMAIN, &body).to_string();
+    Ok(state)
+}
+
+#[cfg(feature = "cross-model-plasticity")]
+fn verify_operator_plasticity_controller_state(
+    state: &OperatorPlasticityControllerState,
+) -> BrainResult<()> {
+    if state.schema != OPERATOR_PLASTICITY_CONTROLLER_STATE_SCHEMA
+        || !Sha256Digest::is_valid_str(&state.config_sha256)
+        || !Sha256Digest::is_valid_str(&state.evidence_sha256)
+    {
+        return Err(BrainError::Integrity("operator_plasticity_controller_state_invalid".into()));
+    }
+    let mut candidate = state.clone();
+    let claimed = candidate.evidence_sha256.clone();
+    candidate.evidence_sha256 = Sha256Digest::zero().to_string();
+    let body = serde_json::to_vec(&candidate)?;
+    let expected =
+        Sha256Digest::digest_domain(OPERATOR_PLASTICITY_CONTROLLER_STATE_DOMAIN, &body).to_string();
+    if claimed != expected {
+        return Err(BrainError::Integrity(
+            "operator_plasticity_controller_state_evidence_mismatch".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "cross-model-plasticity")]
+fn load_operator_plasticity_controller_state(
+    tidex_home: &Path,
+) -> BrainResult<Option<OperatorPlasticityControllerState>> {
+    let path = operator_plasticity_controller_state_path(tidex_home);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let meta = regular_file_metadata(&path)?;
+    if meta.len() == 0 || meta.len() > 32 * 1024 * 1024 {
+        return Err(BrainError::Invalid(
+            "operator_plasticity_controller_state_size_invalid".into(),
+        ));
+    }
+    let bytes = fs::read(&path).map_err(|_| {
+        BrainError::Invalid("operator_plasticity_controller_state_unreadable".into())
+    })?;
+    let state: OperatorPlasticityControllerState =
+        serde_json::from_slice(&bytes).map_err(|_| {
+            BrainError::Integrity("operator_plasticity_controller_state_json_invalid".into())
+        })?;
+    verify_operator_plasticity_controller_state(&state)?;
+    Ok(Some(state))
+}
+
+#[cfg(feature = "cross-model-plasticity")]
+fn persist_operator_plasticity_controller_state(
+    tidex_home: &Path,
+    state: &OperatorPlasticityControllerState,
+) -> BrainResult<()> {
+    verify_operator_plasticity_controller_state(state)?;
+    let root = tidex_home.join("operator/plasticity");
+    ensure_private_dir(&root)?;
+    let bytes = serde_json::to_vec(state)?;
+    replace_private_file_atomic(
+        tidex_home,
+        &operator_plasticity_controller_state_path(tidex_home),
+        &bytes,
+        None,
+    )?;
+    Ok(())
+}
+
+#[cfg(feature = "cross-model-plasticity")]
 pub fn compute_operator_plasticity_advice(
     tidex_home: &Path,
 ) -> BrainResult<OperatorPlasticityAdvice> {
-    use crate::cross_model::plasticity::{ELOSystem, RoutingObservation, RoutingPlasticity};
+    use crate::cross_model::plasticity::{
+        default_plasticity_toml_path, load_plasticity_control_plane_configs, BCMMetaplasticity,
+        ContentPlasticity, ELOSystem, EligibilityTraces, Neuromodulation, NeuromodulationSignal,
+        Neuromodulator, PIController, RoutingObservation, RoutingPlasticity,
+    };
+    use std::collections::{BTreeMap, BTreeSet};
 
-    let mut elo = ELOSystem::default();
-    let mut routing = RoutingPlasticity::default();
-    let mut by_domain = std::collections::BTreeMap::<
-        String,
-        std::collections::BTreeMap<String, RoutingObservation>,
-    >::new();
-    let mut source_jobs = 0usize;
+    let (configs, toml_bytes) =
+        load_plasticity_control_plane_configs(&default_plasticity_toml_path())
+            .map_err(|error| BrainError::Invalid(format!("plasticity_toml_load_failed:{error}")))?;
+    let config_sha256 = Sha256Digest::digest_bytes(&toml_bytes).to_string();
+
+    let mut elo = ELOSystem::new(configs.elo.clone()).map_err(BrainError::Invalid)?;
+    let mut routing =
+        RoutingPlasticity::new(configs.routing.clone()).map_err(BrainError::Invalid)?;
+    let mut bcm = BCMMetaplasticity::new(configs.bcm.clone()).map_err(BrainError::Invalid)?;
+    let mut eligibility =
+        EligibilityTraces::new(configs.eligibility.clone()).map_err(BrainError::Invalid)?;
+    let mut neuromodulation =
+        Neuromodulation::new(configs.neuromodulation.clone()).map_err(BrainError::Invalid)?;
+    let mut pi = PIController::new(configs.pi.clone()).map_err(BrainError::Invalid)?;
+    let mut content =
+        ContentPlasticity::new(configs.content.clone()).map_err(BrainError::Invalid)?;
+
+    let mut applied_observation_keys = BTreeSet::new();
+    let mut applied_elo_pair_keys = BTreeSet::new();
+    let mut applied_routing_keys = BTreeSet::new();
+    let mut applied_coevolution_keys = BTreeSet::new();
+    let mut applied_loop_tick_keys = BTreeSet::new();
+    let mut pending_coevolution_directive: Option<
+        crate::cross_model::co_evolution::CoEvolutionDirective,
+    > = None;
+    let mut coevolution_loop =
+        crate::cross_model::co_evolution::BidirectionalLoop::new(Default::default())
+            .map_err(BrainError::Invalid)?;
     let mut notes = Vec::new();
-    let mut discovery_reports = Vec::new();
-    let mut interventions = Vec::new();
 
-    for mut record in list_all_job_records(tidex_home)? {
+    match load_operator_plasticity_controller_state(tidex_home)? {
+        Some(state) if state.config_sha256 == config_sha256 => {
+            elo.import_ratings(state.elo.into_iter().collect())
+                .map_err(BrainError::Integrity)?;
+            bcm.import_states(state.bcm.into_iter().collect())
+                .map_err(BrainError::Integrity)?;
+            eligibility
+                .import_traces(state.eligibility.into_iter().collect())
+                .map_err(BrainError::Integrity)?;
+            neuromodulation
+                .import_levels(state.neuromodulation_levels.into_iter().collect())
+                .map_err(BrainError::Integrity)?;
+            pi.restore_state(state.pi).map_err(BrainError::Integrity)?;
+            content
+                .import_states(state.content.into_iter().collect())
+                .map_err(BrainError::Integrity)?;
+            content.import_matrix(state.content_matrix);
+            routing
+                .import_history(state.routing_history.into_iter().collect())
+                .map_err(BrainError::Integrity)?;
+            routing
+                .import_matrix(state.routing_matrix)
+                .map_err(BrainError::Integrity)?;
+            coevolution_loop
+                .import_history(state.coevolution_history)
+                .map_err(BrainError::Integrity)?;
+            applied_observation_keys = state.applied_observation_keys;
+            applied_elo_pair_keys = state.applied_elo_pair_keys;
+            applied_routing_keys = state.applied_routing_keys;
+            applied_coevolution_keys = state.applied_coevolution_keys;
+            applied_loop_tick_keys = state.applied_loop_tick_keys;
+            pending_coevolution_directive = state.coevolution_directive;
+            notes.push(
+                "Estado plástico durable recargado desde operator/plasticity/controller_state.json."
+                    .into(),
+            );
+        }
+        Some(_) => notes.push(
+            "Estado plástico durable ignorado: fingerprint de config/plasticity.toml distinto."
+                .into(),
+        ),
+        None => notes.push(
+            "Sin estado plástico durable previo; se inicializa bajo operator/plasticity/.".into(),
+        ),
+    }
+
+    #[derive(Clone)]
+    struct RankedObservation {
+        observation: RoutingObservation,
+        submitted_unix_ns: u128,
+        job_id: String,
+    }
+
+    let mut by_domain: BTreeMap<String, BTreeMap<String, RankedObservation>> = BTreeMap::new();
+    let mut source_jobs = 0usize;
+    #[derive(Clone)]
+    struct TimedDiscoveryReport {
+        value: serde_json::Value,
+        submitted_unix_ns: u128,
+        job_id: String,
+    }
+    #[derive(Clone)]
+    struct TimedIntervention {
+        evidence: crate::cross_model::co_evolution::AppliedInterventionEvidence,
+        submitted_unix_ns: u128,
+        #[allow(dead_code)]
+        job_id: String,
+    }
+    let mut discovery_reports: Vec<TimedDiscoveryReport> = Vec::new();
+    let mut interventions: Vec<TimedIntervention> = Vec::new();
+
+    // Oldest → newest so newer-valid replaces by submission time.
+    let mut jobs = list_all_job_records(tidex_home)?;
+    jobs.sort_by(|left, right| {
+        left.submitted_unix_ns
+            .cmp(&right.submitted_unix_ns)
+            .then_with(|| left.job_id.as_str().cmp(right.job_id.as_str()))
+    });
+
+    for mut record in jobs {
         if record.state != OperatorJobState::Completed {
             continue;
         }
@@ -2466,7 +2727,11 @@ pub fn compute_operator_plasticity_advice(
         };
         let schema = value.get("schema").and_then(serde_json::Value::as_str);
         if schema == Some("tidex.cross_model.discovery_cycle/v1") {
-            discovery_reports.push(value.clone());
+            discovery_reports.push(TimedDiscoveryReport {
+                value: value.clone(),
+                submitted_unix_ns: record.submitted_unix_ns,
+                job_id: record.job_id.as_str().to_string(),
+            });
         }
         if schema == Some("tidex.operator_activation_transfer/v1") {
             if let (Some(capability), Some(target), Some(receipt)) = (
@@ -2479,10 +2744,14 @@ pub fn compute_operator_plasticity_advice(
                 value.get("intervention"),
             ) {
                 let receipt_sha256 = Sha256Digest::digest_bytes(&serde_json::to_vec(receipt)?);
-                interventions.push(crate::cross_model::co_evolution::AppliedInterventionEvidence {
-                    capability_name: capability.into(),
-                    target_model: target.into(),
-                    receipt_sha256: receipt_sha256.to_string(),
+                interventions.push(TimedIntervention {
+                    evidence: crate::cross_model::co_evolution::AppliedInterventionEvidence {
+                        capability_name: capability.into(),
+                        target_model: target.into(),
+                        receipt_sha256: receipt_sha256.to_string(),
+                    },
+                    submitted_unix_ns: record.submitted_unix_ns,
+                    job_id: record.job_id.as_str().to_string(),
                 });
             }
         }
@@ -2539,24 +2808,39 @@ pub fn compute_operator_plasticity_advice(
                 ));
                 continue;
             }
+            let incoming = RankedObservation {
+                observation: RoutingObservation {
+                    model: model.clone(),
+                    score,
+                    sample_size,
+                    evidence_sha256: evidence.clone(),
+                },
+                submitted_unix_ns: record.submitted_unix_ns,
+                job_id: record.job_id.as_str().to_string(),
+            };
             let domain = by_domain.entry(benchmark.clone()).or_default();
             match domain.get(&model) {
-                Some(existing) if existing.evidence_sha256 != evidence => {
+                Some(existing)
+                    if existing.observation.evidence_sha256 != evidence
+                        && (incoming.submitted_unix_ns < existing.submitted_unix_ns
+                            || (incoming.submitted_unix_ns == existing.submitted_unix_ns
+                                && incoming.job_id <= existing.job_id)) =>
+                {
                     notes.push(format!(
-                        "Evaluación duplicada ignorada en {benchmark} para {model}; se conserva la primera evidencia."
+                        "Evaluación más antigua ignorada en {benchmark} para {model}; se conserva la evidencia más reciente."
                     ));
                 }
-                Some(_) => {}
+                Some(existing) if existing.observation.evidence_sha256 == evidence => {}
+                Some(existing) => {
+                    notes.push(format!(
+                        "Evaluación reemplazada en {benchmark} para {model}; política newer-valid ({} → {}).",
+                        &existing.observation.evidence_sha256[..12],
+                        &evidence[..12]
+                    ));
+                    domain.insert(model, incoming);
+                }
                 None => {
-                    domain.insert(
-                        model.clone(),
-                        RoutingObservation {
-                            model,
-                            score,
-                            sample_size,
-                            evidence_sha256: evidence,
-                        },
-                    );
+                    domain.insert(model, incoming);
                 }
             }
         }
@@ -2575,7 +2859,11 @@ pub fn compute_operator_plasticity_advice(
             continue;
         }
         if observations_by_model.len() == 1 {
-            let observation = observations_by_model.values().next().expect("len == 1");
+            let observation = &observations_by_model
+                .values()
+                .next()
+                .expect("len == 1")
+                .observation;
             notes.push(format!(
                 "Evaluación aislada en {benchmark} de {} (score {:.3}). ELO y rutas exigen al menos dos modelos en el mismo benchmark.",
                 observation.model, observation.score
@@ -2586,8 +2874,8 @@ pub fn compute_operator_plasticity_advice(
         let models = observations_by_model.keys().cloned().collect::<Vec<_>>();
         for left in 0..models.len() {
             for right in left + 1..models.len() {
-                let first = &observations_by_model[&models[left]];
-                let second = &observations_by_model[&models[right]];
+                let first = &observations_by_model[&models[left]].observation;
+                let second = &observations_by_model[&models[right]].observation;
                 if first.score.total_cmp(&second.score) == std::cmp::Ordering::Equal {
                     continue;
                 }
@@ -2608,18 +2896,28 @@ pub fn compute_operator_plasticity_advice(
                         &second.evidence_sha256,
                     ))?,
                 );
-                if let Err(error) = elo.update_observed(
+                let pair_key = evidence.to_string();
+                if applied_elo_pair_keys.contains(&pair_key) {
+                    continue;
+                }
+                match elo.update_observed(
                     &first.model,
                     &second.model,
                     first_observed,
                     evidence.as_str(),
                 ) {
-                    notes.push(format!("ELO ignorado en {benchmark}: {error}"));
+                    Ok(_) => {
+                        applied_elo_pair_keys.insert(pair_key);
+                    }
+                    Err(error) => notes.push(format!("ELO ignorado en {benchmark}: {error}")),
                 }
             }
         }
 
-        let observations = observations_by_model.values().cloned().collect::<Vec<_>>();
+        let observations = observations_by_model
+            .values()
+            .map(|row| row.observation.clone())
+            .collect::<Vec<_>>();
         let Some(max_score) = observations
             .iter()
             .map(|row| row.score)
@@ -2649,37 +2947,162 @@ pub fn compute_operator_plasticity_advice(
             continue;
         }
         let scope = format!("benchmark:{benchmark}");
+        let route_key = Sha256Digest::digest_domain(
+            b"TIDEX:OPERATOR-ROUTE-OBS:v1 ",
+            &serde_json::to_vec(&(
+                &scope,
+                observations
+                    .iter()
+                    .map(|row| (&row.model, row.score, row.sample_size, &row.evidence_sha256))
+                    .collect::<Vec<_>>(),
+            ))?,
+        )
+        .to_string();
+        if applied_routing_keys.contains(&route_key) {
+            if let Some(decision) = routing.get_routing_history(&scope).last() {
+                routing_decisions.push(serde_json::to_value(decision)?);
+            }
+            continue;
+        }
         match routing.route_capability(&scope, &observations) {
             Ok(decision) => {
+                applied_routing_keys.insert(route_key);
                 notes.push(format!(
                     "Ruta por score medido en {benchmark}: {} ({:.3}).",
                     decision.target_model, decision.measured_score
                 ));
-                routing_decisions.push(serde_json::to_value(decision)?);
+                routing_decisions.push(serde_json::to_value(&decision)?);
             }
             Err(error) => notes.push(format!("Routing ignorado en {scope}: {error}")),
         }
     }
 
-    let mut bcm = crate::cross_model::plasticity::BCMMetaplasticity::default();
-    let mut eligibility = crate::cross_model::plasticity::EligibilityTraces::default();
-    let mut neuromodulation = crate::cross_model::plasticity::Neuromodulation::default();
-    let mut pi = crate::cross_model::plasticity::PIController::default();
-    let mut content = crate::cross_model::plasticity::ContentPlasticity::default();
     let mut seen_benchmarks = 0usize;
     let mut pi_snapshot = None;
     let mut neuromodulation_snapshot = None;
+    let base_bcm_lr = bcm.config().learning_rate;
+    let base_eligibility_rate = eligibility.config().trace_update_rate;
+    let base_content_rate = content.config().adaptation_rate;
+    let base_routing_matrix_lr = routing.export_matrix().learning_rate;
 
     for (benchmark, observations_by_model) in &by_domain {
-        let mut rows = observations_by_model.values().cloned().collect::<Vec<_>>();
+        let mut rows = observations_by_model
+            .values()
+            .map(|row| row.observation.clone())
+            .collect::<Vec<_>>();
         rows.sort_by(|left, right| left.model.cmp(&right.model));
-        if bcm.initialize_state(benchmark).is_err() {
+        if bcm.get_state(benchmark).is_none() && bcm.initialize_state(benchmark).is_err() {
             notes.push(format!("BCM ya inicializado para {benchmark}"));
         }
-        if eligibility.initialize_trace(benchmark).is_err() {
+        if eligibility.get_trace(benchmark).is_none()
+            && eligibility.initialize_trace(benchmark).is_err()
+        {
             notes.push(format!("Eligibilidad ya inicializada para {benchmark}"));
         }
+
+        let mut pending_rows = Vec::new();
         for row in &rows {
+            let key = observation_key(benchmark, &row.model, &row.evidence_sha256);
+            if applied_observation_keys.contains(&key) {
+                continue;
+            }
+            pending_rows.push(row.clone());
+        }
+
+        if rows.len() >= 2 {
+            let scores = rows.iter().map(|row| row.score).collect::<Vec<_>>();
+            let min_score = scores.iter().copied().fold(f64::INFINITY, f64::min);
+            let max_score = scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let spread = (max_score - min_score).clamp(0.0, 1.0);
+            let evidence = Sha256Digest::digest_domain(
+                b"TIDEX:OPERATOR-NEUROMODULATION:v1\0",
+                &serde_json::to_vec(&(
+                    benchmark,
+                    rows.iter()
+                        .map(|row| row.evidence_sha256.as_str())
+                        .collect::<Vec<_>>(),
+                ))?,
+            );
+            let timestamp = chrono::Utc::now().to_rfc3339();
+            let novelty = (1.0 / (seen_benchmarks as f64 + 1.0)).clamp(0.0, 1.0);
+            let signals = [
+                (Neuromodulator::Reward, max_score),
+                (Neuromodulator::Attention, spread),
+                (Neuromodulator::Novelty, novelty),
+                (Neuromodulator::Stability, 1.0 - spread),
+            ];
+            for (modulator, level) in signals {
+                if let Err(error) = neuromodulation.emit_signal(NeuromodulationSignal {
+                    modulator,
+                    level,
+                    timestamp: timestamp.clone(),
+                    source: format!("benchmark:{benchmark}"),
+                    source_sha256: evidence.to_string(),
+                }) {
+                    notes.push(format!("Neuromodulación ignorada en {benchmark}: {error}"));
+                }
+            }
+            match neuromodulation.calculate_plasticity_modulation() {
+                Ok(plasticity_modulation) => {
+                    neuromodulation_snapshot = Some(OperatorNeuromodulationAdvice {
+                        reward: max_score,
+                        attention: spread,
+                        novelty,
+                        stability: 1.0 - spread,
+                        plasticity_modulation,
+                        source_sha256: evidence.to_string(),
+                    });
+                    match neuromodulation.modulate_learning_rate(base_bcm_lr) {
+                        Ok(modulated) => {
+                            if let Err(error) = bcm.set_learning_rate(benchmark, modulated) {
+                                notes.push(format!(
+                                    "BCM lr neuromodulada ignorada en {benchmark}: {error}"
+                                ));
+                            }
+                        }
+                        Err(error) => notes
+                            .push(format!("Neuromodulación→BCM ignorada en {benchmark}: {error}")),
+                    }
+                    match neuromodulation.modulate_learning_rate(base_eligibility_rate) {
+                        Ok(modulated) => {
+                            if let Err(error) = eligibility.set_trace_update_rate(modulated) {
+                                notes.push(format!(
+                                    "Eligibilidad rate neuromodulada ignorada: {error}"
+                                ));
+                            }
+                        }
+                        Err(error) => {
+                            notes.push(format!("Neuromodulación→eligibilidad ignorada: {error}"))
+                        }
+                    }
+                    match neuromodulation.modulate_learning_rate(base_content_rate) {
+                        Ok(modulated) => {
+                            if let Err(error) = content.set_adaptation_rate(modulated) {
+                                notes.push(format!("Content rate neuromodulada ignorada: {error}"));
+                            }
+                        }
+                        Err(error) => {
+                            notes.push(format!("Neuromodulación→content ignorada: {error}"))
+                        }
+                    }
+                    match neuromodulation.modulate_learning_rate(base_routing_matrix_lr) {
+                        Ok(modulated) => {
+                            if let Err(error) = routing.set_matrix_learning_rate(modulated) {
+                                notes.push(format!(
+                                    "Routing matrix lr neuromodulada ignorada: {error}"
+                                ));
+                            }
+                        }
+                        Err(error) => {
+                            notes.push(format!("Neuromodulación→routing ignorada: {error}"))
+                        }
+                    }
+                }
+                Err(error) => notes.push(format!("Neuromodulación incompleta: {error}")),
+            }
+        }
+
+        for row in &pending_rows {
             match bcm.update_threshold(benchmark, row.score) {
                 Ok(_) => {}
                 Err(error) => notes.push(format!("BCM ignorado en {benchmark}: {error}")),
@@ -2688,10 +3111,16 @@ pub fn compute_operator_plasticity_advice(
                 Ok(_) => {}
                 Err(error) => notes.push(format!("Eligibilidad ignorada en {benchmark}: {error}")),
             }
+            applied_observation_keys.insert(observation_key(
+                benchmark,
+                &row.model,
+                &row.evidence_sha256,
+            ));
         }
-        if rows.len() >= 2 {
+
+        if !pending_rows.is_empty() && rows.len() >= 2 {
             let mean = rows.iter().map(|row| row.score).sum::<f64>() / rows.len() as f64;
-            for row in &rows {
+            for row in &pending_rows {
                 let credit = row.score - mean;
                 if let Err(error) = eligibility.accumulate_credit(benchmark, credit) {
                     notes.push(format!("Crédito de eligibilidad ignorado en {benchmark}: {error}"));
@@ -2710,42 +3139,6 @@ pub fn compute_operator_plasticity_advice(
                         .collect::<Vec<_>>(),
                 ))?,
             );
-            let timestamp = chrono::Utc::now().to_rfc3339();
-            let signals = [
-                (crate::cross_model::plasticity::Neuromodulator::Reward, max_score),
-                (crate::cross_model::plasticity::Neuromodulator::Attention, spread),
-                (
-                    crate::cross_model::plasticity::Neuromodulator::Novelty,
-                    (1.0 / (seen_benchmarks as f64 + 1.0)).clamp(0.0, 1.0),
-                ),
-                (crate::cross_model::plasticity::Neuromodulator::Stability, 1.0 - spread),
-            ];
-            for (modulator, level) in signals {
-                if let Err(error) = neuromodulation.emit_signal(
-                    crate::cross_model::plasticity::NeuromodulationSignal {
-                        modulator,
-                        level,
-                        timestamp: timestamp.clone(),
-                        source: format!("benchmark:{benchmark}"),
-                        source_sha256: evidence.to_string(),
-                    },
-                ) {
-                    notes.push(format!("Neuromodulación ignorada en {benchmark}: {error}"));
-                }
-            }
-            match neuromodulation.calculate_plasticity_modulation() {
-                Ok(plasticity_modulation) => {
-                    neuromodulation_snapshot = Some(OperatorNeuromodulationAdvice {
-                        reward: max_score,
-                        attention: spread,
-                        novelty: (1.0 / (seen_benchmarks as f64 + 1.0)).clamp(0.0, 1.0),
-                        stability: 1.0 - spread,
-                        plasticity_modulation,
-                        source_sha256: evidence.to_string(),
-                    });
-                }
-                Err(error) => notes.push(format!("Neuromodulación incompleta: {error}")),
-            }
             match pi.update(1.0, mean, 1.0) {
                 Ok(output) => {
                     let state = pi.get_state();
@@ -2758,13 +3151,14 @@ pub fn compute_operator_plasticity_advice(
                 }
                 Err(error) => notes.push(format!("PI ignorado en {benchmark}: {error}")),
             }
-            if content
-                .initialize_state(
-                    benchmark,
-                    rows[0].evidence_sha256.clone(),
-                    rows[0].evidence_sha256.clone(),
-                )
-                .is_err()
+            if content.get_state(benchmark).is_none()
+                && content
+                    .initialize_state(
+                        benchmark,
+                        rows[0].evidence_sha256.clone(),
+                        rows[0].evidence_sha256.clone(),
+                    )
+                    .is_err()
             {
                 notes.push(format!("Contenido ya inicializado para {benchmark}"));
             }
@@ -2779,8 +3173,29 @@ pub fn compute_operator_plasticity_advice(
                 Err(error) => notes.push(format!("Contenido ignorado en {benchmark}: {error}")),
             }
             seen_benchmarks = seen_benchmarks.saturating_add(1);
+        } else if rows.len() >= 2 {
+            // Refresh PI/content advisory view from current means without double-counting.
+            let mean = rows.iter().map(|row| row.score).sum::<f64>() / rows.len() as f64;
+            let state = pi.get_state();
+            pi_snapshot = Some(OperatorPiAdvice {
+                setpoint: 1.0,
+                measurement: mean,
+                output: state.last_output,
+                updates: state.updates,
+            });
+            if let Some(state) = content.get_state(benchmark) {
+                // keep existing content advice via later collect
+                let _ = state;
+            }
+            seen_benchmarks = seen_benchmarks.saturating_add(1);
         }
     }
+
+    // Restore base rates after modulated updates so persisted config remains the TOML baseline
+    // on the next process; per-capability BCM lr stays modulated in state.
+    let _ = eligibility.set_trace_update_rate(base_eligibility_rate);
+    let _ = content.set_adaptation_rate(base_content_rate);
+    let _ = routing.set_matrix_learning_rate(base_routing_matrix_lr);
 
     let bcm_advice = by_domain
         .keys()
@@ -2820,29 +3235,141 @@ pub fn compute_operator_plasticity_advice(
 
     let mut coevolution = Vec::new();
     if discovery_reports.is_empty() {
-        notes.push(
-            "Coevolución: sin ciclo de discovery persistido. BidirectionalLoop no inventa historia."
-                .into(),
-        );
+        if coevolution_loop.get_history().is_empty() {
+            notes.push(
+                "Coevolución: sin ciclo de discovery persistido. BidirectionalLoop no inventa historia."
+                    .into(),
+            );
+        } else {
+            notes.push(
+                "Coevolución: sin ciclos nuevos; se reutiliza historia durable de BidirectionalLoop."
+                    .into(),
+            );
+        }
     } else {
-        let mut r#loop =
-            crate::cross_model::co_evolution::BidirectionalLoop::new(Default::default())
-                .map_err(BrainError::Invalid)?;
-        for report_value in discovery_reports {
+        for timed in discovery_reports {
+            let report_key = coevolution_report_key(&timed.value)?;
+            if applied_coevolution_keys.contains(&report_key) {
+                continue;
+            }
             match serde_json::from_value::<
                 crate::cross_model::plasticity_engine::DiscoveryCycleReport,
-            >(report_value)
+            >(timed.value)
             {
-                Ok(report) => match r#loop.record_cycle(&report, &interventions) {
-                    Ok(step) => coevolution.push(serde_json::to_value(step)?),
-                    Err(error) => notes.push(format!("Coevolución ignorada: {error}")),
-                },
+                Ok(report) => {
+                    let cycle_models = report
+                        .evaluations
+                        .iter()
+                        .map(|evaluation| evaluation.model.clone())
+                        .collect::<BTreeSet<_>>();
+                    // Fail-closed causal seal: only interventions with
+                    // submitted_unix_ns ≤ cycle seal time whose target_model
+                    // appears in this cycle. Never reuse the global vector.
+                    let mut causal = interventions
+                        .iter()
+                        .filter(|row| {
+                            crate::cross_model::co_evolution::intervention_causally_allowed_for_cycle(
+                                timed.submitted_unix_ns,
+                                &cycle_models,
+                                row.submitted_unix_ns,
+                                &row.evidence.target_model,
+                            )
+                        })
+                        .map(|row| row.evidence.clone())
+                        .collect::<Vec<_>>();
+                    causal.sort_by(|left, right| {
+                        left.receipt_sha256
+                            .cmp(&right.receipt_sha256)
+                            .then_with(|| left.capability_name.cmp(&right.capability_name))
+                            .then_with(|| left.target_model.cmp(&right.target_model))
+                    });
+                    match coevolution_loop.record_cycle(&report, &causal) {
+                        Ok(_step) => {
+                            applied_coevolution_keys.insert(report_key);
+                            notes.push(format!(
+                                "Coevolución sellada job {} @{}ns con {} intervención(es) causal(es).",
+                                &timed.job_id[..12.min(timed.job_id.len())],
+                                timed.submitted_unix_ns,
+                                causal.len()
+                            ));
+                        }
+                        Err(error) => notes.push(format!("Coevolución ignorada: {error}")),
+                    }
+                }
                 Err(error) => notes.push(format!("Coevolución: discovery inválido: {error}")),
             }
         }
     }
+    for step in coevolution_loop.get_history() {
+        coevolution.push(serde_json::to_value(step)?);
+    }
+
+    let mut coevolution_directive_value = None;
+    match coevolution_loop.plan_next_tick() {
+        Ok(Some(directive)) => {
+            notes.push(format!(
+                "Loop tick: {} — {}",
+                directive.recommended_operation, directive.reason
+            ));
+            // Apply freshly planned tick into durable controllers in this same
+            // projection so the next advice/cycle consumes the bias.
+            let tick_key = directive.evidence_sha256.clone();
+            if !applied_loop_tick_keys.contains(&tick_key) {
+                if let (Some(preferred), true) =
+                    (directive.source_model.clone(), directive.routing_correlation > 0.0)
+                {
+                    let scope = format!("benchmark:{}", directive.benchmark_id);
+                    let mut matrix = routing.export_matrix();
+                    match matrix.update_weight(&scope, &preferred, directive.routing_correlation) {
+                        Ok(weight) => {
+                            if let Err(error) = routing.import_matrix(matrix) {
+                                notes.push(format!("Loop tick routing persist ignorado: {error}"));
+                            } else {
+                                notes.push(format!(
+                                    "Loop tick persistido: routing {preferred}@{scope} → {weight:.4}."
+                                ));
+                            }
+                        }
+                        Err(error) => notes.push(format!("Loop tick routing ignorado: {error}")),
+                    }
+                }
+                let measurement = coevolution_loop
+                    .get_progress()
+                    .average_fitness
+                    .unwrap_or(0.5);
+                match pi.update(directive.pi_setpoint, measurement, 1.0) {
+                    Ok(output) => {
+                        pi_snapshot = Some(OperatorPiAdvice {
+                            setpoint: directive.pi_setpoint,
+                            measurement,
+                            output,
+                            updates: pi.get_state().updates,
+                        });
+                        notes.push(format!(
+                            "Loop tick persistido: PI → output {output:.4} (setpoint {:.4}).",
+                            directive.pi_setpoint
+                        ));
+                    }
+                    Err(error) => notes.push(format!("Loop tick PI ignorado: {error}")),
+                }
+                applied_loop_tick_keys.insert(tick_key);
+            }
+            coevolution_directive_value = Some(serde_json::to_value(&directive)?);
+            pending_coevolution_directive = Some(directive);
+        }
+        Ok(None) => {
+            pending_coevolution_directive = None;
+            notes.push("Loop tick: sin historia sellada; no hay directiva.".into());
+        }
+        Err(error) => notes.push(format!("Loop tick ignorado: {error}")),
+    }
+
     notes.push(
         "ConsensusBuilder no se ejecuta: no hay votos de política explícitos y no se inventa quórum."
+            .into(),
+    );
+    notes.push(
+        "PlasticityEngine/daemon ≠ controladores numéricos: advice acumula BCM/ELO/PI advisory; el engine solo produce evidencia. BidirectionalLoop cierra el bucle advisory sobre routing/PI y propone el siguiente job."
             .into(),
     );
 
@@ -2869,8 +3396,31 @@ pub fn compute_operator_plasticity_advice(
         .collect();
     let available = !elo_entities.is_empty() || !routing_decisions.is_empty();
 
+    let durable = seal_operator_plasticity_controller_state(OperatorPlasticityControllerState {
+        schema: OPERATOR_PLASTICITY_CONTROLLER_STATE_SCHEMA.into(),
+        config_sha256,
+        evidence_sha256: Sha256Digest::zero().to_string(),
+        elo: elo.export_ratings().into_iter().collect(),
+        bcm: bcm.export_states().into_iter().collect(),
+        eligibility: eligibility.export_traces().into_iter().collect(),
+        neuromodulation_levels: neuromodulation.export_levels().into_iter().collect(),
+        pi: pi.get_state().clone(),
+        content: content.export_states().into_iter().collect(),
+        content_matrix: content.export_matrix(),
+        routing_history: routing.export_history().into_iter().collect(),
+        routing_matrix: routing.export_matrix(),
+        applied_observation_keys,
+        applied_elo_pair_keys,
+        applied_routing_keys,
+        coevolution_history: coevolution_loop.export_history(),
+        applied_coevolution_keys,
+        coevolution_directive: pending_coevolution_directive,
+        applied_loop_tick_keys,
+    })?;
+    persist_operator_plasticity_controller_state(tidex_home, &durable)?;
+
     Ok(OperatorPlasticityAdvice {
-        schema: "tidex.operator_plasticity_advice/v2".into(),
+        schema: "tidex.operator_plasticity_advice/v3".into(),
         available,
         source_jobs,
         elo_leaderboard,
@@ -2882,6 +3432,7 @@ pub fn compute_operator_plasticity_advice(
         pi_controller: pi_snapshot,
         content: content_advice,
         coevolution,
+        coevolution_directive: coevolution_directive_value,
         notes,
     })
 }
@@ -3741,7 +4292,8 @@ mod tests {
         let hub = default_hf_hub_root().expect("hub root");
         fs::create_dir_all(&hub).unwrap();
         let tag = format!("{}-{}", std::process::id(), now_nanos().unwrap_or(0));
-        let repo = hub.join(format!("models--tidex-test--{tag}"));
+        let fixture_root = hub.join(format!("tidex-model-scan-fixture--{tag}"));
+        let repo = fixture_root.join("models--tidex-test");
         let blobs = repo.join("blobs");
         let snap = repo.join("snapshots").join("deadbeef");
         fs::create_dir_all(&blobs).unwrap();
@@ -3757,18 +4309,17 @@ mod tests {
         std::os::unix::fs::symlink("../../blobs/tok", snap.join("tokenizer.json")).unwrap();
         std::os::unix::fs::symlink("../../blobs/weights", snap.join("model.safetensors")).unwrap();
 
-        let evil_repo = hub.join(format!("models--tidex-escape--{tag}"));
+        let evil_repo = fixture_root.join("models--tidex-escape");
         let evil_snap = evil_repo.join("snapshots").join("evil");
         fs::create_dir_all(&evil_snap).unwrap();
         std::os::unix::fs::symlink("/etc/hosts", evil_snap.join("config.json")).unwrap();
         fs::write(evil_snap.join("tokenizer.json"), br#"{}"#).unwrap();
         fs::write(evil_snap.join("model.safetensors"), b"x").unwrap();
 
-        let found = discover_local_models(&hub).expect("scan");
+        let found = discover_local_models(&fixture_root).expect("scan");
         let hit = found.iter().any(|model| model.root == snap);
         let evil_hit = found.iter().any(|model| model.root == evil_snap);
-        let _ = fs::remove_dir_all(repo);
-        let _ = fs::remove_dir_all(evil_repo);
+        let _ = fs::remove_dir_all(fixture_root);
         assert!(hit, "HF blob-symlink snapshots inside the hub must catalog");
         assert!(!evil_hit, "symlinks that escape the hub must not catalog");
     }
@@ -3978,6 +4529,367 @@ mod tests {
         assert_eq!(advice.routing_decisions.len(), 1);
         assert_eq!(advice.routing_decisions[0]["target_model"].as_str(), Some("model-b"));
         let _ = fs::remove_dir_all(home);
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    #[test]
+    fn plasticity_advice_persists_controller_state_across_calls() {
+        let home = isolated_operator_home("plasticity-durable");
+        seed_completed_evaluation(&home, "eval-a", "model-a", 0.0, "integer_arithmetic_v1", 1);
+        seed_completed_evaluation(&home, "eval-b", "model-b", 1.0, "integer_arithmetic_v1", 2);
+        let first = compute_operator_plasticity_advice(&home).unwrap();
+        assert!(first.available);
+        assert!(advice_path_exists(&home));
+        let rating_b = first.elo_leaderboard[0].1;
+        let second = compute_operator_plasticity_advice(&home).unwrap();
+        assert_eq!(second.elo_entities.len(), 2);
+        assert!(second.elo_entities.iter().all(|item| item.comparisons == 1));
+        assert!((second.elo_leaderboard[0].1 - rating_b).abs() < 1e-12);
+        assert!(second
+            .notes
+            .iter()
+            .any(|note| note.contains("durable recargado")));
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    fn sealed_model_evaluation_value(
+        model: &str,
+        score: f64,
+        benchmark: &str,
+        tag: &str,
+    ) -> serde_json::Value {
+        use crate::cross_model::discovery::{ModelEvaluation, ProbeObservation};
+        use crate::cross_model::models::sha256_hex;
+        let mut evaluation = ModelEvaluation {
+            schema: "tidex.cross_model.model_evaluation/v1".into(),
+            benchmark_id: benchmark.into(),
+            benchmark_sha256: sha256_hex(benchmark.as_bytes()),
+            model: model.into(),
+            runtime_metadata_sha256: sha256_hex(format!("{tag}-runtime").as_bytes()),
+            observations: vec![ProbeObservation {
+                probe_id: format!("{tag}-probe"),
+                prompt_sha256: sha256_hex(format!("{tag}-prompt").as_bytes()),
+                response_sha256: sha256_hex(format!("{tag}-response").as_bytes()),
+                response_text: format!("{tag}-text"),
+                score,
+                weight: 1.0,
+                total_duration_ns: None,
+                prompt_eval_count: None,
+                eval_count: None,
+                execution_sha256: sha256_hex(format!("{tag}-exec").as_bytes()),
+                active_interventions_sha256: sha256_hex(b"[]"),
+                active_intervention_count: 0,
+            }],
+            weighted_score: score,
+            evidence_sha256: String::new(),
+        };
+        let mut unsigned = evaluation.clone();
+        unsigned.evidence_sha256.clear();
+        evaluation.evidence_sha256 = sha256_hex(&serde_json::to_vec(&unsigned).unwrap());
+        evaluation.validate().unwrap();
+        serde_json::to_value(evaluation).unwrap()
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    fn seed_completed_discovery_cycle(
+        home: &Path,
+        tag: &str,
+        benchmark: &str,
+        scores: &[(&str, f64)],
+        submitted_unix_ns: u128,
+    ) {
+        let job_id = Sha256Digest::digest_bytes(tag.as_bytes());
+        let run_id = Sha256Digest::digest_bytes(format!("{tag}-run").as_bytes());
+        let run_root = home.join("operator/runs/by-sha").join(run_id.as_str());
+        fs::create_dir_all(&run_root).unwrap();
+        let evaluations = scores
+            .iter()
+            .enumerate()
+            .map(|(idx, (model, score))| {
+                sealed_model_evaluation_value(model, *score, benchmark, &format!("{tag}-{idx}"))
+            })
+            .collect::<Vec<_>>();
+        let stdout = serde_json::json!({
+            "schema": "tidex.cross_model.discovery_cycle/v1",
+            "benchmark_id": benchmark,
+            "evaluations": evaluations,
+            "gaps": [],
+            "priorities": [],
+            "proposals": []
+        });
+        let stdout_bytes = serde_json::to_vec(&stdout).unwrap();
+        let stdout_path = run_root.join("stdout.json");
+        let stderr_path = run_root.join("stderr.txt");
+        fs::write(&stdout_path, &stdout_bytes).unwrap();
+        fs::write(&stderr_path, b"").unwrap();
+        let record = OperatorJobRecord {
+            schema: "tidex.operator_job/v1".into(),
+            job_id,
+            request_sha256: None,
+            evidence_receipt: None,
+            state: OperatorJobState::Completed,
+            operation: "behavioral_discovery".into(),
+            submitted_unix_ns,
+            run: Some(OperatorRunView {
+                receipt: OperatorRunReceipt {
+                    schema: "tidex.operator_run_receipt/v1".into(),
+                    run_id,
+                    recipe_id: "cross_model.discovery_cycle".into(),
+                    executor_id: Some("cross_model.discovery_cycle".into()),
+                    argv: Vec::new(),
+                    selected_model_ids: Vec::new(),
+                    dataset_sha256: None,
+                    source_tree_sha256: Sha256Digest::zero(),
+                    exit_code: 0,
+                    stdout_sha256: Sha256Digest::digest_bytes(&stdout_bytes),
+                    stderr_sha256: Sha256Digest::digest_bytes(b""),
+                    stdout: stdout_path,
+                    stderr: stderr_path,
+                    succeeded: true,
+                    production_activation_recipe: false,
+                    authorizes_production: false,
+                },
+                stdout: String::new(),
+                stderr: String::new(),
+            }),
+            error: None,
+        };
+        persist_job_record(home, &record).unwrap();
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    fn seed_completed_activation_transfer(
+        home: &Path,
+        tag: &str,
+        capability: &str,
+        target_model: &str,
+        submitted_unix_ns: u128,
+    ) {
+        let job_id = Sha256Digest::digest_bytes(tag.as_bytes());
+        let run_id = Sha256Digest::digest_bytes(format!("{tag}-run").as_bytes());
+        let run_root = home.join("operator/runs/by-sha").join(run_id.as_str());
+        fs::create_dir_all(&run_root).unwrap();
+        let intervention = serde_json::json!({
+            "schema": "tidex.cross_model.activation_intervention_receipt/v1",
+            "capability": capability,
+            "target_model": target_model,
+            "strength": 1.0,
+            "evidence_sha256": Sha256Digest::digest_bytes(format!("{tag}-iv").as_bytes()).as_str(),
+        });
+        let stdout = serde_json::json!({
+            "schema": "tidex.operator_activation_transfer/v1",
+            "capability_name": capability,
+            "source_model": "model-b",
+            "target_model": target_model,
+            "intervention": intervention,
+            "score_delta": 0.1,
+            "behavioral_improvement_observed": true
+        });
+        let stdout_bytes = serde_json::to_vec(&stdout).unwrap();
+        let stdout_path = run_root.join("stdout.json");
+        let stderr_path = run_root.join("stderr.txt");
+        fs::write(&stdout_path, &stdout_bytes).unwrap();
+        fs::write(&stderr_path, b"").unwrap();
+        let record = OperatorJobRecord {
+            schema: "tidex.operator_job/v1".into(),
+            job_id,
+            request_sha256: None,
+            evidence_receipt: None,
+            state: OperatorJobState::Completed,
+            operation: "activation_transfer_experiment".into(),
+            submitted_unix_ns,
+            run: Some(OperatorRunView {
+                receipt: OperatorRunReceipt {
+                    schema: "tidex.operator_run_receipt/v1".into(),
+                    run_id,
+                    recipe_id: "cross_model.transfer_steering".into(),
+                    executor_id: Some("cross_model.transfer_steering".into()),
+                    argv: Vec::new(),
+                    selected_model_ids: Vec::new(),
+                    dataset_sha256: None,
+                    source_tree_sha256: Sha256Digest::zero(),
+                    exit_code: 0,
+                    stdout_sha256: Sha256Digest::digest_bytes(&stdout_bytes),
+                    stderr_sha256: Sha256Digest::digest_bytes(b""),
+                    stdout: stdout_path,
+                    stderr: stderr_path,
+                    succeeded: true,
+                    production_activation_recipe: false,
+                    authorizes_production: false,
+                },
+                stdout: String::new(),
+                stderr: String::new(),
+            }),
+            error: None,
+        };
+        persist_job_record(home, &record).unwrap();
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    #[test]
+    fn plasticity_advice_persists_bidirectional_loop_across_calls() {
+        let home = isolated_operator_home("plasticity-coevo-durable");
+        seed_completed_discovery_cycle(
+            &home,
+            "disc-1",
+            "integer_arithmetic_v1",
+            &[("model-a", 0.2), ("model-b", 0.8)],
+            1,
+        );
+        let first = compute_operator_plasticity_advice(&home).unwrap();
+        assert_eq!(first.coevolution.len(), 1);
+        assert_eq!(first.coevolution[0]["iteration"].as_u64(), Some(0));
+        let first_evidence = first.coevolution[0]["evidence_sha256"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let second = compute_operator_plasticity_advice(&home).unwrap();
+        assert_eq!(second.coevolution.len(), 1, "same discovery must not double-record");
+        assert_eq!(
+            second.coevolution[0]["evidence_sha256"].as_str(),
+            Some(first_evidence.as_str())
+        );
+        assert!(second
+            .notes
+            .iter()
+            .any(|note| note.contains("durable recargado")));
+
+        seed_completed_discovery_cycle(
+            &home,
+            "disc-2",
+            "integer_arithmetic_v1",
+            &[("model-a", 0.3), ("model-b", 0.7)],
+            2,
+        );
+        let third = compute_operator_plasticity_advice(&home).unwrap();
+        assert_eq!(third.coevolution.len(), 2, "new discovery must append to durable history");
+        assert_eq!(third.coevolution[0]["iteration"].as_u64(), Some(0));
+        assert_eq!(third.coevolution[1]["iteration"].as_u64(), Some(1));
+        assert_eq!(third.coevolution[0]["evidence_sha256"].as_str(), Some(first_evidence.as_str()));
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    #[test]
+    fn plasticity_advice_coevolution_respects_causal_intervention_order() {
+        let home = isolated_operator_home("plasticity-coevo-causal");
+        seed_completed_discovery_cycle(
+            &home,
+            "disc-early",
+            "integer_arithmetic_v1",
+            &[("model-a", 0.2), ("model-b", 0.8)],
+            10,
+        );
+        seed_completed_activation_transfer(&home, "xfer-mid", "cap.arith", "model-a", 20);
+        seed_completed_discovery_cycle(
+            &home,
+            "disc-late",
+            "integer_arithmetic_v1",
+            &[("model-a", 0.35), ("model-b", 0.75)],
+            30,
+        );
+        let advice = compute_operator_plasticity_advice(&home).unwrap();
+        assert_eq!(advice.coevolution.len(), 2);
+        let early = &advice.coevolution[0];
+        let late = &advice.coevolution[1];
+        let early_iv = early["applied_interventions"].as_array().unwrap();
+        let late_iv = late["applied_interventions"].as_array().unwrap();
+        assert!(
+            early_iv.is_empty(),
+            "later intervention must NOT seal into earlier cycle: {early_iv:?}"
+        );
+        assert_eq!(
+            late_iv.len(),
+            1,
+            "earlier valid intervention may seal into later cycle: {late_iv:?}"
+        );
+        assert_eq!(late_iv[0]["target_model"].as_str(), Some("model-a"));
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    #[test]
+    fn plasticity_advice_loop_tick_changes_durable_controllers_for_next_advice() {
+        let home = isolated_operator_home("plasticity-coevo-loop");
+        seed_completed_discovery_cycle(
+            &home,
+            "disc-gap",
+            "integer_arithmetic_v1",
+            &[("model-a", 0.1), ("model-b", 0.9)],
+            1,
+        );
+        let first = compute_operator_plasticity_advice(&home).unwrap();
+        let directive = first
+            .coevolution_directive
+            .as_ref()
+            .expect("operational loop must emit directive");
+        assert_eq!(
+            directive["recommended_operation"].as_str(),
+            Some("activation_transfer_experiment")
+        );
+        assert_eq!(directive["source_model"].as_str(), Some("model-b"));
+        assert_eq!(directive["target_model"].as_str(), Some("model-a"));
+        let first_pi_updates = first
+            .pi_controller
+            .as_ref()
+            .map(|row| row.updates)
+            .unwrap_or(0);
+        assert!(first_pi_updates >= 1, "loop tick must nudge PI");
+
+        let state_path = home.join("operator/plasticity/controller_state.json");
+        let state: serde_json::Value =
+            serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+        let weight = state["routing_matrix"]["weights"]["benchmark:integer_arithmetic_v1"]
+            ["model-b"]
+            .as_f64()
+            .expect("loop tick must persist routing weight for preferred model");
+        assert!(
+            (weight - 0.5).abs() > 1e-9,
+            "routing matrix must leave default 0.5 after loop tick, got {weight}"
+        );
+
+        let second = compute_operator_plasticity_advice(&home).unwrap();
+        assert!(second.coevolution_directive.is_some());
+        let state2: serde_json::Value =
+            serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+        let weight2 = state2["routing_matrix"]["weights"]["benchmark:integer_arithmetic_v1"]
+            ["model-b"]
+            .as_f64()
+            .unwrap();
+        assert!(
+            (weight2 - weight).abs() < 1e-12,
+            "next advice must consume durable loop-steered routing weight ({weight} vs {weight2})"
+        );
+        assert!(second
+            .notes
+            .iter()
+            .any(|note| note.contains("durable recargado")));
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    #[test]
+    fn plasticity_advice_prefers_newer_valid_evidence_for_same_model() {
+        let home = isolated_operator_home("plasticity-newer");
+        seed_completed_evaluation(&home, "eval-old", "model-a", 0.0, "integer_arithmetic_v1", 1);
+        seed_completed_evaluation(&home, "eval-new", "model-a", 1.0, "integer_arithmetic_v1", 5);
+        seed_completed_evaluation(&home, "eval-b", "model-b", 0.0, "integer_arithmetic_v1", 2);
+        let advice = compute_operator_plasticity_advice(&home).unwrap();
+        assert!(advice.available);
+        assert_eq!(advice.elo_leaderboard[0].0, "model-a");
+        assert!(advice
+            .notes
+            .iter()
+            .any(|note| note.contains("newer-valid") || note.contains("reemplazada")));
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[cfg(feature = "cross-model-plasticity")]
+    fn advice_path_exists(home: &Path) -> bool {
+        home.join("operator/plasticity/controller_state.json")
+            .is_file()
     }
 
     #[test]

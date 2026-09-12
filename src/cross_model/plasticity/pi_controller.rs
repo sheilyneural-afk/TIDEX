@@ -118,6 +118,24 @@ impl PIController {
     pub fn get_gains(&self) -> (f64, f64) {
         (self.config.proportional_gain, self.config.integral_gain)
     }
+
+    pub fn config(&self) -> &PIControllerConfig {
+        &self.config
+    }
+
+    pub fn restore_state(&mut self, state: PIControllerState) -> Result<(), String> {
+        if !state.integral.is_finite()
+            || !state.last_error.is_finite()
+            || !state.last_output.is_finite()
+            || state.integral.abs() > self.config.integral_windup_limit + 1e-12
+            || state.last_output < self.config.output_min - 1e-12
+            || state.last_output > self.config.output_max + 1e-12
+        {
+            return Err("pi_state_import_invalid".into());
+        }
+        self.state = state;
+        Ok(())
+    }
 }
 impl Default for PIController {
     fn default() -> Self {
