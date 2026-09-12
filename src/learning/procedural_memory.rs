@@ -1640,6 +1640,10 @@ impl SolverAttempt {
         &self.bindings
     }
 
+    pub fn applicability(&self) -> &Applicability {
+        &self.applicability
+    }
+
     pub fn configuration(&self) -> &SolverConfiguration {
         &self.configuration
     }

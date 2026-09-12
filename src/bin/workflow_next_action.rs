@@ -226,6 +226,12 @@ impl ProceduralWorkflowHint {
             && self.low_rank_successes > 0
             && self.steering_unreliable()
     }
+
+    /// Net-negative low-rank experience (from retrieve), used to defer transfer.
+    pub fn low_rank_unreliable(&self) -> bool {
+        self.low_rank_failures > self.low_rank_successes
+            && self.low_rank_failures + self.low_rank_successes > 0
+    }
 }
 
 /// Derive a workflow hint from a [`RetrievalReport`] (Paso 2B → 2C fold).
@@ -244,6 +250,8 @@ pub fn procedural_hint_from_retrieval(report: &RetrievalReport) -> ProceduralWor
         // Hybrid / software / external proposals stand in for steering-style
         // experience in the numerical procedural store (no separate steering
         // family). Composition may also inject explicit counts via fixtures.
+        // Full-rank / direct / hybrid families stand in for "steering-style"
+        // experience in the numerical procedural store (no separate steering family).
         let is_steering_proxy = matches!(
             family,
             SolverFamily::HybridRuntime
@@ -251,6 +259,9 @@ pub fn procedural_hint_from_retrieval(report: &RetrievalReport) -> ProceduralWor
                 | SolverFamily::ExternalProposal
                 | SolverFamily::FullRankGradient
                 | SolverFamily::OrthogonalizedFullRank
+                | SolverFamily::DirectJacobiSvd
+                | SolverFamily::PivotedQr
+                | SolverFamily::DivideConquerSvd
         );
         let positive = matches!(advice.disposition(), AdviceDisposition::PrioritizeExploration);
         let negative =
@@ -400,9 +411,19 @@ pub fn decide_next_action(input: &WorkflowDecisionInput) -> BrainResult<NextActi
             return Err(invalid("workflow_stop_hold_directive"));
         }
         "activation_transfer_experiment" => {
-            if !input.knowledge.calibration_sufficient || hint.steering_unreliable() {
-                rationale
-                    .push("decision:calibration_required_before_transfer (align first)".into());
+            if !input.knowledge.calibration_sufficient
+                || hint.steering_unreliable()
+                || hint.low_rank_unreliable()
+            {
+                rationale.push(
+                    "decision:calibration_required_before_transfer (align first)".into(),
+                );
+                if hint.low_rank_unreliable() {
+                    rationale.push(format!(
+                        "procedural:low_rank_unreliable failures={} successes={}",
+                        hint.low_rank_failures, hint.low_rank_successes
+                    ));
+                }
                 "calibrate_alignment"
             } else {
                 rationale.push("decision:transfer_authorized_by_signals".into());
