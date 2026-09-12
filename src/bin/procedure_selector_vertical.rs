@@ -152,6 +152,7 @@ mod tests {
         let tick = receipt.second_tick.as_ref().expect("real second tick");
         assert!(tick.b_loop.next_action_changed);
         assert!(tick.b_loop.start_evidence_receipt_present);
+        assert!(tick.b_loop.start_chain_success);
         assert_eq!(tick.b_loop.tick1.next_action_operation, "calibrate_alignment");
         assert_eq!(tick.b_loop.tick2.next_action_operation, "activation_transfer_experiment");
         receipt.vertical.verify().unwrap();
