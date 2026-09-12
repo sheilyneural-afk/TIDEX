@@ -754,7 +754,29 @@ pub fn catalog_local_models(
     tidex_home: &Path,
     root: &Path,
 ) -> BrainResult<Vec<LocalModelCandidate>> {
-    let models = discover_local_models(root)?;
+    let discovered = discover_local_models(root)?;
+    // Content-bound identity: collapse duplicate roots that hash to the same
+    // model_id (identical config/tokenizer/weights). Prefer the lexicographically
+    // smallest root so rescans are stable. Never mint aliases or path-derived ids.
+    let mut by_id: std::collections::BTreeMap<String, LocalModelCandidate> =
+        std::collections::BTreeMap::new();
+    for model in discovered {
+        let key = model.model_id.to_string();
+        match by_id.get(&key) {
+            None => {
+                by_id.insert(key, model);
+            }
+            Some(existing) if model.root < existing.root => {
+                by_id.insert(key, model);
+            }
+            Some(existing) if model.root == existing.root && model != *existing => {
+                // Same root, metadata drift (e.g. architecture Option): refresh.
+                by_id.insert(key, model);
+            }
+            _ => {}
+        }
+    }
+    let models: Vec<LocalModelCandidate> = by_id.into_values().collect();
     let catalog = tidex_home.join("operator/models/by-sha");
     ensure_private_dir(&catalog)?;
     let mut expected = std::collections::BTreeSet::new();
@@ -762,11 +784,22 @@ pub fn catalog_local_models(
         let bytes = serde_json::to_vec(model)?;
         let filename = format!("{}.json", model.model_id);
         expected.insert(filename.clone());
-        let path = catalog.join(filename);
+        let path = catalog.join(&filename);
         if path.exists() {
             let existing = fs::read(&path)?;
             if existing != bytes {
-                return Err(BrainError::Integrity("operator_model_catalog_collision".into()));
+                // Same content-bound id with refreshed path binding / architecture
+                // is not a collision — replace. Corrupt / mismatched id still fails.
+                match serde_json::from_slice::<LocalModelCandidate>(&existing) {
+                    Ok(old) if old.model_id == model.model_id => {
+                        replace_private_file_atomic(tidex_home, &path, &bytes, None)?;
+                    }
+                    _ => {
+                        return Err(BrainError::Integrity(
+                            "operator_model_catalog_collision".into(),
+                        ));
+                    }
+                }
             }
         } else {
             write_private_new(&path, &bytes)?;
@@ -4379,6 +4412,48 @@ mod tests {
         let loaded = load_catalog_model(&home, &mutated.model_id).expect("load current model");
         assert_eq!(loaded.model_id, mutated.model_id);
         assert_eq!(loaded.root, snap);
+
+        let _ = fs::remove_dir_all(repo);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn catalog_dedupes_content_identical_roots_without_collision() {
+        let hub = default_hf_hub_root().expect("hub root");
+        fs::create_dir_all(&hub).unwrap();
+        let tag = format!("{}-{}", std::process::id(), now_nanos().unwrap_or(0));
+        let repo = hub.join(format!("models--tidex-dup--{tag}"));
+        let blobs = repo.join("blobs");
+        fs::create_dir_all(&blobs).unwrap();
+        fs::write(
+            blobs.join("config"),
+            br#"{"model_type":"llama","architectures":["LlamaForCausalLM"]}"#,
+        )
+        .unwrap();
+        fs::write(blobs.join("tok"), br#"{}"#).unwrap();
+        fs::write(blobs.join("weights"), b"identical-checkpoint-bytes").unwrap();
+
+        let mut snaps = Vec::new();
+        for name in ["aaa111", "zzz999"] {
+            let snap = repo.join("snapshots").join(name);
+            fs::create_dir_all(&snap).unwrap();
+            std::os::unix::fs::symlink("../../blobs/config", snap.join("config.json")).unwrap();
+            std::os::unix::fs::symlink("../../blobs/tok", snap.join("tokenizer.json")).unwrap();
+            std::os::unix::fs::symlink("../../blobs/weights", snap.join("model.safetensors")).unwrap();
+            snaps.push(snap);
+        }
+
+        let home = isolated_operator_home("dup-content");
+        let cataloged = catalog_local_models(&home, &repo).expect("deduped catalog");
+        let ids: std::collections::BTreeSet<_> =
+            cataloged.iter().map(|m| m.model_id.to_string()).collect();
+        assert_eq!(ids.len(), 1, "identical content must share one content-bound id");
+        assert_eq!(cataloged.len(), 1);
+        assert_eq!(cataloged[0].root, snaps[0], "prefer lexicographically smallest root");
+        // Rescan must refresh without collision even if architecture metadata changes.
+        let again = catalog_local_models(&home, &repo).expect("rescan refresh");
+        assert_eq!(again.len(), 1);
+        assert_eq!(again[0].model_id, cataloged[0].model_id);
 
         let _ = fs::remove_dir_all(repo);
         let _ = fs::remove_dir_all(home);
