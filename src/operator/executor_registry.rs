@@ -385,7 +385,7 @@ macro_rules! desc {
     };
 }
 
-pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
+pub fn builtin_executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
     let values = vec![
         desc!(
             "acquisition.capture",
@@ -1586,11 +1586,43 @@ pub fn validate_catalog(
     Ok(values)
 }
 
+pub fn executor_catalog() -> BrainResult<Vec<ExecutorDescriptor>> {
+    builtin_executor_catalog()
+}
+
+/// Builtin catalog plus durable promotions under `tidex_home`.
+pub fn executor_catalog_at(tidex_home: &std::path::Path) -> BrainResult<Vec<ExecutorDescriptor>> {
+    let mut values = builtin_executor_catalog()?;
+    let promoted = crate::operator::promoted_executor_catalog::load_promoted_executor_descriptors(tidex_home)?;
+    values.extend(promoted);
+    validate_catalog(values)
+}
+
 pub fn executor_by_id(id: &str) -> BrainResult<ExecutorDescriptor> {
     executor_catalog()?
         .into_iter()
         .find(|entry| entry.executor_id == id)
         .ok_or_else(|| BrainError::Invalid("executor_descriptor_unknown".into()))
+}
+
+pub fn executor_by_id_in(
+    tidex_home: &std::path::Path,
+    id: &str,
+) -> BrainResult<ExecutorDescriptor> {
+    executor_catalog_at(tidex_home)?
+        .into_iter()
+        .find(|entry| entry.executor_id == id)
+        .ok_or_else(|| BrainError::Invalid("executor_descriptor_unknown".into()))
+}
+
+pub fn executor_id_for_operation_at(
+    tidex_home: &std::path::Path,
+    operation: &str,
+) -> BrainResult<Option<String>> {
+    if let Some(id) = executor_id_for_direct_operation(operation) {
+        return Ok(Some(id.to_string()));
+    }
+    crate::operator::promoted_executor_catalog::promoted_operation_executor_id(tidex_home, operation)
 }
 
 pub fn executors_for_operator_recipe(recipe_id: &str) -> BrainResult<Vec<ExecutorDescriptor>> {

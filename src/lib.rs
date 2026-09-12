@@ -7,6 +7,7 @@ pub mod knowledge;
 pub mod learning;
 pub mod materialization;
 pub mod operator;
+pub mod promotion_authority;
 pub mod receiver;
 pub mod runtime;
 
