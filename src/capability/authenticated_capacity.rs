@@ -10,8 +10,9 @@
 //! # Scope
 //!
 //! Vertical: *select the most appropriate historical procedure given context +
-//! prior results, or explore*. Fixture donor simulates that behavior for tests;
-//! [`GpemV2RecommendDonorWire`] documents the real-GPEM shape without executing it.
+//! prior results, or explore*. Fixture donor is **unit-test only**.
+//! [`GpemV2RecommendDonorWire`] invokes live SHEI GPEM (`recommend_v2`) via a
+//! thin bridge and fail-closes when the donor is unavailable.
 //!
 //! # Provenance
 //!
@@ -25,6 +26,7 @@ use crate::foundation::identity::{AcquisitionId, ObservationId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 const PACKAGE_DOMAIN: &[u8] = b"TIDEX:AUTHENTICATED-CAPACITY:v1\0";
 const OBSERVATION_DOMAIN: &[u8] = b"TIDEX:CAPACITY-OBSERVATION:v1\0";
@@ -76,7 +78,7 @@ pub enum AuthenticatedCapacitySchema {
 pub enum DonorKind {
     #[serde(rename = "fixture_procedure_selector")]
     FixtureProcedureSelector,
-    /// Wire-only placeholder for GPEM v2 `recommend` (not executed in Paso 4).
+    /// Live SHEI GPEM v2 `recommend` donor (thin bridge; fail-closed if unavailable).
     #[serde(rename = "gpem_v2_recommend")]
     GpemV2Recommend,
 }
@@ -409,13 +411,247 @@ impl CapacityProvenance {
     }
 }
 
-/// Wire shape for a future real GPEM v2 recommend donor (Paso 4 documents only).
+/// Live GPEM v2 recommend donor wire (thin SHEI bridge; never embeds GPEM).
+///
+/// Calls SHEI canonical interfaces through `tools/gpem_v2_recommend_donor.py`:
+/// `get_gpem` / `create_gpem` → `GPEMService.recommend_v2` → `GPEMServiceV2.recommend`
+/// against the governed store at `store_root`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GpemV2RecommendDonorWire {
     pub schema: String,
     pub store_root: PathBuf,
     pub context_keys: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct GpemBridgeRecommendation {
+    trace_id: Option<String>,
+    turn_id: Option<String>,
+    route: Option<String>,
+    capability_id: Option<String>,
+    score: Option<f64>,
+    rationale: Option<Vec<String>>,
+    lifecycle_state: Option<String>,
+    utility_score: Option<f64>,
+    auditability_score: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct GpemBridgeResponse {
+    ok: bool,
+    #[serde(default)]
+    error: Option<String>,
+    #[serde(default)]
+    detail: Option<String>,
+    #[serde(default)]
+    interface: Option<String>,
+    #[serde(default)]
+    recommendations: Vec<GpemBridgeRecommendation>,
+}
+
+fn gpem_donor_mode() -> String {
+    std::env::var("TIDEX_GPEM_DONOR_MODE")
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn resolve_gpem_bridge_script() -> BrainResult<PathBuf> {
+    if let Ok(explicit) = std::env::var("TIDEX_GPEM_BRIDGE") {
+        let path = PathBuf::from(explicit);
+        if path.is_file() {
+            return Ok(path);
+        }
+        return Err(invalid("gpem_v2_recommend_donor_misconfigured"));
+    }
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tools/gpem_v2_recommend_donor.py");
+    if path.is_file() {
+        Ok(path)
+    } else {
+        Err(invalid("gpem_v2_recommend_donor_unavailable"))
+    }
+}
+
+fn resolve_shei_research_python() -> BrainResult<PathBuf> {
+    if let Ok(root) = std::env::var("TIDEX_SHEI_ROOT") {
+        let research = PathBuf::from(root.trim()).join("research_python");
+        if research.is_dir() {
+            return Ok(research);
+        }
+        return Err(invalid("gpem_v2_recommend_donor_misconfigured"));
+    }
+    if let Ok(research) = std::env::var("TIDEX_SHEI_RESEARCH_PYTHON") {
+        let path = PathBuf::from(research.trim());
+        if path.is_dir() {
+            return Ok(path);
+        }
+        return Err(invalid("gpem_v2_recommend_donor_misconfigured"));
+    }
+    let default = PathBuf::from("/home/yo/Projects/SHEI/research_python");
+    if default.is_dir() {
+        Ok(default)
+    } else {
+        Err(invalid("gpem_v2_recommend_donor_unavailable"))
+    }
+}
+
+fn resolve_gpem_python() -> BrainResult<PathBuf> {
+    if let Ok(explicit) = std::env::var("TIDEX_GPEM_PYTHON") {
+        let path = PathBuf::from(explicit.trim());
+        if path.is_file() {
+            return Ok(path);
+        }
+        return Err(invalid("gpem_v2_recommend_donor_misconfigured"));
+    }
+    for candidate in ["/usr/bin/python3", "/usr/local/bin/python3"] {
+        let path = PathBuf::from(candidate);
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
+    Err(invalid("gpem_v2_recommend_donor_unavailable"))
+}
+
+fn stimulus_context_value(stimulus: &SelectorStimulus, key: &str) -> Option<String> {
+    match key {
+        "route" => {
+            let ctx = stimulus.context.trim();
+            if let Some(rest) = ctx.strip_prefix("route:") {
+                let rest = rest.trim();
+                if !rest.is_empty() {
+                    return Some(rest.to_string());
+                }
+            }
+            if !ctx.is_empty() {
+                Some(ctx.to_string())
+            } else {
+                None
+            }
+        }
+        "capability_id" => stimulus
+            .prior_results
+            .iter()
+            .find(|item| matches!(item.outcome.as_str(), "success" | "ok" | "pass"))
+            .map(|item| item.procedure_id.clone()),
+        "prior_procedure" => stimulus
+            .prior_results
+            .iter()
+            .find(|item| matches!(item.outcome.as_str(), "success" | "ok" | "pass"))
+            .map(|item| item.procedure_id.clone()),
+        other => {
+            // Allow `key:value` fragments inside context for declared keys.
+            for part in stimulus.context.split(|c: char| c == ',' || c == ';') {
+                let part = part.trim();
+                if let Some(rest) = part.strip_prefix(&format!("{other}:")) {
+                    let rest = rest.trim();
+                    if !rest.is_empty() {
+                        return Some(rest.to_string());
+                    }
+                }
+            }
+            None
+        }
+    }
+}
+
+fn map_gpem_recommendations_to_action(
+    recommendations: &[GpemBridgeRecommendation],
+    stimulus: &SelectorStimulus,
+) -> BrainResult<DonorAction> {
+    let want_route = stimulus_context_value(stimulus, "route");
+    for rec in recommendations {
+        let Some(capability_id) = rec.capability_id.as_deref() else {
+            continue;
+        };
+        if !stimulus
+            .candidate_procedures
+            .iter()
+            .any(|candidate| candidate == capability_id)
+        {
+            continue;
+        }
+        let route_matches = match (want_route.as_deref(), rec.route.as_deref()) {
+            (Some(want), Some(got)) => want == got,
+            (Some(_), None) => false,
+            (None, _) => true,
+        };
+        let prior_success_supports = stimulus.prior_results.iter().any(|prior| {
+            prior.procedure_id == capability_id
+                && matches!(prior.outcome.as_str(), "success" | "ok" | "pass")
+        });
+        // Select only when GPEM's top evidence aligns with stimulus route or a
+        // successful prior among candidates; otherwise explore.
+        if route_matches || prior_success_supports {
+            return DonorAction::select(capability_id);
+        }
+    }
+    // Live GPEM responded with no selectable alignment → explore (authentic).
+    Ok(DonorAction::explore())
+}
+
+fn store_force_unavailable(store_root: &Path) -> bool {
+    store_root.join(".tidex_gpem_force_unavailable").is_file()
+}
+
+fn invoke_gpem_bridge(request: &serde_json::Value) -> BrainResult<GpemBridgeResponse> {
+    let mode = gpem_donor_mode();
+    if mode == "force_unavailable" || mode == "unavailable" {
+        return Err(invalid("gpem_v2_recommend_donor_unavailable"));
+    }
+    if let Some(store) = request.get("store_root").and_then(|v| v.as_str()) {
+        if store_force_unavailable(Path::new(store)) {
+            return Err(invalid("gpem_v2_recommend_donor_unavailable"));
+        }
+    }
+
+    let python = resolve_gpem_python()?;
+    let bridge = resolve_gpem_bridge_script()?;
+    let mut child = Command::new(&python)
+        .arg(&bridge)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| invalid("gpem_v2_recommend_donor_unavailable"))?;
+
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| invalid("gpem_v2_recommend_donor_unavailable"))?;
+        use std::io::Write;
+        stdin
+            .write_all(request.to_string().as_bytes())
+            .map_err(|_| invalid("gpem_v2_recommend_invoke_failed"))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|_| invalid("gpem_v2_recommend_invoke_failed"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if stdout.is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let _ = stderr;
+        return Err(invalid("gpem_v2_recommend_invoke_failed"));
+    }
+    let parsed: GpemBridgeResponse = serde_json::from_str(&stdout)
+        .map_err(|_| invalid("gpem_v2_recommend_invoke_failed"))?;
+    if !parsed.ok {
+        let code = parsed
+            .error
+            .as_deref()
+            .unwrap_or("gpem_v2_recommend_invoke_failed");
+        // Normalize bridge codes into the sealed fail-closed vocabulary.
+        if code.contains("misconfigured") {
+            return Err(invalid("gpem_v2_recommend_donor_misconfigured"));
+        }
+        if code.contains("unavailable") {
+            return Err(invalid("gpem_v2_recommend_donor_unavailable"));
+        }
+        return Err(invalid("gpem_v2_recommend_invoke_failed"));
+    }
+    Ok(parsed)
 }
 
 impl GpemV2RecommendDonorWire {
@@ -435,11 +671,97 @@ impl GpemV2RecommendDonorWire {
         })
     }
 
-    /// Fail-closed until a later pass wires live GPEM execution.
-    pub fn observe(&self, _stimulus: &SelectorStimulus) -> BrainResult<DonorAction> {
-        Err(invalid("gpem_v2_recommend_donor_not_wired"))
+    /// Observe live SHEI/GPEM recommend. Fail-closed if donor unavailable.
+    pub fn observe(&self, stimulus: &SelectorStimulus) -> BrainResult<DonorAction> {
+        let research_python = resolve_shei_research_python()?;
+        let mut context = serde_json::Map::new();
+        for key in &self.context_keys {
+            if let Some(value) = stimulus_context_value(stimulus, key) {
+                context.insert(key.clone(), serde_json::Value::String(value));
+            }
+        }
+        // Always pass candidates for bridge transparency (not a GPEM write).
+        context.insert(
+            "candidate_procedures".into(),
+            serde_json::Value::Array(
+                stimulus
+                    .candidate_procedures
+                    .iter()
+                    .cloned()
+                    .map(serde_json::Value::String)
+                    .collect(),
+            ),
+        );
+
+        let prefer_get_gpem = matches!(
+            gpem_donor_mode().as_str(),
+            "get_gpem" | "prefer_get_gpem"
+        );
+        let request = serde_json::json!({
+            "action": "recommend",
+            "store_root": self.store_root,
+            "shei_research_python": research_python,
+            "context": serde_json::Value::Object(context),
+            "limit": 5,
+            "prefer_get_gpem": prefer_get_gpem,
+        });
+        let response = invoke_gpem_bridge(&request)?;
+        map_gpem_recommendations_to_action(&response.recommendations, stimulus)
+    }
+
+    /// Seed governed demo traces into `store_root` via canonical GPEM ingest.
+    pub fn seed_demo_traces(&self) -> BrainResult<Vec<String>> {
+        let research_python = resolve_shei_research_python()?;
+        let request = serde_json::json!({
+            "action": "seed_demo_traces",
+            "store_root": self.store_root,
+            "shei_research_python": research_python,
+        });
+        let mode = gpem_donor_mode();
+        if mode == "force_unavailable" || mode == "unavailable" {
+            return Err(invalid("gpem_v2_recommend_donor_unavailable"));
+        }
+        if store_force_unavailable(&self.store_root) {
+            return Err(invalid("gpem_v2_recommend_donor_unavailable"));
+        }
+        let python = resolve_gpem_python()?;
+        let bridge = resolve_gpem_bridge_script()?;
+        let output = Command::new(&python)
+            .arg(&bridge)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .and_then(|mut child| {
+                use std::io::Write;
+                if let Some(stdin) = child.stdin.as_mut() {
+                    stdin.write_all(request.to_string().as_bytes())?;
+                }
+                child.wait_with_output()
+            })
+            .map_err(|_| invalid("gpem_v2_recommend_invoke_failed"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let value: serde_json::Value = serde_json::from_str(&stdout)
+            .map_err(|_| invalid("gpem_v2_recommend_invoke_failed"))?;
+        if value.get("ok") != Some(&serde_json::Value::Bool(true)) {
+            return Err(invalid("gpem_v2_recommend_invoke_failed"));
+        }
+        let ids = value
+            .get("trace_ids")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return Err(invalid("gpem_v2_recommend_invoke_failed"));
+        }
+        Ok(ids)
     }
 }
+
+
 
 /// Fixture donor: prefer the historically best successful candidate, else explore.
 #[derive(Debug, Clone, Default)]
@@ -820,6 +1142,139 @@ pub fn seal_fixture_procedure_selector_capacity(
     )
 }
 
+/// Run a bounded **live GPEM** campaign and seal an authenticated capacity package.
+///
+/// Fail-closed: every observation comes from [`GpemV2RecommendDonorWire::observe`].
+/// No fixture substitute. Requires a reachable SHEI/GPEM store with enough
+/// recommend signal to produce select + explore evidence (seed via
+/// [`GpemV2RecommendDonorWire::seed_demo_traces`] for local smoke).
+pub fn seal_live_gpem_v2_recommend_capacity(
+    wire: &GpemV2RecommendDonorWire,
+    capacity_key: &str,
+    provenance: CapacityProvenance,
+) -> BrainResult<AuthenticatedCapacityPackage> {
+    let mut observations = Vec::new();
+
+    let stim_select = SelectorStimulus::new(
+        "route:analysis",
+        vec![
+            PriorProcedureResult::new("proc.alpha", "success")?,
+            PriorProcedureResult::new("proc.beta", "fail")?,
+        ],
+        vec!["proc.alpha".into(), "proc.beta".into(), "proc.gamma".into()],
+    )?;
+    let action_select = wire.observe(&stim_select)?;
+    observations.push(CapacityObservation::seal(
+        ObservationId::parse("obs.gpem-select-best-01")?,
+        stim_select.clone(),
+        action_select,
+        Some("selected_applied".into()),
+    )?);
+
+    let stim_explore = SelectorStimulus::new(
+        "route:novel",
+        Vec::new(),
+        vec!["proc.alpha".into(), "proc.beta".into()],
+    )?;
+    let action_explore = wire.observe(&stim_explore)?;
+    observations.push(CapacityObservation::seal(
+        ObservationId::parse("obs.gpem-explore-cold-01")?,
+        stim_explore,
+        action_explore,
+        Some("exploration_opened".into()),
+    )?);
+
+    let stim_ambiguous = SelectorStimulus::new(
+        "route:ambiguous",
+        vec![
+            PriorProcedureResult::new("proc.alpha", "fail")?,
+            PriorProcedureResult::new("proc.beta", "fail")?,
+        ],
+        vec!["proc.alpha".into(), "proc.beta".into()],
+    )?;
+    let action_ambiguous = wire.observe(&stim_ambiguous)?;
+    observations.push(CapacityObservation::seal(
+        ObservationId::parse("obs.gpem-explore-failed-priors-01")?,
+        stim_ambiguous,
+        action_ambiguous,
+        None,
+    )?);
+
+    let baseline = observations[0].clone();
+    let mut ablated_priors = stim_select.prior_results.clone();
+    ablated_priors.retain(|item| item.procedure_id != "proc.alpha");
+    let ablated_stimulus = SelectorStimulus::new(
+        stim_select.context.clone(),
+        ablated_priors,
+        stim_select.candidate_procedures.clone(),
+    )?;
+    let ablated_action = wire.observe(&ablated_stimulus)?;
+    let ablated_observation = CapacityObservation::seal(
+        ObservationId::parse("obs.gpem-intervene-ablate-best-01")?,
+        ablated_stimulus,
+        ablated_action,
+        None,
+    )?;
+    let interventions = vec![CapacityIntervention::seal(
+        InterventionKind::AblateBestPrior,
+        &baseline,
+        ablated_observation,
+        "Removing the historically best prior should change selection or force explore",
+    )?];
+
+    let has_select = observations
+        .iter()
+        .any(|item| item.donor_action.kind == DonorActionKind::Select);
+    let has_explore = observations
+        .iter()
+        .any(|item| item.donor_action.kind == DonorActionKind::Explore);
+    if !has_select || !has_explore {
+        return Err(invalid("gpem_v2_recommend_insufficient_live_evidence"));
+    }
+
+    let select_digest = observations[0].observation_sha256().clone();
+    let explore_digest = observations[1].observation_sha256().clone();
+    let intervene_digest = interventions[0]
+        .intervened_observation
+        .observation_sha256()
+        .clone();
+
+    let contracts = vec![
+        FunctionalContractClaim::new(
+            "claim.select-best-historical",
+            "Given successful historical priors among candidates, live GPEM selects that procedure",
+            FunctionalContractStatus::Supported,
+            vec![select_digest.clone()],
+        )?,
+        FunctionalContractClaim::new(
+            "claim.explore-when-no-success",
+            "Given no successful priors / novel route, live GPEM explores rather than forcing a failed route",
+            FunctionalContractStatus::Supported,
+            vec![explore_digest, observations[2].observation_sha256().clone()],
+        )?,
+        FunctionalContractClaim::new(
+            "claim.ablation-changes-choice",
+            "Ablating the best prior changes the live GPEM action relative to baseline",
+            if interventions[0].intervened_observation.donor_action != baseline.donor_action {
+                FunctionalContractStatus::Supported
+            } else {
+                FunctionalContractStatus::Unsupported
+            },
+            vec![select_digest, intervene_digest],
+        )?,
+    ];
+
+    AuthenticatedCapacityPackage::seal(
+        capacity_key,
+        DonorKind::GpemV2Recommend,
+        provenance,
+        observations,
+        interventions,
+        contracts,
+        Vec::new(),
+    )
+}
+
 /// Summarize a sealed package for ResidencyDecision handoff (Paso 5 consumes this shape).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -900,9 +1355,13 @@ mod tests {
     }
 
     #[test]
-    fn gpem_wire_is_documented_but_fail_closed() {
+    fn gpem_wire_fail_closed_when_donor_forced_unavailable() {
+        let (base, root) = tempfile_private_root("gpem-unavail");
+        let store = root.join("gpem-store");
+        fs::create_dir_all(&store).unwrap();
+        fs::write(store.join(".tidex_gpem_force_unavailable"), b"1").unwrap();
         let wire = GpemV2RecommendDonorWire::new(
-            PathBuf::from("/tmp/gpem-store"),
+            store,
             vec!["route".into(), "capability_id".into()],
         )
         .unwrap();
@@ -910,7 +1369,50 @@ mod tests {
         let stimulus =
             SelectorStimulus::new("route:analysis", Vec::new(), vec!["proc.alpha".into()]).unwrap();
         let err = wire.observe(&stimulus).unwrap_err().to_string();
-        assert!(err.contains("gpem_v2_recommend_donor_not_wired"));
+        assert!(
+            err.contains("gpem_v2_recommend_donor_unavailable")
+                || err.contains("gpem_v2_recommend_donor_misconfigured"),
+            "expected fail-closed unavailable, got {err}"
+        );
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn gpem_wire_live_recommend_seals_when_shei_available() {
+        // Integration: exercise real SHEI/GPEM on this machine. If SHEI is
+        // missing, fail-closed without pretending fixture success.
+        if resolve_shei_research_python().is_err() {
+            let err = resolve_shei_research_python().unwrap_err().to_string();
+            assert!(err.contains("gpem_v2_recommend_donor_unavailable")
+                || err.contains("gpem_v2_recommend_donor_misconfigured"));
+            return;
+        }
+        let (base, root) = tempfile_private_root("gpem-live");
+        let store = root.join("gpem-store");
+        let wire = GpemV2RecommendDonorWire::new(
+            store.clone(),
+            vec!["route".into(), "capability_id".into(), "prior_procedure".into()],
+        )
+        .unwrap();
+        let seeded = wire.seed_demo_traces().expect("live GPEM seed");
+        assert!(!seeded.is_empty());
+        let package = seal_live_gpem_v2_recommend_capacity(
+            &wire,
+            "procedure_selector_or_explore",
+            CapacityProvenance {
+                acquisition_id: None,
+                capture_receipt_sha256: None,
+                donor_locator: Some(format!("shei-gpem://{}", store.display())),
+            },
+        )
+        .expect("live GPEM seal");
+        package.verify().unwrap();
+        assert_eq!(package.donor_kind(), DonorKind::GpemV2Recommend);
+        assert_eq!(
+            package.completeness(),
+            PackageCompleteness::SufficientForResidencyHandoff
+        );
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]

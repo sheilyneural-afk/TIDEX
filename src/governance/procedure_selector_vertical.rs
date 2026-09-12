@@ -21,7 +21,8 @@
 //! for **unit tests only** (via [`run_from_package`]), never as a demo fallback.
 
 use crate::capability::authenticated_capacity::{
-    AuthenticatedCapacityPackage, DonorKind, GpemV2RecommendDonorWire, SelectorStimulus,
+    seal_live_gpem_v2_recommend_capacity, AuthenticatedCapacityPackage, CapacityProvenance,
+    DonorKind, GpemV2RecommendDonorWire, PriorProcedureResult, SelectorStimulus,
 };
 use crate::foundation::digest::{AuthenticatedCapacityDigest, Sha256Digest};
 use crate::foundation::error::{BrainError, BrainResult};
@@ -35,7 +36,6 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 const RECEIPT_DOMAIN: &[u8] = b"TIDEX:PROCEDURE-SELECTOR-VERTICAL:v1\0";
-#[cfg_attr(not(test), allow(dead_code))]
 const CAPACITY_KEY: &str = "procedure_selector_or_explore";
 
 fn invalid(code: &str) -> BrainError {
@@ -56,13 +56,19 @@ pub enum ProcedureSelectorVerticalSchema {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DonorExecutionRecord {
-    /// Live GPEM wire was constructed; `observe` remains unwired (fail-closed).
-    GpemWireNotWired {
+    /// Live SHEI/GPEM recommend observed and sealed (productive path success).
+    GpemV2LiveRecommend {
+        schema: String,
+        store_root: PathBuf,
+        donor_locator: String,
+    },
+    /// Live GPEM wire constructed but observe fail-closed (retained for receipts/tests).
+    GpemWireUnavailable {
         schema: String,
         store_root: PathBuf,
         observe_error: String,
     },
-    /// Honest fixture campaign used to seal capacity after GPEM wire fail-closed.
+    /// Unit-test fixture only — never a productive-path substitute.
     FixtureProcedureSelector {
         donor_locator: String,
         gpem_wire_schema_documented: String,
@@ -249,11 +255,12 @@ fn terminal_from_outcome(
     }
 }
 
-/// Productive donor acquire: GPEM wire only. Fail-closed — **no fixture substitute**.
+/// Productive donor acquire: live GPEM wire only. Fail-closed — **no fixture substitute**.
 ///
-/// Returns `(package, donor_execution)` only when a live donor seals capacity.
-/// Today GPEM observe is unwired → always errors with
-/// `gpem_v2_recommend_donor_not_wired` (or unexpected-wire / unexpected-error).
+/// Returns `(package, donor_execution)` only when live SHEI/GPEM seals capacity.
+/// Unavailable / misconfigured / insufficient live evidence → hard error codes
+/// (`gpem_v2_recommend_donor_unavailable`, `…_misconfigured`,
+/// `…_insufficient_live_evidence`, `…_invoke_failed`).
 pub fn acquire_procedure_selector_package(
     gpem_store_root: PathBuf,
 ) -> BrainResult<(AuthenticatedCapacityPackage, DonorExecutionRecord)> {
@@ -267,26 +274,58 @@ pub fn acquire_procedure_selector_package(
     )?;
     let probe = SelectorStimulus::new(
         "route:analysis",
-        Vec::new(),
+        vec![PriorProcedureResult::new("proc.alpha", "success")?],
         vec!["proc.alpha".into(), "proc.beta".into()],
     )?;
-    match wire.observe(&probe) {
-        Ok(_observations) => {
-            // Live path not implemented yet: must not invent capacity from wire
-            // success without a sealed package builder for real GPEM evidence.
-            Err(invalid("gpem_v2_recommend_unexpectedly_wired_without_paso6_live_path"))
+    // Probe first so unavailable donors fail-closed before sealing work.
+    wire.observe(&probe).map_err(|err| {
+        let msg = err.to_string();
+        if msg.contains("gpem_v2_recommend_donor_unavailable") {
+            invalid("gpem_v2_recommend_donor_unavailable")
+        } else if msg.contains("gpem_v2_recommend_donor_misconfigured") {
+            invalid("gpem_v2_recommend_donor_misconfigured")
+        } else if msg.contains("gpem_v2_recommend_invoke_failed") {
+            invalid("gpem_v2_recommend_invoke_failed")
+        } else if msg.contains("gpem_v2_recommend_insufficient_live_evidence") {
+            invalid("gpem_v2_recommend_insufficient_live_evidence")
+        } else {
+            invalid("gpem_wire_observe_unexpected_error")
         }
-        Err(err) => {
-            let observe_error = err.to_string();
-            if observe_error.contains("gpem_v2_recommend_donor_not_wired") {
-                // Explicit fail-closed terminal for productive/demo path.
-                let _ = gpem_store_root;
-                Err(invalid("gpem_v2_recommend_donor_not_wired"))
-            } else {
-                Err(invalid("gpem_wire_observe_unexpected_error"))
-            }
+    })?;
+
+    let donor_locator = format!("shei-gpem://{}", gpem_store_root.display());
+    let package = seal_live_gpem_v2_recommend_capacity(
+        &wire,
+        CAPACITY_KEY,
+        CapacityProvenance {
+            acquisition_id: None,
+            capture_receipt_sha256: None,
+            donor_locator: Some(donor_locator.clone()),
+        },
+    )
+    .map_err(|err| {
+        let msg = err.to_string();
+        if msg.contains("gpem_v2_recommend_insufficient_live_evidence") {
+            invalid("gpem_v2_recommend_insufficient_live_evidence")
+        } else if msg.contains("gpem_v2_recommend_donor_unavailable") {
+            invalid("gpem_v2_recommend_donor_unavailable")
+        } else if msg.contains("gpem_v2_recommend_donor_misconfigured") {
+            invalid("gpem_v2_recommend_donor_misconfigured")
+        } else if msg.contains("gpem_v2_recommend_invoke_failed") {
+            invalid("gpem_v2_recommend_invoke_failed")
+        } else {
+            invalid("gpem_wire_observe_unexpected_error")
         }
-    }
+    })?;
+
+    Ok((
+        package,
+        DonorExecutionRecord::GpemV2LiveRecommend {
+            schema: GpemV2RecommendDonorWire::SCHEMA.into(),
+            store_root: gpem_store_root,
+            donor_locator,
+        },
+    ))
 }
 
 /// Run the productive vertical: live donor only → residency → terminal.
@@ -316,7 +355,12 @@ pub fn run_from_package(
         format!("donor_kind:{:?}", package.donor_kind()),
     ];
     match &donor_execution {
-        DonorExecutionRecord::GpemWireNotWired { observe_error, .. } => {
+        DonorExecutionRecord::GpemV2LiveRecommend { donor_locator, .. } => {
+            experience_notes.push(format!("gpem_live_recommend:{donor_locator}"));
+            experience_notes
+                .push("software_residency_is_valid_intelligence:do_not_put_in_llm".into());
+        }
+        DonorExecutionRecord::GpemWireUnavailable { observe_error, .. } => {
             experience_notes.push(format!("gpem_observe_fail_closed:{observe_error}"));
         }
         DonorExecutionRecord::FixtureProcedureSelector {
@@ -325,8 +369,8 @@ pub fn run_from_package(
             ..
         } => {
             experience_notes
-                .push(format!("gpem_wire_documented_unwired:{gpem_wire_schema_documented}"));
-            experience_notes.push(format!("gpem_observe_fail_closed:{gpem_observe_error}"));
+                .push(format!("gpem_wire_documented_unit_fixture:{gpem_wire_schema_documented}"));
+            experience_notes.push(format!("unit_fixture_note:{gpem_observe_error}"));
             experience_notes
                 .push("software_residency_is_valid_intelligence:do_not_put_in_llm".into());
         }
@@ -468,19 +512,69 @@ mod tests {
 
     #[test]
     fn productive_acquire_fail_closed_without_fixture_substitute() {
+        // Hermetic CI path: marker forces donor unavailable — never continue with fixture.
         let root = tmp("gpem-probe");
-        let err = acquire_procedure_selector_package(root.join("gpem-store"))
+        let store = root.join("gpem-store");
+        fs::create_dir_all(&store).unwrap();
+        fs::write(store.join(".tidex_gpem_force_unavailable"), b"1").unwrap();
+        let err = acquire_procedure_selector_package(store.clone())
             .unwrap_err()
             .to_string();
         assert!(
-            err.contains("gpem_v2_recommend_donor_not_wired"),
+            err.contains("gpem_v2_recommend_donor_unavailable")
+                || err.contains("gpem_v2_recommend_donor_misconfigured"),
             "productive path must end without fixture continue: {err}"
         );
-        let err2 = run_procedure_selector_vertical(root.join("gpem-store"))
+        let err2 = run_procedure_selector_vertical(store)
             .unwrap_err()
             .to_string();
-        assert!(err2.contains("gpem_v2_recommend_donor_not_wired"));
+        assert!(
+            err2.contains("gpem_v2_recommend_donor_unavailable")
+                || err2.contains("gpem_v2_recommend_donor_misconfigured"),
+            "vertical must fail-closed: {err2}"
+        );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn productive_acquire_live_gpem_seals_when_shei_available() {
+        if std::path::Path::new("/home/yo/Projects/SHEI/research_python").is_dir() {
+            let root = tmp("gpem-live-acq");
+            let store = root.join("gpem-store");
+            let wire = GpemV2RecommendDonorWire::new(
+                store.clone(),
+                vec![
+                    "route".into(),
+                    "capability_id".into(),
+                    "prior_procedure".into(),
+                ],
+            )
+            .unwrap();
+            wire.seed_demo_traces().expect("seed live GPEM");
+            let (package, donor) = acquire_procedure_selector_package(store).expect("live acquire");
+            package.verify().unwrap();
+            assert!(matches!(
+                donor,
+                DonorExecutionRecord::GpemV2LiveRecommend { .. }
+            ));
+            assert_eq!(package.donor_kind(), DonorKind::GpemV2Recommend);
+            let receipt = run_from_package(package, donor).unwrap();
+            receipt.verify().unwrap();
+            assert_eq!(receipt.residency_decision(), &ResidencyDecision::Software {});
+            assert!(!receipt.capability_ir_emitted());
+            let _ = fs::remove_dir_all(&root);
+        } else {
+            // CI without SHEI: keep fail-closed vocabulary documented.
+            let root = tmp("gpem-live-missing");
+            let store = root.join("gpem-store");
+            fs::create_dir_all(&store).unwrap();
+            fs::write(store.join(".tidex_gpem_force_unavailable"), b"1").unwrap();
+            let err = acquire_procedure_selector_package(store)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("gpem_v2_recommend_donor_unavailable"));
+            let _ = fs::remove_dir_all(&root);
+        }
     }
 
     #[test]
@@ -505,7 +599,7 @@ mod tests {
             DonorExecutionRecord::FixtureProcedureSelector {
                 donor_locator: "fixture://weights-evidence".into(),
                 gpem_wire_schema_documented: GpemV2RecommendDonorWire::SCHEMA.into(),
-                gpem_observe_error: "gpem_v2_recommend_donor_not_wired".into(),
+                gpem_observe_error: "unit_fixture_not_productive_path".into(),
             },
         )
         .unwrap();

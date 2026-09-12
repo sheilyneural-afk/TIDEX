@@ -22,7 +22,7 @@ Punto de entrada único. Si un doc de `directories/` o `systems/` parece corto o
 | [QUALITY_AND_TESTING.md](QUALITY_AND_TESTING.md) | Modelo de pruebas y evidencia |
 | [README_CROSS_MODEL.md](README_CROSS_MODEL.md) | Feature cross-model |
 | [../README.md](../README.md) | README raíz |
-| [TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md](TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md) | Dos aprendizajes; Paso 1–3 ✅ (B-loop proof); 4–5 🟡; Paso 6 ❌ NOT ACCEPTED (fail-closed, no fixture substitute) |
+| [TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md](TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md) | Dos aprendizajes; Paso 1–3 ✅; Paso 4 live GPEM wire; 5 🟡; Paso 6 ❌ NOT ACCEPTED (fail-closed, no fixture substitute) |
 
 ## Sistemas (flujos transversales)
 

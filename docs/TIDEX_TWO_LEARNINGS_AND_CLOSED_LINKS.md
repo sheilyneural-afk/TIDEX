@@ -1,7 +1,7 @@
 # TIDE-X: dos aprendizajes y los dos eslabones que faltan
 
 **Fecha:** 2026-09-12 (Europe/Madrid)  
-**Checkout:** `/home/yo/Future` @ `feat/durable-plasticity-controllers` — Paso 1 ✅ CLOSED; Paso 2 ✅; Paso 3 ✅ (NextAction + live B-loop proof: decide→Start→receipt→replay→redecide); Paso 4 🟡 (AuthenticatedCapacity exists; MISSING real software donor); Paso 5 ✅/🟡 (ResidencyDecision from package works; Weights/Hybrid→real IR not demonstrated); Paso 6 ❌ NOT CLOSED / NOT ACCEPTED  
+**Checkout:** `/home/yo/Future` @ `feat/durable-plasticity-controllers` — Paso 1 ✅ CLOSED; Paso 2 ✅; Paso 3 ✅ (NextAction + live B-loop proof: decide→Start→receipt→replay→redecide); Paso 4 🟡→🟢 (AuthenticatedCapacity + live GPEM donor wire); Paso 5 ✅/🟡 (ResidencyDecision from package works; Weights/Hybrid→real IR not demonstrated); Paso 6 ❌ NOT CLOSED / NOT ACCEPTED  
 **Contexto de código:** [PR #1](https://github.com/sheilyneural-afk/TIDEX/pull/1) — controladores durables + coevolución causal + `plan_next_tick`. Aún no es el organismo cerrado.  
 **Naturaleza de este doc:** dos partes explícitas. **Parte I** = mapa del problema (qué falta y por qué; los dos eslabones siguen siendo el mapa correcto). **Parte II** = orden de implementación (camino crítico de 6 pasos; **no** es el mismo orden que el mapa). No es código. No pide algoritmos nuevos de plasticidad.
 
@@ -17,9 +17,9 @@
 | Paso 1 (plasticidad durable) | ✅ **CLOSED / CERTIFIED** — plasticidad durable certificada; 18+ tests; no más plasticidad |
 | Paso 2 (ProceduralMemory útil) | ✅ **DONE** — receipts → replay → ProceduralMemory → retrieve (`bc531d7` + 2B/2C fold) |
 | Paso 3 (cerrar `NextAction` → executor) | ✅ **DONE** — `NextAction` @ `3ccd61f` + live B-loop proof (`tidex workflow prove-b-loop` / `prove_b_loop_real_evidence_start_receipt_redecide`): decide → Start → receipt → replay → redecide |
-| Paso 4 (adquisición funcional) | 🟡 **PARTIAL** — `AuthenticatedCapacity` exists @ `8592123`; **MISSING** real software donor (GPEM live) |
+| Paso 4 (adquisición funcional) | 🟡→🟢 **LIVE DONOR WIRED** — `AuthenticatedCapacity` + `GpemV2RecommendDonorWire::observe` → SHEI `recommend_v2` (fail-closed; no fixture substitute) |
 | Paso 5 (residencia / IR) | ✅/🟡 — `ResidencyDecision` from package works @ `85f0e60`; Weights/Hybrid→real IR **not** demonstrated |
-| Paso 6 (demo real) | ❌ **NOT CLOSED / NOT ACCEPTED** — fixture ≠ live GPEM; synthetic second tick ≠ real learning; no GPEM→receptor. Current demo tries GPEM, fails `gpem_v2_recommend_donor_not_wired`, continues with `FixtureProcedureSelector` (violates no-fixture-as-substitute). Status **PARTIAL / NOT ACCEPTED**. |
+| Paso 6 (demo real) | ❌ **NOT CLOSED / NOT ACCEPTED** — live GPEM wire exists and productive path fail-closes without fixture; full honest demo (seeded live store → seal → residency → real B-loop second tick / receptor when admitted) still required. Status **PARTIAL / NOT ACCEPTED**. |
 
 ---
 
@@ -596,7 +596,7 @@ Criterio de cierre de B (= congelación de aceptación §0): el sistema emite y 
 
 Ver agudeza de `NextAction` y el ejemplo de trasplante en §5.3.
 
-### Paso 4 — FUNCTIONAL SOFTWARE ACQUISITION — 🟡 **PARTIAL** @ `8592123` (package exists; real donor MISSING)
+### Paso 4 — FUNCTIONAL SOFTWARE ACQUISITION — 🟡→🟢 **LIVE DONOR WIRED** (package @ `8592123`; live SHEI/GPEM observe+seal)
 
 No más “archivo en la caja fuerte”. Observaciones / intervenciones / contrafácticos / contratos → **capacidad autenticada sellada**. El árbol capturado (`acquire_system`) queda como provenance. Este paso **no** inventa `CapabilityIR`.
 
@@ -610,12 +610,12 @@ No más “archivo en la caja fuerte”. Observaciones / intervenciones / contra
 | Persistencia | `state/acquisitions/authenticated-capacity/by-sha/{digest}.json` |
 | Digest | `AuthenticatedCapacityDigest` (sealed, domain `TIDEX:AUTHENTICATED-CAPACITY:v1`) |
 | Vertical | fixture `procedure_selector_or_explore` (select best historical **or** explore) |
-| GPEM wire | `GpemV2RecommendDonorWire` (`tidex.donor.gpem_v2_recommend/v1`) fail-closed hasta cableado vivo |
+| GPEM wire | `GpemV2RecommendDonorWire::observe` → `tools/gpem_v2_recommend_donor.py` → SHEI `create_gpem`/`get_gpem` → `GPEMService.recommend_v2` / `GPEMServiceV2.recommend`; fail-closed if unavailable |
 | Tests | 6 unit tests (seal, tamper fail-closed, persist/reauth, GPEM wire, fixture policy) |
 | Handoff Paso 5 | `ResidencyHandoffSummary` consumido por `decide_from_authenticated_capacity` (Paso 5) |
 
 **Hecho:** evidencia observada → contratos funcionales → paquete autenticado con hashes/receipts fail-closed.  
-**Ampliación opcional post-DONE:** ejecutar GPEM real (no solo fixture) y opcionalmente un job Operator que emita el mismo paquete.  
+**Live donor:** thin bridge (no GPEM copy inside TIDE-X). CI hermetic via store marker `.tidex_gpem_force_unavailable` / missing SHEI. Success path: seed governed traces then `seal_live_gpem_v2_recommend_capacity`.  
 **Fuera de Paso 4:** `ResidencyDecision` / `CapabilityIR` (Paso 5 — hecho thin slice).
 
 ### Paso 5 — RESIDENCY / REPRESENTATION — ✅/🟡 @ `85f0e60` (Software path works; Weights/Hybrid→real IR not demonstrated)
@@ -650,25 +650,27 @@ REQUIRED (frozen acceptance):
   → Software stop OR Weights/Hybrid with real IR → receptor only when admitted
   → real second tick from ProceduralMemory replay (not synthetic hints)
 
-CURRENT (REJECTED as closure):
-  try GPEM observe → fail gpem_v2_recommend_donor_not_wired
-  → continue with FixtureProcedureSelector  ← VIOLATES no-fixture-as-substitute
-  → optional --with-second-tick plants synthetic ProceduralWorkflowHint
-  ← VIOLATES frozen acceptance (synthetic second tick ≠ real learning)
+CURRENT (PARTIAL — wire exists, demo not fully accepted):
+  live GPEM observe via SHEI bridge → seal OR hard fail-closed
+  (no FixtureProcedureSelector on productive path)
+  empty/unseeded demo store → insufficient_live_evidence / unavailable (honest)
+  full operator-facing demo with pre-seeded governed store + B-loop second tick
+  still outstanding
 ```
 
-**Status: PARTIAL / NOT ACCEPTED.** Fixture ≠ live GPEM. Synthetic second tick ≠ real learning. No GPEM→receptor path.
+**Status: PARTIAL / NOT ACCEPTED.** Live donor wire is real; Paso 6 acceptance still needs the full honest demo (seeded live GPEM → seal → residency → real second tick). Do **not** mark DONE.
 
 | Pieza | Estado honesto |
 |-------|----------------|
-| Donor live GPEM | ❌ unwired (`gpem_v2_recommend_donor_not_wired`) — productive path must **fail-closed** (no fixture continue) |
+| Donor live GPEM | ✅ wired (`GpemV2RecommendDonorWire::observe` → SHEI `recommend_v2`); productive path **fail-closed** (no fixture continue) |
 | Fixture donor | Unit-test only (`seal_fixture_procedure_selector_capacity`); **forbidden** as substitute on `tidex demo procedure-selector` |
-| Seal / Residency APIs | ✅ Paso 4/5 exist; not sufficient for Paso 6 closure |
-| IR / Receptor | Software stop OK when package is real; Weights/Hybrid→real IR + receptor **not** demonstrated |
-| CLI | `tidex demo procedure-selector` must end if GPEM/donor missing (no capacity / no IR / no receptor / no substitute) |
+| Seal / Residency APIs | ✅ Paso 4/5 + live seal; not sufficient alone for Paso 6 closure |
+| IR / Receptor | Software stop OK when live package seals; Weights/Hybrid→real IR + receptor **not** demonstrated |
+| CLI | `tidex demo procedure-selector` ends if GPEM/donor missing or evidence insufficient |
 | Second-tick | Must come from real B-loop evidence (Paso 3 criterion), not fabricated hints |
+| How to run live smoke | `TIDEX_SHEI_ROOT=/home/yo/Projects/SHEI` (default on this machine); seed via bridge `seed_demo_traces` / `GpemV2RecommendDonorWire::seed_demo_traces`; then `acquire_procedure_selector_package` / `tidex demo procedure-selector` against that store |
 
-**Do NOT mark Paso 6 DONE** until live donor + real learning second tick are proven. Next after B-loop proof: GPEM live fail-closed wire (no fixture continue).
+**Do NOT mark Paso 6 DONE** until seeded live GPEM demo + real learning second tick are proven end-to-end.
 
 ### Fuera de este camino
 
@@ -688,4 +690,4 @@ No abrir Ola RALF / Minimum Space / otros BCM como sustituto de estos seis pasos
 
 ---
 
-*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 ✅. Paso 2 ✅. Paso 3 ✅ (NextAction + B-loop proof). Paso 4 🟡 (capacity package; real donor MISSING). Paso 5 ✅/🟡. Paso 6 ❌ NOT CLOSED / NOT ACCEPTED (fixture≠GPEM; no live donor; productive path now fail-closed). Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
+*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 ✅. Paso 2 ✅. Paso 3 ✅ (NextAction + B-loop proof). Paso 4 🟡→🟢 (capacity package + live GPEM wire). Paso 5 ✅/🟡. Paso 6 ❌ NOT CLOSED / NOT ACCEPTED (live wire exists; full honest demo + second tick still open; productive path fail-closed). Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
