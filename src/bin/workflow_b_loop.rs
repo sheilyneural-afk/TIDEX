@@ -2,14 +2,18 @@
 //!
 //! ```text
 //! real numerical.evolve evidence → replay ProceduralMemory → NextAction
-//!   → Start real executor (start_operator_*) → real job receipt
-//!   → additional real evidence → replay → NextAction different
+//!   → Start real executor (start_operator_*) → Completed + succeeded + run
+//!   → redecide from executor semantic evidence when replayable,
+//!     else hermetic numerical.evolve (never hash-only evidence_receipt)
+//!   → NextAction different
 //! ```
 //!
 //! Anti-patterns forbidden here:
 //! - hand-planted [`ProceduralWorkflowHint`] counts into `decide_next_action`
 //! - fixture donor as substitute for live work
 //! - synthetic second-tick theater
+//! - treating Failed Start + `evidence_receipt.is_some()` as chain success
+//! - stuffing hash-only `operator_job_evidence_receipt/v1` into ProceduralMemory
 
 use serde::Serialize;
 use serde_json::json;
@@ -30,6 +34,7 @@ use tidex::learning::portfolio_governance::{
     CandidateGatePolicy, MetricId, PetfcConservationLimits, PetfcMetricPolicy, PetfcPathLimits,
     PetfcPolicy, PetfcUtilityPolicy, RobustEvaluationPolicy,
 };
+use tidex::learning::procedural_memory::ProceduralMemory;
 use tidex::learning::procedural_memory::{
     BaseArtifactDigest, CapabilityContext, ProblemTransferPolicy, RetrievalQuery, RetrievalScope,
     SolverAttempt, TargetProfileDigest,
@@ -38,7 +43,7 @@ use tidex::learning::procedural_replay::rebuild_from_numerical_evolution_stdout;
 use tidex::learning::solver_portfolio::{
     CandidateRepresentation, LeastSquaresProblem, PortfolioPolicy,
 };
-use tidex::operator::control_plane::{load_job_record, OperatorJobState};
+use tidex::operator::control_plane::{load_job_record, OperatorJobRecord, OperatorJobState};
 
 use crate::workflow_next_action::{
     decide_next_action, invoke_next_action, procedural_hint_from_memory,
@@ -236,6 +241,122 @@ fn wait_job_terminal(
     Err(invalid("b_loop_job_did_not_reach_terminal_state"))
 }
 
+/// Chain success requires Completed + receipt.succeeded + run present.
+/// A Failed/Cancelled job that still carries `evidence_receipt` is **not** success
+/// (closes the organism-chain false positive).
+pub fn chain_start_accepted(terminal: &OperatorJobRecord) -> bool {
+    matches!(terminal.state, OperatorJobState::Completed)
+        && terminal.run.is_some()
+        && terminal
+            .evidence_receipt
+            .as_ref()
+            .is_some_and(|receipt| receipt.succeeded && receipt.run_id.is_some())
+}
+
+fn require_chain_success_start(
+    terminal: &OperatorJobRecord,
+) -> BrainResult<&tidex::operator::control_plane::OperatorJobEvidenceReceipt> {
+    let receipt = terminal
+        .evidence_receipt
+        .as_ref()
+        .ok_or_else(|| invalid("b_loop_start_missing_evidence_receipt"))?;
+    if chain_start_accepted(terminal) {
+        return Ok(receipt);
+    }
+    if !matches!(terminal.state, OperatorJobState::Completed) {
+        return Err(invalid("b_loop_start_job_not_completed"));
+    }
+    if !receipt.succeeded {
+        return Err(invalid("b_loop_start_evidence_not_succeeded"));
+    }
+    if terminal.run.is_none() || receipt.run_id.is_none() {
+        return Err(invalid("b_loop_start_run_missing"));
+    }
+    Ok(receipt)
+}
+
+/// Prefer prior executor semantic evidence for tick-2 ProceduralMemory when the
+/// Start job embeds numerical.evolve stdout that procedural_replay accepts.
+/// Never invent SolverAttempt from hash-only `operator_job_evidence_receipt/v1`.
+/// When executor stdout is absent/non-attempt, use hermetic numerical.evolve.
+fn procedural_experience_for_redecide(
+    tidex_home: &Path,
+    terminal: &OperatorJobRecord,
+) -> BrainResult<(ProceduralMemory, SolverAttempt, Vec<u8>, Sha256Digest, &'static str)> {
+    if let Some(run) = terminal.run.as_ref() {
+        let stdout_bytes = run.stdout.as_bytes();
+        if let Ok(memory) = rebuild_from_numerical_evolution_stdout(stdout_bytes) {
+            if memory.attempt_count() > 0 {
+                // Pull the last sealed attempt from the authenticated stdout cycles
+                // (same bytes procedural_replay already accepted).
+                #[derive(serde::Deserialize)]
+                struct CycleWire {
+                    #[serde(default)]
+                    procedural_attempt: Option<SolverAttempt>,
+                }
+                #[derive(serde::Deserialize)]
+                struct ReceiptWire {
+                    #[serde(default)]
+                    cycles: Vec<CycleWire>,
+                }
+                if let Ok(doc) = serde_json::from_slice::<ReceiptWire>(stdout_bytes) {
+                    if let Some(attempt) = doc
+                        .cycles
+                        .into_iter()
+                        .rev()
+                        .find_map(|cycle| cycle.procedural_attempt)
+                    {
+                        attempt.authenticate()?;
+                        let digest = Sha256Digest::digest_bytes(stdout_bytes);
+                        let _ = persist_stdout(tidex_home, "tick2-executor", stdout_bytes)?;
+                        return Ok((
+                            memory,
+                            attempt,
+                            stdout_bytes.to_vec(),
+                            digest,
+                            "executor_run_view",
+                        ));
+                    }
+                }
+            }
+        }
+        // Explicitly refuse hash-only job evidence: attempting to rebuild from
+        // evidence_receipt alone must stay fail-closed in procedural_replay
+        // (covered by procedural_replay::operator_job_evidence_has_no_attempt_structure).
+        let _ = terminal.evidence_receipt.as_ref();
+    }
+
+    // Hermetic fixture: independent validated numerical.evolve (no HF / live align).
+    let mut engine2 = NumericalEvolutionEngine::new(capability_context()?, numerical_policy()?)?;
+    let _warm = engine2.evolve(
+        NumericalEvolutionInput::new(
+            LeastSquaresProblem::new(vec![vec![1.0]], vec![vec![1.5]])?,
+            CandidateRepresentation::Dense {
+                rows: 1,
+                columns: 1,
+                weights: vec![0.0],
+            },
+            eval_groups()?,
+            1,
+        )?,
+        &[],
+    )?;
+    let cycle2 = engine2.evolve(validation_input(2)?, &[])?;
+    let attempt2 = cycle2
+        .procedural_attempt()
+        .cloned()
+        .ok_or_else(|| invalid("b_loop_tick2_missing_procedural_attempt"))?;
+    attempt2.authenticate()?;
+    let (stdout2, digest2) =
+        seal_evolution_stdout(&[(2, "candidate_validated_for_further_gates", Some(&attempt2))])?;
+    let _ = persist_stdout(tidex_home, "tick2", &stdout2)?;
+    if Sha256Digest::digest_bytes(&stdout2) != digest2 {
+        return Err(invalid("b_loop_tick2_stdout_digest_mismatch"));
+    }
+    let memory2 = rebuild_from_numerical_evolution_stdout(&stdout2)?;
+    Ok((memory2, attempt2, stdout2, digest2, "hermetic_numerical_evolve"))
+}
+
 fn persist_stdout(tidex_home: &Path, label: &str, bytes: &[u8]) -> BrainResult<PathBuf> {
     let dir = tidex_home.join("state/workflow_b_loop").join(label);
     fs::create_dir_all(&dir)?;
@@ -263,6 +384,9 @@ pub struct BLoopProofReceipt {
     pub start_job_state: String,
     pub start_job_operation: String,
     pub start_evidence_receipt_present: bool,
+    /// True only when Completed + receipt.succeeded + run present.
+    pub start_chain_success: bool,
+    pub redecide_experience_source: String,
     pub tick2: BLoopTickSummary,
     pub next_action_changed: bool,
     pub attribution: String,
@@ -319,40 +443,12 @@ pub fn prove_b_loop_with_directive(
         .as_ref()
         .ok_or_else(|| invalid("b_loop_start_missing_job_record"))?;
     let terminal = wait_job_terminal(tidex_home, &job.job_id)?;
-    if terminal.evidence_receipt.is_none() {
-        return Err(invalid("b_loop_start_missing_evidence_receipt"));
-    }
+    // Harden: Failed/Cancelled + receipt present must NOT count as chain success.
+    let _receipt = require_chain_success_start(&terminal)?;
 
-    // --- Tick 2: additional real numerical.evolve evidence (validated) ---
-    // Fresh engine so revision/problem identity is independent; still real solve.
-    let mut engine2 = NumericalEvolutionEngine::new(capability_context()?, numerical_policy()?)?;
-    // Warm with a bounded-unknown then validate (mirrors two_real_revisions path).
-    let _warm = engine2.evolve(
-        NumericalEvolutionInput::new(
-            LeastSquaresProblem::new(vec![vec![1.0]], vec![vec![1.5]])?,
-            CandidateRepresentation::Dense {
-                rows: 1,
-                columns: 1,
-                weights: vec![0.0],
-            },
-            eval_groups()?,
-            1,
-        )?,
-        &[],
-    )?;
-    let cycle2 = engine2.evolve(validation_input(2)?, &[])?;
-    let attempt2 = cycle2
-        .procedural_attempt()
-        .cloned()
-        .ok_or_else(|| invalid("b_loop_tick2_missing_procedural_attempt"))?;
-    attempt2.authenticate()?;
-    let (stdout2, digest2) =
-        seal_evolution_stdout(&[(2, "candidate_validated_for_further_gates", Some(&attempt2))])?;
-    let _ = persist_stdout(tidex_home, "tick2", &stdout2)?;
-    if Sha256Digest::digest_bytes(&stdout2) != digest2 {
-        return Err(invalid("b_loop_tick2_stdout_digest_mismatch"));
-    }
-    let memory2 = rebuild_from_numerical_evolution_stdout(&stdout2)?;
+    // --- Tick 2: redecide from executor semantic evidence when available ---
+    let (memory2, attempt2, _stdout2, digest2, experience_source) =
+        procedural_experience_for_redecide(tidex_home, &terminal)?;
     let query2 = query_from_attempt(&attempt2)?;
     let hint2 = procedural_hint_from_memory(&memory2, &query2)?;
     if hint2.low_rank_unreliable() || hint2.steering_unreliable() {
@@ -381,6 +477,8 @@ pub fn prove_b_loop_with_directive(
         start_job_state: format!("{:?}", terminal.state),
         start_job_operation: terminal.operation.clone(),
         start_evidence_receipt_present: terminal.evidence_receipt.is_some(),
+        start_chain_success: true,
+        redecide_experience_source: experience_source.into(),
         tick2: BLoopTickSummary {
             tick: 2,
             stdout_sha256: digest2.to_string(),
@@ -391,7 +489,9 @@ pub fn prove_b_loop_with_directive(
             rationale_evidence: action2.rationale_evidence.clone(),
         },
         next_action_changed: true,
-        attribution: "NextAction changed because ProceduralMemory replay of real numerical.evolve evidence flipped low_rank_unreliable→reliable after Start produced an authenticatable Operator job evidence_receipt; hints derived via retrieve, not hand-planted.".into(),
+        attribution: format!(
+            "NextAction changed because ProceduralMemory replay ({experience_source}) flipped low_rank_unreliable→reliable after Start reached Completed+succeeded+run; hash-only evidence_receipt alone never admits SolverAttempt; hints derived via retrieve, not hand-planted."
+        ),
         authorizes_production: false,
     })
 }
@@ -400,6 +500,7 @@ pub fn prove_b_loop_with_directive(
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
+    use tidex::operator::control_plane::OperatorJobEvidenceReceipt;
 
     fn isolated_home(tag: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
@@ -418,23 +519,126 @@ mod tests {
         root
     }
 
+    fn failed_terminal_with_receipt() -> OperatorJobRecord {
+        let job_id = Sha256Digest::digest_bytes(b"b-loop-failed-start");
+        OperatorJobRecord {
+            schema: "tidex.operator_job/v1".into(),
+            job_id: job_id.clone(),
+            request_sha256: Some(Sha256Digest::digest_bytes(b"req")),
+            evidence_receipt: Some(OperatorJobEvidenceReceipt {
+                schema: "tidex.operator_job_evidence_receipt/v1".into(),
+                job_id,
+                request_sha256: Some(Sha256Digest::digest_bytes(b"req")),
+                executor_id: Some("cross_model.align".into()),
+                executor_descriptor_sha256: None,
+                state: OperatorJobState::Failed,
+                run_id: None,
+                stdout_sha256: None,
+                stderr_sha256: None,
+                succeeded: false,
+                authorizes_production: false,
+                evidence_sha256: Sha256Digest::digest_bytes(b"evidence"),
+            }),
+            state: OperatorJobState::Failed,
+            operation: "calibrate_alignment".into(),
+            submitted_unix_ns: 1,
+            run: None,
+            error: Some("operator_model_not_cataloged".into()),
+        }
+    }
+
+    #[test]
+    fn failed_job_with_evidence_receipt_is_not_chain_success() {
+        let terminal = failed_terminal_with_receipt();
+        assert!(
+            terminal.evidence_receipt.is_some(),
+            "precondition: receipt present (the old false-positive gate)"
+        );
+        assert!(
+            !chain_start_accepted(&terminal),
+            "Failed + receipt must not count as chain success"
+        );
+        let err = require_chain_success_start(&terminal).expect_err("must reject");
+        assert!(
+            matches!(err, BrainError::Invalid(code) if code == "b_loop_start_job_not_completed")
+        );
+    }
+
+    #[test]
+    fn prove_b_loop_rejects_failed_start_even_when_receipt_present() {
+        // Hermetic Start of calibrate_alignment without cataloged models fails
+        // with evidence_receipt present — the old gate would still "succeed".
+        let home = isolated_home("reject-failed-start");
+        let err = prove_b_loop(&home).expect_err("must not treat Failed+receipt as success");
+        let code = match err {
+            BrainError::Invalid(code) => code,
+            other => panic!("unexpected error kind: {other}"),
+        };
+        assert!(
+            code == "b_loop_start_job_not_completed"
+                || code == "b_loop_start_evidence_not_succeeded"
+                || code == "b_loop_start_run_missing"
+                || code == "b_loop_start_missing_evidence_receipt",
+            "unexpected rejection code: {code}"
+        );
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn redecide_hermetic_evolve_without_stuffing_hash_only_receipt() {
+        let home = isolated_home("redecide-hermetic");
+        let terminal = failed_terminal_with_receipt();
+        // Even with a hash-only receipt, redecide must use hermetic evolve (not invent).
+        let (memory, attempt, _bytes, _digest, source) =
+            procedural_experience_for_redecide(&home, &terminal).expect("hermetic redecide");
+        assert_eq!(source, "hermetic_numerical_evolve");
+        assert!(memory.attempt_count() > 0);
+        attempt.authenticate().unwrap();
+        let hint = procedural_hint_from_memory(&memory, &query_from_attempt(&attempt).unwrap())
+            .expect("hint");
+        assert!(
+            !hint.low_rank_unreliable() && !hint.steering_unreliable(),
+            "hermetic validated evolve must yield reliable procedural signal"
+        );
+        let _ = fs::remove_dir_all(home);
+    }
+
     #[test]
     fn prove_b_loop_real_evidence_start_receipt_redecide() {
+        // Full Start→Completed path needs cataloged HF models + runner. When the
+        // environment cannot complete Start, the hardened gate must fail closed
+        // (covered above). When Start does complete, assert the full chain.
         let home = isolated_home("proof");
-        let proof = prove_b_loop(&home).expect("b-loop proof");
-        assert_eq!(proof.schema, PROOF_SCHEMA);
-        assert!(!proof.authorizes_production);
-        assert_eq!(proof.tick1.next_action_operation, "calibrate_alignment");
-        assert_eq!(proof.tick2.next_action_operation, "activation_transfer_experiment");
-        assert!(proof.next_action_changed);
-        assert!(proof.start_evidence_receipt_present);
-        assert_eq!(proof.start_invocation.mode, "start");
-        assert!(proof.start_invocation.job.is_some());
-        // Hints must come from retrieve-derived counts, not zeros across the board.
-        assert!(
-            proof.tick1.hint.low_rank_failures + proof.tick1.hint.steering_failures > 0,
-            "tick1 hint must reflect negative procedural experience"
-        );
+        match prove_b_loop(&home) {
+            Ok(proof) => {
+                assert_eq!(proof.schema, PROOF_SCHEMA);
+                assert!(!proof.authorizes_production);
+                assert_eq!(proof.tick1.next_action_operation, "calibrate_alignment");
+                assert_eq!(proof.tick2.next_action_operation, "activation_transfer_experiment");
+                assert!(proof.next_action_changed);
+                assert!(proof.start_evidence_receipt_present);
+                assert!(proof.start_chain_success);
+                assert!(
+                    proof.redecide_experience_source == "hermetic_numerical_evolve"
+                        || proof.redecide_experience_source == "executor_run_view"
+                );
+                assert_eq!(proof.start_invocation.mode, "start");
+                assert!(proof.start_invocation.job.is_some());
+                assert!(
+                    proof.tick1.hint.low_rank_failures + proof.tick1.hint.steering_failures > 0,
+                    "tick1 hint must reflect negative procedural experience"
+                );
+            }
+            Err(BrainError::Invalid(code))
+                if code == "b_loop_start_job_not_completed"
+                    || code == "b_loop_start_evidence_not_succeeded"
+                    || code == "b_loop_start_run_missing"
+                    || code == "b_loop_start_missing_evidence_receipt" =>
+            {
+                // Honest fail-closed without cataloged models / successful Start.
+            }
+            Err(other) => panic!("unexpected prove_b_loop error: {other}"),
+        }
         let _ = fs::remove_dir_all(home);
     }
 }
