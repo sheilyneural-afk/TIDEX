@@ -45,7 +45,26 @@ length (2 for both mappings above). Otherwise admission fails closed.
   `mbpp_transfer_established`, `general_language_preservation_established`, or
   `authorizes_promotion`
 - V64-like (and any schema) **without** `dense_delta` + `parameter_layout`
-- Broadening `procedural_replay` to Vxx in this pass
+- Mapping V67/V68 into `SolverAttempt` / `ProceduralMemory` (see boundary below)
+
+## Boundary vs ProceduralMemory replay
+
+V67/V68 stay on this LearningExperimentEvidence path. They do **not** carry
+`AttemptBindings`, `Applicability`, `SolverConfiguration`, lineage, or sealed
+research evaluation — the fields `SolverAttempt::seal` requires. Inventing
+those would fabricate procedural attempts.
+
+`src/learning/procedural_replay.rs` therefore fail-closes both schemas with
+`procedural_replay_schema_learning_evidence_only`. Procedural replay accepts
+only receipts that already embed sealed attempts:
+
+- `tidex.numerical_evolution_receipt/v1`
+- `tidex.operator_run_view/v1` (Operator run receipt + embedded stdout)
+- `tidex.operator_job/v1` when `run` embeds that view
+
+A bare `tidex.operator_run_receipt/v1` is path-only; the CLI wraps it as a run
+view after loading stdout. Job evidence receipts are hashes only
+(`procedural_replay_schema_no_attempt_structure`).
 
 ## Real collected receipts
 

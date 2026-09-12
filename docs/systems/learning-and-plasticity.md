@@ -18,6 +18,7 @@ Ciclo de aprendizaje adaptativo, evidencias de representación, memoria procedim
 | `numerical_evolution.rs` | Evolución de candidatos least-squares + holdout |
 | `portfolio_governance.rs` | Decisiones conservadoras desde observaciones pareadas |
 | `procedural_memory.rs` | Memoria de intentos de solver, advisory-only |
+| `procedural_replay.rs` | Replay canónico multi-schema → `ProceduralMemory` (no segundo store; V67/V68 no mapean a `SolverAttempt`) |
 | `causal_credit.rs` | Pesos de prioridad causal con lower confidence bound |
 | Operator `/api/plasticity` | Plasticidad v2 advisory (BCM, eligibility, neuromod, PI); puede `available:false` |
 

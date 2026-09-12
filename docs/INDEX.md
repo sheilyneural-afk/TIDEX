@@ -23,6 +23,7 @@ Punto de entrada único. Si un doc de `directories/` o `systems/` parece corto o
 | [README_CROSS_MODEL.md](README_CROSS_MODEL.md) | Feature cross-model |
 | [../README.md](../README.md) | README raíz |
 | [TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md](TIDEX_TWO_LEARNINGS_AND_CLOSED_LINKS.md) | Dos aprendizajes; Paso 1–6; Paso 6 ✅ Software vertical; Paso 5 Weights/Hybrid→measured IR→receptor (`tidex demo weights-ir-receptor`) |
+| [VXX_LEARNING_ADMISSION.md](VXX_LEARNING_ADMISSION.md) | V67/V68 → LearningExperimentEvidence; frontera vs `procedural_replay` / ProceduralMemory |
 
 ## Sistemas (flujos transversales)
 

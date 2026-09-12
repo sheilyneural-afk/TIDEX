@@ -533,10 +533,10 @@ Sin 2A, “conectar retrieve al decisor” sería teatro sobre memoria vacía o 
 
 | Pieza | Path |
 |-------|------|
-| Replay canónico | `src/learning/procedural_replay.rs` — `rebuild_from_authenticated_stdout` / `rebuild_from_numerical_evolution_stdout` → `ProceduralMemory::rebuild_with_solver_failures` |
+| Replay canónico | `src/learning/procedural_replay.rs` — `rebuild_from_authenticated_receipt` dispatches by schema (numerical.evolve, operator run view, operator job with embedded stdout) → `ProceduralMemory::rebuild_with_solver_failures`. V67/V68 stay LearningExperimentEvidence-only. |
 | 2B helper | `retrieve_procedural_advice(memory, query)` (advisory-only; Paso 3 hook documented in-module) |
-| Composición Operator | `src/bin/tidex.rs` — `rebuild_procedural_memory_from_operator_run` + CLI `tidex procedural replay-from-run-receipt` |
-| Tests | `procedural_replay::tests` — fixture replay → ranked retrieve; tamper / digest / schema / production / count fail-closed |
+| Composición Operator | `src/bin/tidex.rs` — `rebuild_procedural_memory_from_receipt_bytes` + CLI `tidex procedural replay` / `replay-from-run-receipt` (multi-schema; path-only Operator run receipts wrapped as `tidex.operator_run_view/v1`) |
+| Tests | `procedural_replay::tests` — numerical + operator view/job ranked retrieve; unknown / Vxx / path-only run / job-evidence / tamper / digest / production / count fail-closed |
 
 **No** `procedural_memory.json`. **No** import de PM/KE en `operator/control_plane.rs`. **2C / Paso 3:** plegado en `src/bin/workflow_next_action.rs` (`decide_next_action` → `invoke_next_action`).
 

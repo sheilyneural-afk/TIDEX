@@ -1,11 +1,28 @@
-//! Canonical replay of [`ProceduralMemory`] from authenticated numerical.evolve
-//! evidence.
+//! Canonical replay of [`ProceduralMemory`] from authenticated receipts.
 //!
 //! `ProceduralMemory` remains a bounded, non-persistent reducer. This module does
 //! **not** introduce `operator/procedural_memory.json` or any second store. It
 //! only derives memory from sealed `SolverAttempt` / `SolverRunFailureRecord`
-//! values embedded in `tidex.numerical_evolution_receipt/v1` stdout (Operator
-//! run receipts bind that stdout via `stdout_sha256`).
+//! values that already exist on an authenticated receipt.
+//!
+//! # Schema dispatch (fail-closed)
+//!
+//! [`rebuild_from_authenticated_receipt`] peeks `schema` and maps only receipts
+//! that can honestly produce procedural attempts:
+//!
+//! | Schema | ProceduralMemory |
+//! |--------|------------------|
+//! | `tidex.numerical_evolution_receipt/v1` | yes — sealed `procedural_attempt` / `solver_run_failure` |
+//! | `tidex.operator_run_view/v1` | yes — Operator run receipt + embedded stdout, bound by `stdout_sha256` |
+//! | `tidex.operator_job/v1` | yes — when `run` embeds that same view |
+//! | `tidex.operator_run_receipt/v1` | no — stdout is a path, not attempt bytes (CLI wraps as run view) |
+//! | `tidex.operator_job_evidence_receipt/v1` | no — hashes only, no attempt structure |
+//! | `tidex.v67_weight_actuator_smoke/v1` | no — `LearningExperimentEvidence` only |
+//! | `tidex.v68_receiver_response_probe/v1` | no — `LearningExperimentEvidence` only |
+//!
+//! V67/V68 cannot map to [`SolverAttempt`] without inventing `AttemptBindings`,
+//! `Applicability`, `SolverConfiguration`, lineage, and sealed evaluation. That
+//! path stays in `experimental_evidence_admission.rs`.
 //!
 //! Composition with Operator run directories lives in the workflow root
 //! (`src/bin/tidex.rs`), which may see both domains. This learning-side module
@@ -24,11 +41,21 @@ use crate::learning::procedural_memory::{
     ProceduralMemory, RetrievalQuery, RetrievalReport, SolverAttempt, SolverRunFailureRecord,
 };
 use serde::Deserialize;
+use serde_json::Value;
 
 /// Bound matching Operator run stdout limits (`MAX_RESULT_BYTES`).
 pub const MAX_PROCEDURAL_REPLAY_STDOUT_BYTES: u64 = 64 * 1024 * 1024;
 
-const NUMERICAL_EVOLUTION_RECEIPT_SCHEMA: &str = "tidex.numerical_evolution_receipt/v1";
+/// Numerical.evolve stdout / receipt that already embeds sealed attempts.
+pub const NUMERICAL_EVOLUTION_RECEIPT_SCHEMA: &str = "tidex.numerical_evolution_receipt/v1";
+/// Operator run receipt plus the stdout bytes it authenticates.
+pub const OPERATOR_RUN_VIEW_SCHEMA: &str = "tidex.operator_run_view/v1";
+/// Operator job record; replay only when `run` embeds a run view.
+pub const OPERATOR_JOB_SCHEMA: &str = "tidex.operator_job/v1";
+const OPERATOR_RUN_RECEIPT_SCHEMA: &str = "tidex.operator_run_receipt/v1";
+const OPERATOR_JOB_EVIDENCE_SCHEMA: &str = "tidex.operator_job_evidence_receipt/v1";
+const V67_SCHEMA: &str = "tidex.v67_weight_actuator_smoke/v1";
+const V68_SCHEMA: &str = "tidex.v68_receiver_response_probe/v1";
 
 fn invalid(code: &str) -> BrainError {
     BrainError::Invalid(code.into())
@@ -57,10 +84,66 @@ struct NumericalEvolutionCycleEvidence {
     solver_run_failure: Option<SolverRunFailureRecord>,
 }
 
+/// Local wire form of an Operator run receipt. Only authentication fields are
+/// required; extra Operator fields are ignored so this crate never imports
+/// `crate::operator`.
+#[derive(Debug, Deserialize)]
+struct OperatorRunReceiptWire {
+    schema: String,
+    stdout_sha256: Sha256Digest,
+    #[serde(default)]
+    authorizes_production: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct OperatorRunViewDocument {
+    schema: String,
+    receipt: OperatorRunReceiptWire,
+    stdout: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbeddedOperatorRunView {
+    receipt: OperatorRunReceiptWire,
+    stdout: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct OperatorJobDocument {
+    schema: String,
+    #[serde(default)]
+    run: Option<EmbeddedOperatorRunView>,
+}
+
+/// Rebuild from authenticated receipt bytes, dispatching by `schema`.
+///
+/// When `expected_sha256` is `Some`, it must match the digest of `bytes`
+/// (fail-closed). Inner Operator stdout is additionally bound by the receipt's
+/// `stdout_sha256`. Unknown schemas, path-only Operator run receipts, job
+/// evidence hashes, and V67/V68 fail closed — they are not turned into invented
+/// [`SolverAttempt`] values.
+pub fn rebuild_from_authenticated_receipt(
+    bytes: &[u8],
+    expected_sha256: Option<&Sha256Digest>,
+) -> BrainResult<ProceduralMemory> {
+    if bytes.len() as u64 > MAX_PROCEDURAL_REPLAY_STDOUT_BYTES {
+        return Err(invalid("procedural_replay_stdout_limit"));
+    }
+    if let Some(expected) = expected_sha256 {
+        if Sha256Digest::digest_bytes(bytes) != *expected {
+            return Err(integrity("procedural_replay_receipt_digest_mismatch"));
+        }
+    }
+    dispatch_authenticated_receipt(bytes)
+}
+
 /// Verify stdout bytes against the Operator receipt digest, then rebuild.
 ///
 /// Fail-closed on size, digest mismatch, schema, production claims, or
-/// tampered/missing sealed attempt evidence.
+/// tampered/missing sealed attempt evidence. Dispatches by the stdout `schema`
+/// (numerical.evolve today; other supported attempt-bearing schemas later).
 pub fn rebuild_from_authenticated_stdout(
     stdout_bytes: &[u8],
     expected_stdout_sha256: &Sha256Digest,
@@ -71,7 +154,7 @@ pub fn rebuild_from_authenticated_stdout(
     if Sha256Digest::digest_bytes(stdout_bytes) != *expected_stdout_sha256 {
         return Err(integrity("procedural_replay_stdout_digest_mismatch"));
     }
-    rebuild_from_numerical_evolution_stdout(stdout_bytes)
+    dispatch_authenticated_receipt(stdout_bytes)
 }
 
 /// Rebuild from numerical.evolve receipt JSON bytes (already authenticated by
@@ -85,6 +168,67 @@ pub fn rebuild_from_numerical_evolution_stdout(
     let document: NumericalEvolutionReceiptDocument = serde_json::from_slice(stdout_bytes)
         .map_err(|_| invalid("procedural_replay_receipt_json_invalid"))?;
     rebuild_from_numerical_evolution_receipt(&document)
+}
+
+fn dispatch_authenticated_receipt(bytes: &[u8]) -> BrainResult<ProceduralMemory> {
+    let value: Value = serde_json::from_slice(bytes)
+        .map_err(|_| invalid("procedural_replay_receipt_json_invalid"))?;
+    if value.get("authorizes_production").and_then(Value::as_bool) == Some(true) {
+        return Err(integrity("procedural_replay_receipt_claims_production"));
+    }
+    let schema = value
+        .get("schema")
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid("procedural_replay_receipt_schema_missing"))?;
+    match schema {
+        NUMERICAL_EVOLUTION_RECEIPT_SCHEMA => {
+            let document: NumericalEvolutionReceiptDocument = serde_json::from_value(value)
+                .map_err(|_| invalid("procedural_replay_receipt_json_invalid"))?;
+            rebuild_from_numerical_evolution_receipt(&document)
+        }
+        OPERATOR_RUN_VIEW_SCHEMA => {
+            let document: OperatorRunViewDocument = serde_json::from_value(value)
+                .map_err(|_| invalid("procedural_replay_receipt_json_invalid"))?;
+            rebuild_from_operator_run_view(&document.receipt, &document.stdout)
+        }
+        OPERATOR_JOB_SCHEMA => {
+            let document: OperatorJobDocument = serde_json::from_value(value)
+                .map_err(|_| invalid("procedural_replay_receipt_json_invalid"))?;
+            let run = document
+                .run
+                .as_ref()
+                .ok_or_else(|| invalid("procedural_replay_operator_job_run_missing"))?;
+            rebuild_from_operator_run_view(&run.receipt, &run.stdout)
+        }
+        OPERATOR_RUN_RECEIPT_SCHEMA => {
+            Err(invalid("procedural_replay_operator_run_stdout_not_embedded"))
+        }
+        OPERATOR_JOB_EVIDENCE_SCHEMA => {
+            Err(invalid("procedural_replay_schema_no_attempt_structure"))
+        }
+        V67_SCHEMA | V68_SCHEMA => Err(invalid("procedural_replay_schema_learning_evidence_only")),
+        _ => Err(invalid("procedural_replay_receipt_schema_unsupported")),
+    }
+}
+
+fn rebuild_from_operator_run_view(
+    receipt: &OperatorRunReceiptWire,
+    stdout: &str,
+) -> BrainResult<ProceduralMemory> {
+    if receipt.schema != OPERATOR_RUN_RECEIPT_SCHEMA {
+        return Err(invalid("procedural_replay_operator_run_receipt_schema_invalid"));
+    }
+    if receipt.authorizes_production {
+        return Err(integrity("procedural_replay_operator_run_claims_production"));
+    }
+    let stdout_bytes = stdout.as_bytes();
+    if stdout_bytes.len() as u64 > MAX_PROCEDURAL_REPLAY_STDOUT_BYTES {
+        return Err(invalid("procedural_replay_stdout_limit"));
+    }
+    if Sha256Digest::digest_bytes(stdout_bytes) != receipt.stdout_sha256 {
+        return Err(integrity("procedural_replay_stdout_digest_mismatch"));
+    }
+    dispatch_authenticated_receipt(stdout_bytes)
 }
 
 fn rebuild_from_numerical_evolution_receipt(
@@ -315,6 +459,80 @@ mod tests {
         serde_json::to_vec(&document).unwrap()
     }
 
+    fn operator_receipt_wire(stdout: &[u8], authorizes_production: bool) -> serde_json::Value {
+        json!({
+            "schema": "tidex.operator_run_receipt/v1",
+            "stdout_sha256": Sha256Digest::digest_bytes(stdout),
+            "authorizes_production": authorizes_production
+        })
+    }
+
+    fn operator_run_view_bytes(stdout: &[u8]) -> Vec<u8> {
+        serde_json::to_vec(&json!({
+            "schema": OPERATOR_RUN_VIEW_SCHEMA,
+            "receipt": operator_receipt_wire(stdout, false),
+            "stdout": String::from_utf8(stdout.to_vec()).unwrap()
+        }))
+        .unwrap()
+    }
+
+    fn operator_job_bytes(stdout: &[u8]) -> Vec<u8> {
+        serde_json::to_vec(&json!({
+            "schema": OPERATOR_JOB_SCHEMA,
+            "job_id": "a".repeat(64),
+            "state": "completed",
+            "operation": "numerical_evolve_fixture",
+            "submitted_unix_ns": 1,
+            "run": {
+                "receipt": operator_receipt_wire(stdout, false),
+                "stdout": String::from_utf8(stdout.to_vec()).unwrap(),
+                "stderr": ""
+            }
+        }))
+        .unwrap()
+    }
+
+    fn ranked_pair() -> (AttemptBindings, Vec<u8>) {
+        let problem = exact_problem(17);
+        let good_bindings = bindings(60, "capability.multischema:v1", problem.clone(), 61);
+        let bad_bindings = bindings(60, "capability.multischema:v1", problem, 62);
+        let good = evaluated_attempt(
+            good_bindings.clone(),
+            config(SolverFamily::DivideConquerSvd),
+            AttemptStatus::Validated,
+            63,
+            64,
+            1,
+        );
+        let bad = evaluated_attempt(
+            bad_bindings,
+            config(SolverFamily::CholeskyRidgeLowRank),
+            AttemptStatus::Failed,
+            65,
+            66,
+            1,
+        );
+        (good_bindings, receipt_bytes(&[bad, good], true))
+    }
+
+    fn assert_ranked_svd_over_ridge(memory: &ProceduralMemory, bindings: &AttemptBindings) {
+        let report = retrieve_procedural_advice(memory, &query(bindings)).unwrap();
+        assert_eq!(report.advice().len(), 2);
+        let good = report
+            .advice()
+            .iter()
+            .find(|value| value.configuration().family() == SolverFamily::DivideConquerSvd)
+            .unwrap();
+        let bad = report
+            .advice()
+            .iter()
+            .find(|value| value.configuration().family() == SolverFamily::CholeskyRidgeLowRank)
+            .unwrap();
+        assert!(good.priority_score() > bad.priority_score());
+        assert_eq!(bad.disposition(), AdviceDisposition::DeprioritizeButRetainControl);
+        assert!(!good.authorizes_promotion());
+    }
+
     #[test]
     fn replay_from_fixture_receipt_rebuilds_ranked_advice() {
         let problem = exact_problem(7);
@@ -482,6 +700,164 @@ mod tests {
         assert!(matches!(
             rebuild_from_numerical_evolution_stdout(&serde_json::to_vec(&document).unwrap()),
             Err(BrainError::Integrity(code)) if code == "procedural_replay_attempt_count_mismatch"
+        ));
+    }
+
+    #[test]
+    fn unified_entry_replays_numerical_receipt_and_optional_digest() {
+        let (bindings, stdout) = ranked_pair();
+        let digest = Sha256Digest::digest_bytes(&stdout);
+        let with_digest = rebuild_from_authenticated_receipt(&stdout, Some(&digest)).unwrap();
+        let without_digest = rebuild_from_authenticated_receipt(&stdout, None).unwrap();
+        assert_eq!(with_digest.attempt_count(), 2);
+        assert_eq!(without_digest.attempt_count(), 2);
+        assert_ranked_svd_over_ridge(&with_digest, &bindings);
+    }
+
+    #[test]
+    fn unified_entry_wrong_digest_fail_closed() {
+        let (_bindings, stdout) = ranked_pair();
+        let wrong = Sha256Digest::digest_bytes(b"not-the-receipt");
+        assert!(matches!(
+            rebuild_from_authenticated_receipt(&stdout, Some(&wrong)),
+            Err(BrainError::Integrity(code)) if code == "procedural_replay_receipt_digest_mismatch"
+        ));
+    }
+
+    #[test]
+    fn operator_run_view_rebuilds_ranked_advice() {
+        let (bindings, stdout) = ranked_pair();
+        let view = operator_run_view_bytes(&stdout);
+        let memory = rebuild_from_authenticated_receipt(&view, None).unwrap();
+        assert_eq!(memory.attempt_count(), 2);
+        assert_ranked_svd_over_ridge(&memory, &bindings);
+    }
+
+    #[test]
+    fn operator_job_with_embedded_run_rebuilds_ranked_advice() {
+        let (bindings, stdout) = ranked_pair();
+        let job = operator_job_bytes(&stdout);
+        let memory = rebuild_from_authenticated_receipt(&job, None).unwrap();
+        assert_eq!(memory.attempt_count(), 2);
+        assert_ranked_svd_over_ridge(&memory, &bindings);
+    }
+
+    #[test]
+    fn operator_run_receipt_without_embedded_stdout_fail_closed() {
+        let bytes = serde_json::to_vec(&json!({
+            "schema": "tidex.operator_run_receipt/v1",
+            "stdout_sha256": Sha256Digest::digest_bytes(b"unused"),
+            "authorizes_production": false
+        }))
+        .unwrap();
+        assert!(matches!(
+            rebuild_from_authenticated_receipt(&bytes, None),
+            Err(BrainError::Invalid(code))
+                if code == "procedural_replay_operator_run_stdout_not_embedded"
+        ));
+    }
+
+    #[test]
+    fn operator_run_view_stdout_digest_mismatch_fail_closed() {
+        let (_bindings, stdout) = ranked_pair();
+        let mut view: serde_json::Value =
+            serde_json::from_slice(&operator_run_view_bytes(&stdout)).unwrap();
+        view["receipt"]["stdout_sha256"] = json!(Sha256Digest::digest_bytes(b"tampered-stdout"));
+        assert!(matches!(
+            rebuild_from_authenticated_receipt(&serde_json::to_vec(&view).unwrap(), None),
+            Err(BrainError::Integrity(code)) if code == "procedural_replay_stdout_digest_mismatch"
+        ));
+    }
+
+    #[test]
+    fn operator_run_view_production_claim_fail_closed() {
+        let (_bindings, stdout) = ranked_pair();
+        let view = json!({
+            "schema": OPERATOR_RUN_VIEW_SCHEMA,
+            "receipt": operator_receipt_wire(&stdout, true),
+            "stdout": String::from_utf8(stdout).unwrap()
+        });
+        assert!(matches!(
+            rebuild_from_authenticated_receipt(&serde_json::to_vec(&view).unwrap(), None),
+            Err(BrainError::Integrity(code))
+                if code == "procedural_replay_operator_run_claims_production"
+        ));
+    }
+
+    #[test]
+    fn operator_job_missing_run_fail_closed() {
+        let bytes = serde_json::to_vec(&json!({
+            "schema": OPERATOR_JOB_SCHEMA,
+            "job_id": "b".repeat(64),
+            "state": "failed",
+            "operation": "fixture",
+            "submitted_unix_ns": 1,
+            "run": null
+        }))
+        .unwrap();
+        assert!(matches!(
+            rebuild_from_authenticated_receipt(&bytes, None),
+            Err(BrainError::Invalid(code)) if code == "procedural_replay_operator_job_run_missing"
+        ));
+    }
+
+    #[test]
+    fn operator_job_evidence_has_no_attempt_structure() {
+        let bytes = serde_json::to_vec(&json!({
+            "schema": "tidex.operator_job_evidence_receipt/v1",
+            "job_id": "c".repeat(64),
+            "authorizes_production": false
+        }))
+        .unwrap();
+        assert!(matches!(
+            rebuild_from_authenticated_receipt(&bytes, None),
+            Err(BrainError::Invalid(code))
+                if code == "procedural_replay_schema_no_attempt_structure"
+        ));
+    }
+
+    #[test]
+    fn v67_and_v68_stay_learning_evidence_only() {
+        for schema in [
+            "tidex.v67_weight_actuator_smoke/v1",
+            "tidex.v68_receiver_response_probe/v1",
+        ] {
+            let bytes = serde_json::to_vec(&json!({
+                "schema": schema,
+                "authorizes_production": false
+            }))
+            .unwrap();
+            assert!(
+                matches!(
+                    rebuild_from_authenticated_receipt(&bytes, None),
+                    Err(BrainError::Invalid(code))
+                        if code == "procedural_replay_schema_learning_evidence_only"
+                ),
+                "schema {schema} must stay LearningExperimentEvidence-only"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_schema_fail_closed() {
+        let bytes = serde_json::to_vec(&json!({
+            "schema": "tidex.not_a_real_receipt/v0",
+            "cycles": []
+        }))
+        .unwrap();
+        assert!(matches!(
+            rebuild_from_authenticated_receipt(&bytes, None),
+            Err(BrainError::Invalid(code))
+                if code == "procedural_replay_receipt_schema_unsupported"
+        ));
+    }
+
+    #[test]
+    fn missing_schema_fail_closed() {
+        let bytes = serde_json::to_vec(&json!({ "cycles": [] })).unwrap();
+        assert!(matches!(
+            rebuild_from_authenticated_receipt(&bytes, None),
+            Err(BrainError::Invalid(code)) if code == "procedural_replay_receipt_schema_missing"
         ));
     }
 }

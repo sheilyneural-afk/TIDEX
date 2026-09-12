@@ -21,6 +21,7 @@ Conecta observación → candidatos → evidencias selladas sin auto-promocionar
 | `numerical_evolution.rs` | 1931 | End-to-end numerical candidate evolution for TIDE-X. This module connects the bounded least-squares portfolio, paired holdout evaluation, PETFC trajectory governance, and adviso… |
 | `portfolio_governance.rs` | 5005 | Universal governance for candidate evolution in TIDE-X. This module derives conservative candidate decisions from paired raw observations. It never executes, promotes, or activa… |
 | `procedural_memory.rs` | 4542 | Universal, advisory-only procedural experience memory. This module remembers authenticated solver attempts without introducing a second authority or persistence layer. [`Procedu… |
+| `procedural_replay.rs` | Replay canónico fail-closed: `rebuild_from_authenticated_receipt` despacha por schema (numerical.evolve / operator run view / operator job). V67/V68 → LearningExperimentEvidence only. **No** `procedural_memory.json`. |
 | `representation_evidence.rs` | 915 | Immutable installation of sealed, task-agnostic representation evidence. This module deliberately does not update `state/observations`. It turns a sealed capture plus fresh, sta… |
 | `sleep_diagnostics.rs` | 182 | API pública: enum ConsolidationEventKind, struct ConsolidationEvent, struct SleepConsolidationDiagnostics, fn diagnose_consolidation |
 | `sleep_evidence.rs` | 2031 | API pública: const NONINFERIORITY_95_Z, const MAX_SLEEP_EVIDENCE_JSON_BYTES, struct ProtectionEvidenceSummary, struct InteractionEvidenceSummary |
@@ -37,6 +38,7 @@ Conecta observación → candidatos → evidencias selladas sin auto-promocionar
 - `numerical_evolution.rs`
 - `portfolio_governance.rs`
 - `procedural_memory.rs`
+- `procedural_replay.rs`
 - `representation_evidence.rs`
 - `sleep_diagnostics.rs`
 - `sleep_evidence.rs`

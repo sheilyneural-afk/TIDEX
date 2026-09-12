@@ -45,6 +45,10 @@ use tidex::governance::universal_promotion_gate::{
     evaluate_universal_promotion_gate, UniversalPromotionGateRequest,
 };
 use tidex::knowledge::knowledge_engine::{AuthorityInstanceId, KnowledgeEngine};
+use tidex::learning::experimental_evidence_admission::{
+    admit_and_assimilate_vxx_receipt_under_root, admit_vxx_receipt_under_root,
+    read_vxx_receipt_file,
+};
 use tidex::learning::numerical_evolution::{
     numerical_metric_specs, NumericalEvaluationGroup, NumericalEvaluationLimits,
     NumericalEvolutionDisposition, NumericalEvolutionEngine, NumericalEvolutionInput,
@@ -56,10 +60,7 @@ use tidex::learning::portfolio_governance::{
 };
 use tidex::learning::procedural_memory::{CapabilityContext, ProceduralMemory, RetrievalQuery};
 use tidex::learning::procedural_replay::{
-    rebuild_from_authenticated_stdout, retrieve_procedural_advice,
-};
-use tidex::learning::experimental_evidence_admission::{
-    admit_and_assimilate_vxx_receipt_under_root, admit_vxx_receipt_under_root, read_vxx_receipt_file,
+    rebuild_from_authenticated_receipt, retrieve_procedural_advice, OPERATOR_RUN_VIEW_SCHEMA,
 };
 use tidex::learning::solver_portfolio::{
     CandidateRepresentation, LeastSquaresProblem, PortfolioPolicy,
@@ -368,13 +369,17 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
                 serde_json::to_string_pretty(&execute_numerical_evolution(Path::new(path))?)?
             );
         }
-        [area, command, path] if area == "procedural" && command == "replay-from-run-receipt" => {
-            let receipt: OperatorRunReceipt = read_json_bounded(Path::new(path))?;
-            let memory = rebuild_procedural_memory_from_operator_run(&receipt)?;
+        [area, command, path]
+            if area == "procedural"
+                && (command == "replay-from-run-receipt" || command == "replay") =>
+        {
+            let bytes = read_bytes_bounded(Path::new(path), MAX_CLI_JSON_BYTES)?;
+            let (source_schema, memory) = rebuild_procedural_memory_from_receipt_bytes(&bytes)?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "schema":"tidex.procedural_memory_replay/v1",
+                    "source_schema":source_schema,
                     "attempt_count":memory.attempt_count(),
                     "solver_run_failure_count":memory.solver_run_failure_count(),
                     "drift_count":memory.drift_count(),
@@ -383,9 +388,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
                 }))?
             );
         }
-        [area, command, session, receipt]
-            if area == "learning" && command == "admit-vxx" =>
-        {
+        [area, command, session, receipt] if area == "learning" && command == "admit-vxx" => {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&execute_learning_admit_vxx(
@@ -1354,6 +1357,26 @@ fn execute_learning_admit_vxx(
     }
 }
 
+/// Multi-schema composition root: path-only Operator run receipts load stdout
+/// here (this bin may import `crate::operator`); every other supported schema
+/// goes through [`rebuild_from_authenticated_receipt`].
+fn rebuild_procedural_memory_from_receipt_bytes(
+    bytes: &[u8],
+) -> Result<(String, ProceduralMemory), Box<dyn std::error::Error>> {
+    let value: serde_json::Value = serde_json::from_slice(bytes)?;
+    let source_schema = value
+        .get("schema")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    if source_schema == "tidex.operator_run_receipt/v1" {
+        let receipt: OperatorRunReceipt = serde_json::from_slice(bytes)?;
+        let memory = rebuild_procedural_memory_from_operator_run(&receipt)?;
+        return Ok((source_schema, memory));
+    }
+    Ok((source_schema, rebuild_from_authenticated_receipt(bytes, None)?))
+}
+
 fn rebuild_procedural_memory_from_operator_run(
     receipt: &OperatorRunReceipt,
 ) -> Result<ProceduralMemory, Box<dyn std::error::Error>> {
@@ -1364,7 +1387,16 @@ fn rebuild_procedural_memory_from_operator_run(
         return Err("procedural_replay_operator_run_claims_production".into());
     }
     let stdout_bytes = read_bytes_bounded(&receipt.stdout, MAX_CLI_JSON_BYTES)?;
-    Ok(rebuild_from_authenticated_stdout(&stdout_bytes, &receipt.stdout_sha256)?)
+    let stdout = String::from_utf8(stdout_bytes)
+        .map_err(|_| "procedural_replay_operator_run_stdout_not_utf8")?;
+    let view = json!({
+        "schema": OPERATOR_RUN_VIEW_SCHEMA,
+        "receipt": receipt,
+        "stdout": stdout,
+        "stderr": ""
+    });
+    let view_bytes = serde_json::to_vec(&view)?;
+    Ok(rebuild_from_authenticated_receipt(&view_bytes, None)?)
 }
 
 #[allow(dead_code)] // Workflow hook for Paso 2B / Paso 3 composition.
@@ -1529,7 +1561,7 @@ fn usage() -> &'static str {
         "  tidex acquire [--path <relative-project-path>]\n",
         "  tidex knowledge plan <input.json>\n",
         "  tidex knowledge staircase <input.json>\n",
-        "  tidex numerical evolve <input.json>\n  tidex procedural replay-from-run-receipt <operator-run-receipt.json>\n  tidex learning admit-vxx <session-id> <receipt.json> [--assimilate]\n  tidex workflow decide <workflow-decision-input.json>\n",
+        "  tidex numerical evolve <input.json>\n  tidex procedural replay-from-run-receipt <receipt.json>\n  tidex procedural replay <receipt.json>\n  tidex learning admit-vxx <session-id> <receipt.json> [--assimilate]\n  tidex workflow decide <workflow-decision-input.json>\n",
         "  tidex analysis tomography <observations.json>\n",
         "  tidex analysis protected-map <input.json>\n",
         "  tidex analysis geometry <input.json>\n",
