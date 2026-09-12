@@ -115,6 +115,7 @@ use tidex::receiver::receiver_weight_binding::{
 use tidex::runtime::isolated_execution::AuthenticatedBytes;
 
 mod workflow_next_action;
+mod procedure_selector_vertical;
 
 const MAX_CLI_JSON_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ANALYSIS_INPUT_BYTES: u64 = 64 * 1024 * 1024;
@@ -1031,6 +1032,20 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
             let receipt = workflow_next_action::decide_and_dry_run(&home, &input)?;
             println!("{}", serde_json::to_string_pretty(&receipt)?);
         }
+        [area, command] if area == "demo" && command == "procedure-selector" => {
+            let home = configured_tidex_home()?;
+            let gpem_store = home.join("state/demo/procedure_selector/gpem-store");
+            let receipt = procedure_selector_vertical::run_demo(gpem_store, false)?;
+            println!("{}", serde_json::to_string_pretty(&receipt)?);
+        }
+        [area, command, flag]
+            if area == "demo" && command == "procedure-selector" && flag == "--with-second-tick" =>
+        {
+            let home = configured_tidex_home()?;
+            let gpem_store = home.join("state/demo/procedure_selector/gpem-store");
+            let receipt = procedure_selector_vertical::run_demo(gpem_store, true)?;
+            println!("{}", serde_json::to_string_pretty(&receipt)?);
+        }
         _ => return Err(usage().into()),
     }
     Ok(())
@@ -1501,7 +1516,7 @@ fn usage() -> &'static str {
         "  tidex operator graph\n",
         "  tidex staircase\n",
         "  tidex operator staircase\n",
-        "  tidex residency decide <request.json>\n",
+        "  tidex residency decide <request.json>\n  tidex demo procedure-selector [--with-second-tick]\n",
         "  tidex operator executors\n",
         "  tidex executors\n",
         "  tidex executor <executor-id>\n",

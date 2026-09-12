@@ -1,7 +1,7 @@
 # TIDE-X: dos aprendizajes y los dos eslabones que faltan
 
 **Fecha:** 2026-09-12 (Europe/Madrid)  
-**Checkout:** `/home/yo/Future` @ `8592123`+ (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A DONE @ `bc531d7`; Paso 3 DONE @ `3ccd61f`; Paso 4 DONE @ `8592123`; Paso 5 residency from authenticated capacity  
+**Checkout:** `/home/yo/Future` @ `85f0e60`+ (`feat/durable-plasticity-controllers`) — Paso 1 CLOSED; Paso 2A DONE @ `bc531d7`; Paso 3 DONE @ `3ccd61f`; Paso 4 DONE @ `8592123`; Paso 5 DONE @ `85f0e60`; Paso 6 procedure-selector vertical demo  
 **Contexto de código:** [PR #1](https://github.com/sheilyneural-afk/TIDEX/pull/1) — controladores durables + coevolución causal + `plan_next_tick`. Aún no es el organismo cerrado.  
 **Naturaleza de este doc:** dos partes explícitas. **Parte I** = mapa del problema (qué falta y por qué; los dos eslabones siguen siendo el mapa correcto). **Parte II** = orden de implementación (camino crítico de 6 pasos; **no** es el mismo orden que el mapa). No es código. No pide algoritmos nuevos de plasticidad.
 
@@ -18,8 +18,8 @@
 | Paso 2 (ProceduralMemory útil) | **2A DONE** @ `bc531d7` (canonical replay + tests); **2B DONE** (`retrieve_procedural_advice`); **2C DONE** (fold into NextAction via workflow coordinator) |
 | Paso 3 (cerrar `NextAction` → executor) | **DONE** @ `3ccd61f` (workflow coordinator → registry executor → dry-run/start_operator_job hook); hito B cerrado a nivel decisor |
 | Paso 4 (adquisición funcional) | **DONE** @ `8592123` — `authenticated_capacity` seals evidence→contract package (no CapabilityIR) |
-| Paso 5 (residencia / IR) | **DONE (thin slice)** — package → `ResidencyDecision` (Software / Hybrid / Weights / BoundedUnknown); CapabilityIR gated, never from Software |
-| Paso 6 (demo real) | Criterio de aceptación bueno |
+| Paso 5 (residencia / IR) | **DONE** @ `85f0e60` — package → `ResidencyDecision` (Software / Hybrid / Weights / BoundedUnknown); CapabilityIR gated, never from Software |
+| Paso 6 (demo real) | **DONE (fixture + GPEM wire)** — procedure-selector vertical e2e; Software stop (no IR); receptor hook documented when admitted; optional second-tick |
 
 ---
 
@@ -618,7 +618,7 @@ No más “archivo en la caja fuerte”. Observaciones / intervenciones / contra
 **Ampliación opcional post-DONE:** ejecutar GPEM real (no solo fixture) y opcionalmente un job Operator que emita el mismo paquete.  
 **Fuera de Paso 4:** `ResidencyDecision` / `CapabilityIR` (Paso 5 — hecho thin slice).
 
-### Paso 5 — RESIDENCY / REPRESENTATION — **DONE (thin slice)**
+### Paso 5 — RESIDENCY / REPRESENTATION — **DONE** @ `85f0e60`
 
 Método de §5.1, no el anti-patrón:
 
@@ -640,37 +640,35 @@ evidence
 
 Fail-closed a `BoundedUnknown` + obligaciones. Nunca un peso inventado. Nunca `código → CapabilityIR`. `ResidencyDecision::Software` es inteligencia válida.
 
-**Cierre thin de A (residencia):** fixture procedure-selector produce `Software` justificada y detiene IR. Weights/Hybrid solo con evidencia causal+contratos explícitos. Siguiente = Paso 6 demo GPEM→receptor pequeño.
+**Cierre thin de A (residencia):** fixture procedure-selector produce `Software` justificada y detiene IR. Weights/Hybrid solo con evidencia causal+contratos explícitos. Cerrado en tip `85f0e60`. Paso 6 consume esta API.
 
-### Paso 6 — REAL DEMO
+### Paso 6 — REAL DEMO — **DONE (fixture + GPEM wire)** 
 
 ```text
-GPEM → TIDE-X autónomo → LLM pequeño → medir → aprender CÓMO → mejor segundo intento
+GPEM wire probe (fail-closed) → fixture seal → ResidencyDecision
+  → Software: stop honestly (no IR, no receptor)
+  → Weights/Hybrid-admitted: document receptor hook only (no invented IR / no fake transplant)
+  → optional second-tick: synthetic procedural hint changes NextAction
 ```
 
 Capacidad ejemplo (acotada, no un organismo entero):
 
 > Dado un contexto + varios procedimientos históricos + resultados previos, elegir el procedimiento más adecuado **o** decidir explorar.
 
-Sin cableado humano de cada tramo:
+| Pieza | Estado |
+|-------|--------|
+| Donor | `tidex.donor.gpem_v2_recommend/v1` constructed + `observe` fail-closed; sealed fixture `FixtureProcedureSelector` (honest) |
+| Seal | Paso 4 `seal_fixture_procedure_selector_capacity` / `AuthenticatedCapacityPackage` |
+| Residency | Paso 5 `decide_from_authenticated_capacity` → **Software** for fixture vertical |
+| IR | Stopped (`SoftwareResidency`); `capability_ir_emitted=false` |
+| Receptor | **Not entered** on Software; Weights admission documents hook engines only |
+| CLI | `tidex demo procedure-selector [--with-second-tick]` |
+| Modules | `src/governance/procedure_selector_vertical.rs` + `src/bin/procedure_selector_vertical.rs` |
+| Second-tick | After Software, synthetic procedural hint flips NextAction executor (Paso 3 story) |
 
-```text
-capturar
-  → descubrir capacidad
-  → obligaciones de evidencia
-  → experimentos
-  → residencia
-  → IR si procede
-  → elegir receptor
-  → estrategia desde la historia
-  → materializar
-  → evaluar
-  → rechazar / mejorar / promover
-  → recordar (replay → ProceduralMemory)
-  → reutilizar
-```
+**Acceptance notes:** Software-as-valid-intelligence proven end-to-end. Live GPEM→SmolLM weights transplant is **not** claimed — GPEM observe still unwired; no CapabilityIR invented from donor trees.
 
-Si este demo no corre solo, A y B no están cerrados — da igual cuántos órganos haya.
+**Remaining gaps (honest) for live GPEM→SmolLM later:** wire `GpemV2RecommendDonorWire::observe` to a real GPEM store; obtain authenticated CapabilityIR from measured evidence (not source trees); small receptor materialize/measure only when residency admits Weights/Hybrid with that IR; persist experience into ProceduralMemory replay for a non-synthetic second tick.
 
 ### Fuera de este camino
 
@@ -690,4 +688,4 @@ No abrir Ola RALF / Minimum Space / otros BCM como sustituto de estos seis pasos
 
 ---
 
-*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad hasta cerrar los seis pasos. Paso 1 CLOSED. Paso 2A DONE @ bc531d7; 2B/2C + Paso 3 DONE @ 3ccd61f. Paso 4 DONE @ 8592123. Paso 5 thin slice: authenticated capacity → ResidencyDecision + IR gate. Siguiente = Paso 6 demo GPEM→receptor pequeño. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
+*Doc de mapa (Parte I) + orden de implementación (Parte II). No pide módulos nuevos de plasticidad. Paso 1 CLOSED. Paso 2A DONE @ bc531d7; 2B/2C + Paso 3 DONE @ 3ccd61f. Paso 4 DONE @ 8592123. Paso 5 DONE @ 85f0e60. Paso 6 DONE (fixture + GPEM wire): procedure-selector vertical → Software stop / receptor hook documented. Live GPEM→SmolLM transplant remains a later gap. Sin `procedural_memory.json`. Sin dependencias cruzadas silenciosas Operator←KE/PM. evidencia → ResidencyDecision → CapabilityIR.*
